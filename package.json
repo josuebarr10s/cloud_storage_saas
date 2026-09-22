@@ -1,0 +1,12 @@
+{
+  "name": "nimbox-cloud-storage",
+  "version": "1.0.0",
+  "description": "Nimbox - Plataforma de Almacenamiento en la Nube (STaaS)",
+  "scripts": {
+    "dev": "cd client && npm run dev",
+    "build": "cd client && npm run build",
+    "preview": "cd client && npm run preview"
+  },
+  "author": "Universidad Rafael Landívar - Ingeniería de Software I",
+  "license": "ISC"
+}
