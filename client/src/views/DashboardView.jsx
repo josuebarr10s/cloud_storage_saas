@@ -1,90 +1,86 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Cloud, HardDrive, Upload, FolderPlus, Share2, LogOut, Search, 
   FileText, Image as ImageIcon, Video, FileCode, Archive, Trash2, Download, 
-  CheckCircle, Shield, MoreVertical, Plus, Clock, ExternalLink
+  CheckCircle, Shield, MoreVertical, Plus, Clock, ExternalLink, Loader2
 } from 'lucide-react';
+import { filesService } from '../services/filesService.js';
 
 export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
   const [activeTab, setActiveTab] = useState('all'); // 'all' | 'docs' | 'images' | 'media'
   const [searchQuery, setSearchQuery] = useState('');
-  
-  // Initial Mock Files
-  const [files, setFiles] = useState([
-    {
-      id: 1,
-      name: 'Presentacion_Proyecto_Nimbox.pdf',
-      type: 'pdf',
-      size: '4.2 MB',
-      updated: 'Hace 10 minutos',
-      category: 'docs',
-      shared: true
-    },
-    {
-      id: 2,
-      name: 'Arquitectura_Seguridad_SSL.docx',
-      type: 'doc',
-      size: '1.8 MB',
-      updated: 'Hace 2 horas',
-      category: 'docs',
-      shared: false
-    },
-    {
-      id: 3,
-      name: 'Mockup_Diseño_UI_Figma.png',
-      type: 'image',
-      size: '12.4 MB',
-      updated: 'Ayer',
-      category: 'images',
-      shared: true
-    },
-    {
-      id: 4,
-      name: 'Video_Demostracion_SaaS.mp4',
-      type: 'video',
-      size: '84.5 MB',
-      updated: 'Hace 3 días',
-      category: 'media',
-      shared: false
-    },
-    {
-      id: 5,
-      name: 'Respaldo_Base_Datos_SQL.zip',
-      type: 'zip',
-      size: '142.0 MB',
-      updated: 'Hace 5 días',
-      category: 'docs',
-      shared: false
+  const [files, setFiles] = useState([]);
+  const [isLoadingFiles, setIsLoadingFiles] = useState(true);
+  const [isUploading, setIsUploading] = useState(false);
+
+  // Cargar archivos del usuario desde Supabase
+  useEffect(() => {
+    async function loadFiles() {
+      setIsLoadingFiles(true);
+      try {
+        const userFiles = await filesService.getUserFiles(currentUser?.id);
+        setFiles(userFiles);
+      } catch (err) {
+        console.error('Error al cargar archivos de Supabase:', err);
+      } finally {
+        setIsLoadingFiles(false);
+      }
     }
-  ]);
+    loadFiles();
+  }, [currentUser?.id]);
 
   const planName = currentUser?.plan || 'Pro';
   const storageQuota = currentUser?.storageQuota || '500 GB';
-  const usedStorage = '244.9 MB';
-  const percentUsed = 1.2;
 
-  // Simulate file upload
-  const handleSimulateUpload = (e) => {
+  // Calcular almacenamiento usado dinámicamente
+  const totalBytes = files.reduce((acc, file) => acc + (file.size_bytes || 0), 0);
+  const usedStorage = totalBytes > 0 
+    ? (totalBytes > 1024 * 1024 * 1024 
+        ? `${(totalBytes / (1024 * 1024 * 1024)).toFixed(2)} GB` 
+        : `${(totalBytes / (1024 * 1024)).toFixed(1)} MB`)
+    : '0 MB';
+
+  // Quota percentage calculation (assuming 500GB default or 10GB for Basic)
+  const quotaBytes = planName.toLowerCase().includes('básico') 
+    ? 10 * 1024 * 1024 * 1024 
+    : 500 * 1024 * 1024 * 1024;
+  const percentUsed = Math.min(100, Math.max(0.1, ((totalBytes / quotaBytes) * 100).toFixed(1)));
+
+  // Subida real de archivos a Supabase Storage y BD
+  const handleFileUpload = async (e) => {
     const uploadedFile = e.target.files?.[0];
     if (!uploadedFile) return;
 
-    const newFile = {
-      id: Date.now(),
-      name: uploadedFile.name,
-      type: uploadedFile.name.endsWith('.png') || uploadedFile.name.endsWith('.jpg') ? 'image' : 'doc',
-      size: `${(uploadedFile.size / (1024 * 1024)).toFixed(1)} MB`,
-      updated: 'Ahora mismo',
-      category: 'docs',
-      shared: false
-    };
+    setIsUploading(true);
+    onNotification && onNotification(`Subiendo "${uploadedFile.name}" a Supabase Storage...`, 'info');
 
-    setFiles([newFile, ...files]);
-    onNotification && onNotification(`Archivo "${uploadedFile.name}" subido y cifrado exitosamente en la nube.`, 'success');
+    try {
+      const newFile = await filesService.uploadFile(currentUser?.id, uploadedFile);
+      setFiles(prev => [newFile, ...prev]);
+      onNotification && onNotification(`Archivo "${uploadedFile.name}" subido y guardado exitosamente en la nube.`, 'success');
+    } catch (err) {
+      onNotification && onNotification(`Error al subir el archivo: ${err.message}`, 'error');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
-  const handleDeleteFile = (id, name) => {
-    setFiles(files.filter(f => f.id !== id));
-    onNotification && onNotification(`Archivo "${name}" eliminado.`, 'info');
+  // Eliminación de archivo en Supabase BD y Storage
+  const handleDeleteFile = async (id, name, filePath) => {
+    try {
+      setFiles(prev => prev.filter(f => f.id !== id));
+      await filesService.deleteFile(currentUser?.id, id, filePath);
+      onNotification && onNotification(`Archivo "${name}" eliminado.`, 'info');
+    } catch (err) {
+      onNotification && onNotification(`Error al eliminar archivo`, 'error');
+    }
+  };
+
+  // Cambiar compartir
+  const handleToggleShare = async (id, currentShared) => {
+    setFiles(prev => prev.map(f => f.id === id ? { ...f, shared: !currentShared } : f));
+    await filesService.toggleShareFile(id, currentShared);
+    onNotification && onNotification(`Permisos de compartido actualizados.`, 'success');
   };
 
   const getFileIcon = (type) => {
@@ -333,21 +329,27 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
               <Search size={16} color="var(--text-light)" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
             </div>
 
-            {/* Hidden File Input for Simulated Upload */}
+            {/* Real File Input for Supabase Storage Upload */}
             <label
               className="btn-primary"
               style={{
                 padding: '8px 16px',
                 fontSize: '0.85rem',
                 borderRadius: '10px',
-                cursor: 'pointer',
-                margin: 0
+                cursor: isUploading ? 'not-allowed' : 'pointer',
+                opacity: isUploading ? 0.7 : 1,
+                margin: 0,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px'
               }}
             >
-              <Upload size={16} /> Subir Archivo
+              {isUploading ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Upload size={16} />}
+              {isUploading ? 'Subiendo...' : 'Subir Archivo'}
               <input
                 type="file"
-                onChange={handleSimulateUpload}
+                onChange={handleFileUpload}
+                disabled={isUploading}
                 style={{ display: 'none' }}
               />
             </label>
@@ -364,7 +366,12 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
             boxShadow: 'var(--shadow-sm)'
           }}
         >
-          {filteredFiles.length === 0 ? (
+          {isLoadingFiles ? (
+            <div style={{ padding: '3rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+              <Loader2 size={36} style={{ margin: '0 auto 12px auto', animation: 'spin 1s linear infinite' }} />
+              <p style={{ fontWeight: 600, fontSize: '0.95rem' }}>Cargando archivos desde Supabase...</p>
+            </div>
+          ) : filteredFiles.length === 0 ? (
             <div style={{ padding: '3rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
               <Cloud size={40} style={{ margin: '0 auto 12px auto', opacity: 0.4 }} />
               <p style={{ fontWeight: 600, fontSize: '0.95rem' }}>No se encontraron archivos</p>
@@ -420,15 +427,21 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
                     </td>
 
                     <td style={{ padding: '14px 16px' }}>
-                      {file.shared ? (
-                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--primary)', background: 'var(--primary-light)', padding: '2px 8px', borderRadius: '9999px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                          <Share2 size={11} /> Compartido
-                        </span>
-                      ) : (
-                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', background: 'var(--bg-hover)', padding: '2px 8px', borderRadius: '9999px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                          <Shield size={11} /> Privado
-                        </span>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleToggleShare(file.id, file.shared)}
+                        style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 0 }}
+                      >
+                        {file.shared ? (
+                          <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--primary)', background: 'var(--primary-light)', padding: '2px 8px', borderRadius: '9999px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <Share2 size={11} /> Compartido
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', background: 'var(--bg-hover)', padding: '2px 8px', borderRadius: '9999px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <Shield size={11} /> Privado
+                          </span>
+                        )}
+                      </button>
                     </td>
 
                     <td style={{ padding: '14px 20px', textAlign: 'right' }}>
@@ -440,7 +453,8 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
                             padding: '6px',
                             borderRadius: '6px',
                             color: 'var(--text-muted)',
-                            background: 'transparent'
+                            background: 'transparent',
+                            cursor: 'pointer'
                           }}
                           title="Descargar archivo"
                         >
@@ -448,12 +462,13 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleDeleteFile(file.id, file.name)}
+                          onClick={() => handleDeleteFile(file.id, file.name, file.file_path)}
                           style={{
                             padding: '6px',
                             borderRadius: '6px',
                             color: 'var(--danger)',
-                            background: 'transparent'
+                            background: 'transparent',
+                            cursor: 'pointer'
                           }}
                           title="Eliminar archivo"
                         >

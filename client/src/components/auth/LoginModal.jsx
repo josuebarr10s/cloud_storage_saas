@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { X, Lock, Mail, Eye, EyeOff, ArrowRight, Sparkles, LogIn, AlertCircle } from 'lucide-react';
+import { X, Lock, Mail, Eye, EyeOff, ArrowRight, Sparkles, LogIn, AlertCircle, Loader2 } from 'lucide-react';
+import { authService } from '../../services/authService.js';
 
 export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onOpenRegister }) => {
   const [email, setEmail] = useState('');
@@ -7,10 +8,11 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onOpenRegister }) 
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     setErrorMessage('');
 
@@ -19,29 +21,20 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onOpenRegister }) 
       return;
     }
 
+    setIsLoading(true);
     try {
-      const registeredUsers = JSON.parse(localStorage.getItem('nimbox_registered_users') || '[]');
-      const user = registeredUsers.find(
-        (u) => u.email.toLowerCase() === email.toLowerCase().trim() && u.password === password
-      );
+      const { user, error } = await authService.signIn({ email, password });
 
       if (user) {
-        // Successful login
-        localStorage.setItem('nimbox_current_user', JSON.stringify(user));
         onLoginSuccess && onLoginSuccess(user);
         onClose();
       } else {
-        // Check if user exists with another password
-        const emailExists = registeredUsers.some((u) => u.email.toLowerCase() === email.toLowerCase().trim());
-        if (emailExists) {
-          setErrorMessage('Contraseña incorrecta. Por favor intenta de nuevo.');
-        } else {
-          // If no registered user matches, check demo fallback or notify
-          setErrorMessage('No encontramos ninguna cuenta con este correo. Simula un pago primero para registrar tu cuenta.');
-        }
+        setErrorMessage(error?.message || 'No se pudo iniciar sesión. Verifica tus credenciales.');
       }
     } catch (err) {
-      setErrorMessage('Ocurrió un error al verificar tus credenciales.');
+      setErrorMessage('Ocurrió un error al verificar tus credenciales en Supabase.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -284,14 +277,25 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onOpenRegister }) 
             <button
               type="submit"
               className="btn-primary"
+              disabled={isLoading}
               style={{
                 width: '100%',
                 padding: '0.85rem',
                 fontSize: '0.95rem',
-                marginTop: '6px'
+                marginTop: '6px',
+                opacity: isLoading ? 0.7 : 1,
+                cursor: isLoading ? 'not-allowed' : 'pointer'
               }}
             >
-              Entrar a mi Cuenta <ArrowRight size={16} />
+              {isLoading ? (
+                <>
+                  <Loader2 size={16} className="spin" style={{ animation: 'spin 1s linear infinite' }} /> Validando...
+                </>
+              ) : (
+                <>
+                  Entrar a mi Cuenta <ArrowRight size={16} />
+                </>
+              )}
             </button>
           </form>
 

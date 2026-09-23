@@ -3,6 +3,8 @@ import {
   X, Check, ShieldCheck, CreditCard, Lock, ArrowRight, ArrowLeft, 
   Sparkles, CheckCircle2, Copy, Download, RefreshCw, Eye, EyeOff, AlertCircle, Calendar, Hash
 } from 'lucide-react';
+import { authService } from '../../services/authService.js';
+import { plansService } from '../../services/plansService.js';
 
 export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'monthly', onPaymentSuccess }) => {
   // Steps: 1 = Payment Details, 2 = Account Credentials, 3 = Processing, 4 = Success Receipt
@@ -197,30 +199,34 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
       setProcessingStatusText('¡Aprovisionamiento de almacenamiento completado!');
     }, 2600);
 
-    // Stage 4: Finish & Register User in State / LocalStorage
-    setTimeout(() => {
-      const newUser = {
-        name: fullName,
-        email: email.toLowerCase().trim(),
+    // Stage 4: Finish & Register User in Supabase & State / LocalStorage
+    setTimeout(async () => {
+      const cardLast4 = cardNumber.replace(/\s/g, '').slice(-4) || '4242';
+
+      // 1. Registrar usuario en Supabase Auth y base de datos
+      const { user: registeredUser } = await authService.signUp({
+        email: email,
         password: password,
+        name: fullName,
         plan: plan.nombre,
         planId: plan.id_plan,
-        storageQuota: plan.nombre.toLowerCase().includes('básico') ? '10 GB' : plan.nombre.toLowerCase().includes('pro') ? '500 GB' : 'Ilimitado',
         billingCycle: billingCycle,
         amountPaid: billedTotal,
         transactionId: tId,
-        memberSince: new Date().toISOString(),
-        cardLast4: cardNumber.replace(/\s/g, '').slice(-4) || '4242'
-      };
+        cardLast4: cardLast4
+      });
 
-      try {
-        const existingUsers = JSON.parse(localStorage.getItem('nimbox_registered_users') || '[]');
-        const filtered = existingUsers.filter(u => u.email !== newUser.email);
-        filtered.push(newUser);
-        localStorage.setItem('nimbox_registered_users', JSON.stringify(filtered));
-        localStorage.setItem('nimbox_current_user', JSON.stringify(newUser));
-      } catch (err) {
-        console.error('Error saving user data', err);
+      // 2. Registrar la suscripción en Supabase BD
+      if (registeredUser) {
+        await plansService.createSubscription({
+          userId: registeredUser.id,
+          planId: plan.id_plan,
+          planName: plan.nombre,
+          billingCycle: billingCycle,
+          amountPaid: billedTotal,
+          transactionId: tId,
+          cardLast4: cardLast4
+        });
       }
 
       setCurrentStep(4);
