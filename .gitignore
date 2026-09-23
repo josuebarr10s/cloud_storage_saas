@@ -22,3 +22,8 @@ pnpm-debug.log*
 Thumbs.db
 .vscode/
 .idea/
+
+# Variables de entorno
+.env
+.env.local
+.env.development
