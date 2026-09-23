@@ -55,7 +55,7 @@ export const LandingPage = ({ onOpenCheckout, onOpenLogin }) => {
   };
 
   return (
-    <div style={{ background: '#ffffff', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ background: 'var(--bg-body)', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       {/* 1. Header / Navigation */}
       <LandingNavbar
         onLoginClick={handleLoginClick}

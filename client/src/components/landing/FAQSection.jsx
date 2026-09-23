@@ -36,7 +36,7 @@ export const FAQSection = ({ onGetStartedClick }) => {
   };
 
   return (
-    <section id="faq" style={{ padding: '5.5rem 0', background: '#ffffff', borderTop: '1px solid var(--border-color)' }}>
+    <section id="faq" style={{ padding: '5.5rem 0', background: 'var(--bg-body)', borderTop: '1px solid var(--border-color)' }}>
       <div className="landing-container">
         {/* Section Header */}
         <div style={{ textAlign: 'center', maxWidth: '700px', margin: '0 auto 3.5rem auto' }}>
@@ -67,11 +67,11 @@ export const FAQSection = ({ onGetStartedClick }) => {
               <div
                 key={idx}
                 style={{
-                  borderRadius: '14px',
+                  borderRadius: 'var(--radius-md)',
                   overflow: 'hidden',
                   border: isOpen ? '1px solid var(--accent-indigo-border)' : '1px solid var(--border-color)',
-                  background: isOpen ? 'var(--bg-tint)' : '#ffffff',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                  background: isOpen ? 'var(--bg-tint)' : 'var(--bg-card)',
+                  boxShadow: 'var(--shadow-sm)',
                   transition: 'all 0.2s',
                 }}
               >
@@ -95,7 +95,7 @@ export const FAQSection = ({ onGetStartedClick }) => {
                     style={{
                       width: '28px',
                       height: '28px',
-                      borderRadius: '50%',
+                      borderRadius: 'var(--radius-full)',
                       background: isOpen ? 'var(--primary-light)' : 'var(--bg-hover)',
                       display: 'flex',
                       alignItems: 'center',
@@ -127,15 +127,15 @@ export const FAQSection = ({ onGetStartedClick }) => {
           })}
         </div>
 
-        {/* Final CTA Banner (Figma Banner style) */}
+        {/* Final CTA Banner */}
         <div
           style={{
-            background: 'linear-gradient(135deg, var(--primary) 0%, #6366f1 100%)',
-            borderRadius: '24px',
+            background: 'var(--hero-gradient)',
+            borderRadius: 'var(--radius-2xl)',
             padding: '4rem 2rem',
             textAlign: 'center',
-            color: '#ffffff',
-            boxShadow: '0 20px 25px -5px rgba(79, 70, 229, 0.25)',
+            color: 'var(--text-white)',
+            boxShadow: 'var(--shadow-card-primary)',
           }}
         >
           <div style={{ maxWidth: '650px', margin: '0 auto' }}>
@@ -144,10 +144,10 @@ export const FAQSection = ({ onGetStartedClick }) => {
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '6px',
-                background: 'rgba(255, 255, 255, 0.2)',
-                color: '#ffffff',
+                background: 'var(--white-alpha-20)',
+                color: 'var(--text-white)',
                 padding: '4px 14px',
-                borderRadius: '9999px',
+                borderRadius: 'var(--radius-full)',
                 fontSize: '0.8rem',
                 fontWeight: 600,
                 marginBottom: '1.25rem',
@@ -178,10 +178,10 @@ export const FAQSection = ({ onGetStartedClick }) => {
                 padding: '0.9rem 2.25rem',
                 fontSize: '1rem',
                 fontWeight: 700,
-                borderRadius: '12px',
-                background: '#ffffff',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--bg-card)',
                 color: 'var(--primary)',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                boxShadow: 'var(--shadow-md)',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '8px',
@@ -195,3 +195,5 @@ export const FAQSection = ({ onGetStartedClick }) => {
     </section>
   );
 };
+
+export default FAQSection;

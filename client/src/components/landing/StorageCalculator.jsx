@@ -17,7 +17,7 @@ export const StorageCalculator = ({ onSelectPlan }) => {
   const videoHours = Math.round(storageGB * 0.25); // 4GB por hora 4K
   const docsCount = Math.round(storageGB * 500); // 2MB por documento
 
-  // Determinación de plan recomendado según el catálogo oficial de Figma
+  // Determinación de plan recomendado
   let recommendedPlan = {
     name: 'Básico',
     price: 5,
@@ -59,7 +59,7 @@ export const StorageCalculator = ({ onSelectPlan }) => {
       id="calculator"
       style={{
         padding: '5.5rem 0',
-        background: '#ffffff',
+        background: 'var(--bg-body)',
         borderTop: '1px solid var(--border-color)',
       }}
     >
@@ -99,7 +99,7 @@ export const StorageCalculator = ({ onSelectPlan }) => {
             style={{
               background: 'var(--bg-subtle)',
               border: '1px solid var(--border-color)',
-              borderRadius: '20px',
+              borderRadius: 'var(--radius-xl)',
               padding: '2.25rem',
             }}
           >
@@ -115,11 +115,11 @@ export const StorageCalculator = ({ onSelectPlan }) => {
                     onClick={() => setStorageGB(p.value)}
                     style={{
                       padding: '6px 12px',
-                      borderRadius: '8px',
+                      borderRadius: 'var(--radius-sm)',
                       fontSize: '0.8rem',
                       fontWeight: 600,
-                      background: storageGB === p.value ? 'var(--primary)' : '#ffffff',
-                      color: storageGB === p.value ? '#ffffff' : 'var(--text-secondary)',
+                      background: storageGB === p.value ? 'var(--primary)' : 'var(--bg-card)',
+                      color: storageGB === p.value ? 'var(--text-white)' : 'var(--text-secondary)',
                       border: storageGB === p.value ? '1px solid var(--primary)' : '1px solid var(--border-hover)',
                     }}
                   >
@@ -148,7 +148,7 @@ export const StorageCalculator = ({ onSelectPlan }) => {
                 style={{
                   width: '100%',
                   height: '8px',
-                  borderRadius: '6px',
+                  borderRadius: 'var(--radius-xs)',
                   background: `linear-gradient(to right, var(--primary) 0%, var(--primary) ${(storageGB / 2500) * 100}%, var(--border-color) ${(storageGB / 2500) * 100}%, var(--border-color) 100%)`,
                   appearance: 'none',
                   outline: 'none',
@@ -172,19 +172,19 @@ export const StorageCalculator = ({ onSelectPlan }) => {
                 borderTop: '1px solid var(--border-color)',
               }}
             >
-              <div style={{ textAlign: 'center', background: '#ffffff', padding: '12px 8px', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+              <div style={{ textAlign: 'center', background: 'var(--bg-card)', padding: '12px 8px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
                 <Camera size={18} color="var(--accent-sky)" style={{ margin: '0 auto 4px auto' }} />
                 <p style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main)' }}>~{photosCount.toLocaleString()}</p>
                 <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Fotos HD</p>
               </div>
 
-              <div style={{ textAlign: 'center', background: '#ffffff', padding: '12px 8px', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+              <div style={{ textAlign: 'center', background: 'var(--bg-card)', padding: '12px 8px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
                 <Film size={18} color="var(--accent-violet)" style={{ margin: '0 auto 4px auto' }} />
                 <p style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main)' }}>~{videoHours.toLocaleString()} hrs</p>
                 <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Video 4K</p>
               </div>
 
-              <div style={{ textAlign: 'center', background: '#ffffff', padding: '12px 8px', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+              <div style={{ textAlign: 'center', background: 'var(--bg-card)', padding: '12px 8px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
                 <FileText size={18} color="var(--success-hover)" style={{ margin: '0 auto 4px auto' }} />
                 <p style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main)' }}>~{docsCount.toLocaleString()}</p>
                 <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Documentos</p>
@@ -196,10 +196,10 @@ export const StorageCalculator = ({ onSelectPlan }) => {
           <div
             style={{
               background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%)',
-              color: '#ffffff',
-              borderRadius: '20px',
+              color: 'var(--text-white)',
+              borderRadius: 'var(--radius-xl)',
               padding: '2.5rem',
-              boxShadow: '0 20px 25px -5px rgba(79, 70, 229, 0.25)',
+              boxShadow: 'var(--shadow-card-primary)',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'space-between',
@@ -212,9 +212,9 @@ export const StorageCalculator = ({ onSelectPlan }) => {
                     fontSize: '0.75rem',
                     fontWeight: 700,
                     textTransform: 'uppercase',
-                    background: 'rgba(255, 255, 255, 0.2)',
+                    background: 'var(--white-alpha-20)',
                     padding: '4px 12px',
-                    borderRadius: '9999px',
+                    borderRadius: 'var(--radius-full)',
                     letterSpacing: '0.05em',
                   }}
                 >
@@ -224,10 +224,10 @@ export const StorageCalculator = ({ onSelectPlan }) => {
                   style={{
                     fontSize: '0.75rem',
                     fontWeight: 700,
-                    color: '#ffffff',
+                    color: 'var(--text-white)',
                     background: 'var(--success)',
                     padding: '3px 10px',
-                    borderRadius: '9999px',
+                    borderRadius: 'var(--radius-full)',
                   }}
                 >
                   {recommendedPlan.badge}
@@ -256,16 +256,16 @@ export const StorageCalculator = ({ onSelectPlan }) => {
               style={{
                 width: '100%',
                 padding: '0.9rem',
-                borderRadius: '12px',
+                borderRadius: 'var(--radius-md)',
                 fontWeight: 700,
                 fontSize: '0.95rem',
-                background: '#ffffff',
+                background: 'var(--bg-card)',
                 color: 'var(--primary)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '8px',
-                boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                boxShadow: 'var(--shadow-md)',
               }}
             >
               Elegir Plan {recommendedPlan.name} <ArrowRight size={16} />
@@ -276,3 +276,5 @@ export const StorageCalculator = ({ onSelectPlan }) => {
     </section>
   );
 };
+
+export default StorageCalculator;

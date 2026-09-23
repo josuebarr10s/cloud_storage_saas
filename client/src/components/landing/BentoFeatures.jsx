@@ -62,7 +62,7 @@ export const BentoFeatures = () => {
                 style={{
                   width: '46px',
                   height: '46px',
-                  borderRadius: '12px',
+                  borderRadius: 'var(--radius-md)',
                   background: 'var(--primary-light)',
                   color: 'var(--primary)',
                   display: 'flex',
@@ -87,7 +87,7 @@ export const BentoFeatures = () => {
                 marginTop: '2rem',
                 padding: '1.25rem',
                 background: 'var(--bg-subtle)',
-                borderRadius: '14px',
+                borderRadius: 'var(--radius-md)',
                 border: '1px solid var(--border-color)',
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
@@ -126,7 +126,7 @@ export const BentoFeatures = () => {
                 style={{
                   width: '46px',
                   height: '46px',
-                  borderRadius: '12px',
+                  borderRadius: 'var(--radius-md)',
                   background: 'var(--accent-sky-bg)',
                   color: 'var(--accent-sky)',
                   display: 'flex',
@@ -145,7 +145,7 @@ export const BentoFeatures = () => {
               </p>
             </div>
 
-            <div style={{ background: 'var(--bg-subtle)', padding: '12px', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+            <div style={{ background: 'var(--bg-subtle)', padding: '12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-strong)', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 500 }}>
                   <Lock size={13} color="var(--accent-sky)" /> Proteger con PIN
@@ -155,7 +155,7 @@ export const BentoFeatures = () => {
                   style={{
                     width: '34px',
                     height: '18px',
-                    borderRadius: '12px',
+                    borderRadius: 'var(--radius-md)',
                     background: demoProtectedLink ? 'var(--accent-sky)' : 'var(--border-hover)',
                     position: 'relative',
                   }}
@@ -164,8 +164,8 @@ export const BentoFeatures = () => {
                     style={{
                       width: '14px',
                       height: '14px',
-                      borderRadius: '50%',
-                      background: '#fff',
+                      borderRadius: 'var(--radius-full)',
+                      background: 'var(--text-white)',
                       position: 'absolute',
                       top: '2px',
                       left: demoProtectedLink ? '18px' : '2px',
@@ -186,10 +186,10 @@ export const BentoFeatures = () => {
                         flex: 1,
                         padding: '4px 0',
                         fontSize: '0.7rem',
-                        borderRadius: '6px',
+                        borderRadius: 'var(--radius-xs)',
                         fontWeight: 600,
-                        background: demoExpiry === time ? 'var(--accent-sky-bg)' : '#ffffff',
-                        color: demoExpiry === time ? '#0369a1' : 'var(--text-muted)',
+                        background: demoExpiry === time ? 'var(--accent-sky-bg)' : 'var(--bg-card)',
+                        color: demoExpiry === time ? 'var(--accent-sky)' : 'var(--text-muted)',
                         border: demoExpiry === time ? '1px solid var(--accent-sky)' : '1px solid var(--border-color)',
                       }}
                     >
@@ -217,7 +217,7 @@ export const BentoFeatures = () => {
                 style={{
                   width: '46px',
                   height: '46px',
-                  borderRadius: '12px',
+                  borderRadius: 'var(--radius-md)',
                   background: 'var(--accent-violet-bg)',
                   color: 'var(--accent-violet)',
                   display: 'flex',
@@ -229,26 +229,20 @@ export const BentoFeatures = () => {
                 <RefreshCw size={24} />
               </div>
               <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.5rem' }}>
-                Historial y Papelera
+                Historial de Versiones
               </h3>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', lineHeight: 1.5 }}>
-                Restaura versiones anteriores o recupera archivos borrados con hasta 30 días de retención garantizada.
+                Restaura versiones anteriores de tus documentos y recupera archivos eliminados de la papelera hasta por 30 días.
               </p>
             </div>
 
-            <div style={{ marginTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--bg-subtle)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                <span style={{ fontSize: '0.78rem', color: 'var(--text-main)', fontWeight: 500 }}>Versión 2.0 (Actual)</span>
-                <span style={{ fontSize: '0.72rem', color: 'var(--success-hover)', fontWeight: 600, background: 'var(--success-bg)', padding: '2px 6px', borderRadius: '4px' }}>Activa</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--bg-subtle)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Versión 1.0 (Ayer)</span>
-                <span style={{ fontSize: '0.72rem', color: 'var(--primary)', fontWeight: 600, cursor: 'pointer' }}>Restaurar</span>
-              </div>
+            <div style={{ marginTop: '1.25rem', padding: '10px 12px', background: 'var(--accent-violet-bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--accent-indigo-border)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <RefreshCw size={15} color="var(--accent-violet)" />
+              <span style={{ fontSize: '0.75rem', color: 'var(--accent-violet)', fontWeight: 600 }}>Papelera con retención automática de 30 días</span>
             </div>
           </div>
 
-          {/* Card 4: Search (4 cols) */}
+          {/* Card 4: Search & Filters (4 cols) */}
           <div
             className="card-white"
             style={{
@@ -264,9 +258,9 @@ export const BentoFeatures = () => {
                 style={{
                   width: '46px',
                   height: '46px',
-                  borderRadius: '12px',
-                  background: 'var(--success-bg)',
-                  color: 'var(--success-hover)',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--primary-light)',
+                  color: 'var(--primary)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -276,7 +270,7 @@ export const BentoFeatures = () => {
                 <Search size={24} />
               </div>
               <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.5rem' }}>
-                Búsqueda Rápida
+                Búsqueda Instantánea
               </h3>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', lineHeight: 1.5 }}>
                 Localiza archivos en milisegundos con filtros por extensión, fecha o carpetas específicas.
@@ -290,11 +284,11 @@ export const BentoFeatures = () => {
                   onClick={() => setDemoSearchTag(tag)}
                   style={{
                     padding: '4px 10px',
-                    borderRadius: '6px',
+                    borderRadius: 'var(--radius-xs)',
                     fontSize: '0.75rem',
                     fontWeight: 500,
                     background: demoSearchTag === tag ? 'var(--primary)' : 'var(--bg-hover)',
-                    color: demoSearchTag === tag ? '#ffffff' : 'var(--text-muted)',
+                    color: demoSearchTag === tag ? 'var(--text-white)' : 'var(--text-muted)',
                   }}
                 >
                   {tag}
@@ -319,7 +313,7 @@ export const BentoFeatures = () => {
                 style={{
                   width: '46px',
                   height: '46px',
-                  borderRadius: '12px',
+                  borderRadius: 'var(--radius-md)',
                   background: 'var(--warning-bg)',
                   color: 'var(--warning-hover)',
                   display: 'flex',
@@ -338,7 +332,7 @@ export const BentoFeatures = () => {
               </p>
             </div>
 
-            <div style={{ marginTop: '1.25rem', padding: '10px 12px', background: 'var(--warning-bg)', borderRadius: '8px', border: '1px solid #fef3c7', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ marginTop: '1.25rem', padding: '10px 12px', background: 'var(--warning-bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--warning-bg)', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Eye size={15} color="var(--warning-hover)" />
               <span style={{ fontSize: '0.75rem', color: 'var(--warning-text)', fontWeight: 500 }}>Streaming directo con soporte H.264</span>
             </div>
@@ -354,3 +348,5 @@ export const BentoFeatures = () => {
     </section>
   );
 };
+
+export default BentoFeatures;

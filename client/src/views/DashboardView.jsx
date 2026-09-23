@@ -90,11 +90,11 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
   const getFileIcon = (type) => {
     switch (type) {
       case 'image':
-        return <ImageIcon size={20} color="#06b6d4" />;
+        return <ImageIcon size={20} color="var(--accent-cyan)" />;
       case 'video':
-        return <Video size={20} color="#8b5cf6" />;
+        return <Video size={20} color="var(--accent-purple)" />;
       case 'zip':
-        return <Archive size={20} color="#f59e0b" />;
+        return <Archive size={20} color="var(--warning)" />;
       default:
         return <FileText size={20} color="var(--primary)" />;
     }
@@ -111,7 +111,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
       {/* Top Navbar */}
       <header
         style={{
-          background: '#ffffff',
+          background: 'var(--bg-body)',
           borderBottom: '1px solid var(--border-color)',
           padding: '0.85rem 2rem',
           display: 'flex',
@@ -129,13 +129,13 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
               style={{
                 width: '34px',
                 height: '34px',
-                borderRadius: '10px',
-                background: 'linear-gradient(135deg, var(--primary) 0%, var(--accent-violet) 100%)',
+                borderRadius: 'var(--radius-sm)',
+                background: 'var(--primary-gradient)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#ffffff',
-                boxShadow: '0 2px 8px rgba(79, 70, 229, 0.3)'
+                color: 'var(--text-white)',
+                boxShadow: 'var(--shadow-glow-primary)'
               }}
             >
               <Cloud size={20} />
@@ -152,7 +152,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
               fontSize: '0.75rem',
               fontWeight: 700,
               padding: '3px 10px',
-              borderRadius: '9999px'
+              borderRadius: 'var(--radius-full)'
             }}
           >
             Plan {planName} ({storageQuota})
@@ -174,7 +174,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
               style={{
                 width: '38px',
                 height: '38px',
-                borderRadius: '50%',
+                borderRadius: 'var(--radius-full)',
                 background: 'var(--primary-light)',
                 color: 'var(--primary)',
                 fontWeight: 700,
@@ -182,7 +182,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontSize: '0.9rem',
-                border: '2px solid #ffffff',
+                border: '2px solid var(--text-white)',
                 boxShadow: 'var(--shadow-sm)'
               }}
             >
@@ -197,7 +197,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
             style={{
               padding: '6px 14px',
               fontSize: '0.85rem',
-              borderRadius: '8px',
+              borderRadius: 'var(--radius-sm)',
               gap: '6px'
             }}
           >
@@ -212,10 +212,10 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
         {/* Welcome Banner */}
         <div
           style={{
-            background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%)',
-            borderRadius: '20px',
+            background: 'var(--bg-hero-banner)',
+            borderRadius: 'var(--radius-xl)',
             padding: '2rem',
-            color: '#ffffff',
+            color: 'var(--text-white)',
             marginBottom: '2rem',
             boxShadow: 'var(--shadow-lg)',
             display: 'flex',
@@ -227,10 +227,10 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
         >
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-              <span style={{ background: 'rgba(255,255,255,0.2)', padding: '2px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600 }}>
+              <span style={{ background: 'var(--white-alpha-20)', padding: '2px 8px', borderRadius: 'var(--radius-xs)', fontSize: '0.75rem', fontWeight: 600 }}>
                 ESPACIO ACTIVO
               </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: '#a7f3d0' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: 'var(--success-light)' }}>
                 <Shield size={14} /> Cifrado Zero-Knowledge Activado
               </span>
             </div>
@@ -245,11 +245,11 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
           {/* Storage Quota Card inside banner */}
           <div
             style={{
-              background: 'rgba(255, 255, 255, 0.12)',
+              background: 'var(--white-alpha-15)',
               backdropFilter: 'blur(10px)',
-              borderRadius: '14px',
+              borderRadius: 'var(--radius-md)',
               padding: '1.25rem',
-              border: '1px solid rgba(255, 255, 255, 0.2)',
+              border: '1px solid var(--white-alpha-20)',
               minWidth: '240px'
             }}
           >
@@ -257,8 +257,8 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
               <span>Almacenamiento en uso</span>
               <span style={{ fontWeight: 700 }}>{usedStorage} / {storageQuota}</span>
             </div>
-            <div style={{ width: '100%', height: '8px', background: 'rgba(255, 255, 255, 0.25)', borderRadius: '9999px', overflow: 'hidden' }}>
-              <div style={{ width: `${percentUsed}%`, height: '100%', background: '#10b981', borderRadius: '9999px' }} />
+            <div style={{ width: '100%', height: '8px', background: 'var(--white-alpha-25)', borderRadius: 'var(--radius-full)', overflow: 'hidden' }}>
+              <div style={{ width: `${percentUsed}%`, height: '100%', background: 'var(--success)', borderRadius: 'var(--radius-full)' }} />
             </div>
             <div style={{ marginTop: '8px', fontSize: '0.725rem', opacity: 0.8, textAlign: 'right' }}>
               {(100 - percentUsed).toFixed(1)}% disponible
@@ -281,9 +281,9 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
           <div
             style={{
               display: 'flex',
-              background: '#ffffff',
+              background: 'var(--bg-card)',
               padding: '4px',
-              borderRadius: '12px',
+              borderRadius: 'var(--radius-md)',
               border: '1px solid var(--border-color)',
               gap: '4px'
             }}
@@ -299,11 +299,11 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
                 onClick={() => setActiveTab(tab.id)}
                 style={{
                   padding: '6px 14px',
-                  borderRadius: '8px',
+                  borderRadius: 'var(--radius-sm)',
                   fontSize: '0.85rem',
                   fontWeight: 600,
                   background: activeTab === tab.id ? 'var(--primary)' : 'transparent',
-                  color: activeTab === tab.id ? '#ffffff' : 'var(--text-muted)',
+                  color: activeTab === tab.id ? 'var(--text-white)' : 'var(--text-muted)',
                   transition: 'all 0.2s'
                 }}
               >
@@ -322,9 +322,9 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={{
                   padding: '8px 12px 8px 34px',
-                  borderRadius: '10px',
+                  borderRadius: 'var(--radius-sm)',
                   border: '1px solid var(--border-color)',
-                  background: '#ffffff',
+                  background: 'var(--bg-body)',
                   fontSize: '0.85rem',
                   outline: 'none',
                   width: '200px'
@@ -339,7 +339,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
               style={{
                 padding: '8px 16px',
                 fontSize: '0.85rem',
-                borderRadius: '10px',
+                borderRadius: 'var(--radius-sm)',
                 cursor: 'pointer',
                 margin: 0
               }}
@@ -357,8 +357,8 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
         {/* Files Table / List */}
         <div
           style={{
-            background: '#ffffff',
-            borderRadius: '16px',
+            background: 'var(--bg-card)',
+            borderRadius: 'var(--radius-lg)',
             border: '1px solid var(--border-color)',
             overflow: 'hidden',
             boxShadow: 'var(--shadow-sm)'
@@ -390,14 +390,14 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
                       transition: 'background 0.15s'
                     }}
                     onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-subtle)')}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = '#ffffff')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--bg-card)')}
                   >
                     <td style={{ padding: '14px 20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
                       <div
                         style={{
                           width: '36px',
                           height: '36px',
-                          borderRadius: '8px',
+                          borderRadius: 'var(--radius-sm)',
                           background: 'var(--bg-hover)',
                           display: 'flex',
                           alignItems: 'center',
@@ -421,11 +421,11 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
 
                     <td style={{ padding: '14px 16px' }}>
                       {file.shared ? (
-                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--primary)', background: 'var(--primary-light)', padding: '2px 8px', borderRadius: '9999px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--primary)', background: 'var(--primary-light)', padding: '2px 8px', borderRadius: 'var(--radius-full)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                           <Share2 size={11} /> Compartido
                         </span>
                       ) : (
-                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', background: 'var(--bg-hover)', padding: '2px 8px', borderRadius: '9999px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', background: 'var(--bg-hover)', padding: '2px 8px', borderRadius: 'var(--radius-full)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                           <Shield size={11} /> Privado
                         </span>
                       )}
@@ -438,7 +438,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
                           onClick={() => onNotification && onNotification(`Descargando copia cifrada de "${file.name}"...`, 'info')}
                           style={{
                             padding: '6px',
-                            borderRadius: '6px',
+                            borderRadius: 'var(--radius-xs)',
                             color: 'var(--text-muted)',
                             background: 'transparent'
                           }}
@@ -451,7 +451,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
                           onClick={() => handleDeleteFile(file.id, file.name)}
                           style={{
                             padding: '6px',
-                            borderRadius: '6px',
+                            borderRadius: 'var(--radius-xs)',
                             color: 'var(--danger)',
                             background: 'transparent'
                           }}

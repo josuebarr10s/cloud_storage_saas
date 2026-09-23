@@ -31,12 +31,10 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onOpenRegister }) 
         onLoginSuccess && onLoginSuccess(user);
         onClose();
       } else {
-        // Check if user exists with another password
         const emailExists = registeredUsers.some((u) => u.email.toLowerCase() === email.toLowerCase().trim());
         if (emailExists) {
           setErrorMessage('Contraseña incorrecta. Por favor intenta de nuevo.');
         } else {
-          // If no registered user matches, check demo fallback or notify
           setErrorMessage('No encontramos ninguna cuenta con este correo. Simula un pago primero para registrar tu cuenta.');
         }
       }
@@ -61,7 +59,6 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onOpenRegister }) 
     setPassword(demoUser.password);
     setErrorMessage('');
 
-    // Ensure demo user is in storage
     try {
       const registeredUsers = JSON.parse(localStorage.getItem('nimbox_registered_users') || '[]');
       if (!registeredUsers.some(u => u.email === demoUser.email)) {
@@ -77,7 +74,7 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onOpenRegister }) 
         position: 'fixed',
         inset: 0,
         zIndex: 9999,
-        background: 'rgba(15, 23, 42, 0.75)',
+        background: 'var(--bg-overlay)',
         backdropFilter: 'blur(8px)',
         display: 'flex',
         alignItems: 'center',
@@ -88,11 +85,11 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onOpenRegister }) 
     >
       <div
         style={{
-          background: '#ffffff',
+          background: 'var(--bg-card)',
           width: '100%',
           maxWidth: '460px',
-          borderRadius: '24px',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+          borderRadius: 'var(--radius-2xl)',
+          boxShadow: 'var(--shadow-modal)',
           border: '1px solid var(--border-color)',
           overflow: 'hidden',
           position: 'relative'
@@ -113,7 +110,7 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onOpenRegister }) 
               style={{
                 width: '38px',
                 height: '38px',
-                borderRadius: '12px',
+                borderRadius: 'var(--radius-md)',
                 background: 'var(--primary-light)',
                 color: 'var(--primary)',
                 display: 'flex',
@@ -138,7 +135,7 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onOpenRegister }) 
             style={{
               width: '32px',
               height: '32px',
-              borderRadius: '50%',
+              borderRadius: 'var(--radius-full)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -162,7 +159,7 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onOpenRegister }) 
               padding: '8px 12px',
               background: 'var(--primary-light)',
               border: '1px dashed var(--primary)',
-              borderRadius: '10px',
+              borderRadius: 'var(--radius-sm)',
               color: 'var(--primary)',
               fontSize: '0.825rem',
               fontWeight: 600,
@@ -183,7 +180,7 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onOpenRegister }) 
                 border: '1px solid var(--danger)',
                 color: 'var(--danger)',
                 padding: '10px 12px',
-                borderRadius: '10px',
+                borderRadius: 'var(--radius-sm)',
                 fontSize: '0.825rem',
                 display: 'flex',
                 alignItems: 'center',
@@ -211,7 +208,7 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onOpenRegister }) 
                   style={{
                     width: '100%',
                     padding: '10px 12px 10px 36px',
-                    borderRadius: '10px',
+                    borderRadius: 'var(--radius-sm)',
                     border: '1px solid var(--border-color)',
                     fontSize: '0.9rem',
                     outline: 'none'
@@ -241,7 +238,7 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onOpenRegister }) 
                   style={{
                     width: '100%',
                     padding: '10px 38px 10px 36px',
-                    borderRadius: '10px',
+                    borderRadius: 'var(--radius-sm)',
                     border: '1px solid var(--border-color)',
                     fontSize: '0.9rem',
                     outline: 'none'

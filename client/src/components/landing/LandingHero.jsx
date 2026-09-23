@@ -65,7 +65,7 @@ export const LandingHero = ({ onGetStartedClick, onLoginClick }) => {
       style={{
         paddingTop: '7.5rem',
         paddingBottom: '4.5rem',
-        background: 'linear-gradient(180deg, #ffffff 0%, var(--bg-subtle) 100%)',
+        background: 'linear-gradient(180deg, var(--bg-body) 0%, var(--bg-subtle) 100%)',
         textAlign: 'center',
       }}
     >
@@ -80,7 +80,7 @@ export const LandingHero = ({ onGetStartedClick, onLoginClick }) => {
               background: 'var(--primary-light)',
               color: 'var(--primary)',
               padding: '6px 16px',
-              borderRadius: '9999px',
+              borderRadius: 'var(--radius-full)',
               fontSize: '0.85rem',
               fontWeight: 600,
             }}
@@ -104,7 +104,7 @@ export const LandingHero = ({ onGetStartedClick, onLoginClick }) => {
           Tu almacenamiento,<br />
           <span
             style={{
-              background: 'linear-gradient(135deg, var(--primary) 0%, var(--accent-violet) 100%)',
+              background: 'var(--primary-gradient)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
             }}
@@ -140,14 +140,14 @@ export const LandingHero = ({ onGetStartedClick, onLoginClick }) => {
           <button
             onClick={onGetStartedClick}
             className="btn-primary"
-            style={{ padding: '0.85rem 2rem', fontSize: '1rem', borderRadius: '12px' }}
+            style={{ padding: '0.85rem 2rem', fontSize: '1rem', borderRadius: 'var(--radius-md)' }}
           >
             Comenzar ahora <ArrowRight size={18} />
           </button>
           <button
             onClick={onLoginClick}
             className="btn-secondary"
-            style={{ padding: '0.85rem 1.75rem', fontSize: '1rem', borderRadius: '12px' }}
+            style={{ padding: '0.85rem 1.75rem', fontSize: '1rem', borderRadius: 'var(--radius-md)' }}
           >
             Iniciar sesión
           </button>
@@ -185,9 +185,10 @@ export const LandingHero = ({ onGetStartedClick, onLoginClick }) => {
           style={{
             maxWidth: '960px',
             margin: '0 auto',
-            background: '#ffffff',
-            borderRadius: '20px',
-            boxShadow: '0 25px 50px -12px rgba(79, 70, 229, 0.15), 0 0 0 1px var(--border-color)',
+            background: 'var(--bg-card)',
+            borderRadius: 'var(--radius-xl)',
+            boxShadow: 'var(--shadow-card-primary)',
+            border: '1px solid var(--border-color)',
             overflow: 'hidden',
             textAlign: 'left',
           }}
@@ -200,13 +201,13 @@ export const LandingHero = ({ onGetStartedClick, onLoginClick }) => {
               justifyContent: 'space-between',
               padding: '12px 20px',
               background: 'var(--bg-subtle)',
-              borderBottom: '1px solid var(--bg-hover)',
+              borderBottom: '1px solid var(--border-color)',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'var(--danger)' }} />
-              <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'var(--warning)' }} />
-              <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'var(--success)' }} />
+              <div style={{ width: '10px', height: '10px', borderRadius: 'var(--radius-full)', background: 'var(--danger)' }} />
+              <div style={{ width: '10px', height: '10px', borderRadius: 'var(--radius-full)', background: 'var(--warning)' }} />
+              <div style={{ width: '10px', height: '10px', borderRadius: 'var(--radius-full)', background: 'var(--success)' }} />
               <span style={{ fontSize: '0.8rem', color: 'var(--text-light)', marginLeft: '10px', fontFamily: 'monospace' }}>
                 app.nimbox.com/dashboard
               </span>
@@ -218,7 +219,7 @@ export const LandingHero = ({ onGetStartedClick, onLoginClick }) => {
                 color: 'var(--success)',
                 background: 'var(--success-bg)',
                 padding: '2px 8px',
-                borderRadius: '9999px',
+                borderRadius: 'var(--radius-full)',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '4px',
@@ -235,22 +236,22 @@ export const LandingHero = ({ onGetStartedClick, onLoginClick }) => {
               alignItems: 'center',
               justifyContent: 'space-between',
               padding: '12px 20px',
-              borderBottom: '1px solid var(--bg-hover)',
+              borderBottom: '1px solid var(--border-color)',
               flexWrap: 'wrap',
               gap: '10px',
             }}
           >
-            <div style={{ display: 'flex', gap: '6px', background: 'var(--bg-hover)', padding: '4px', borderRadius: '10px' }}>
+            <div style={{ display: 'flex', gap: '6px', background: 'var(--bg-hover)', padding: '4px', borderRadius: 'var(--radius-sm)' }}>
               <button
                 onClick={() => setActiveTab('files')}
                 style={{
                   padding: '6px 14px',
-                  borderRadius: '8px',
+                  borderRadius: 'var(--radius-sm)',
                   fontSize: '0.825rem',
                   fontWeight: 600,
-                  background: activeTab === 'files' ? '#ffffff' : 'transparent',
+                  background: activeTab === 'files' ? 'var(--bg-card)' : 'transparent',
                   color: activeTab === 'files' ? 'var(--primary)' : 'var(--text-muted)',
-                  boxShadow: activeTab === 'files' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                  boxShadow: activeTab === 'files' ? 'var(--shadow-sm)' : 'none',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px',
@@ -262,12 +263,12 @@ export const LandingHero = ({ onGetStartedClick, onLoginClick }) => {
                 onClick={() => setActiveTab('upload')}
                 style={{
                   padding: '6px 14px',
-                  borderRadius: '8px',
+                  borderRadius: 'var(--radius-sm)',
                   fontSize: '0.825rem',
                   fontWeight: 600,
-                  background: activeTab === 'upload' ? '#ffffff' : 'transparent',
+                  background: activeTab === 'upload' ? 'var(--bg-card)' : 'transparent',
                   color: activeTab === 'upload' ? 'var(--primary)' : 'var(--text-muted)',
-                  boxShadow: activeTab === 'upload' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                  boxShadow: activeTab === 'upload' ? 'var(--shadow-sm)' : 'none',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px',
@@ -279,12 +280,12 @@ export const LandingHero = ({ onGetStartedClick, onLoginClick }) => {
                 onClick={() => setActiveTab('links')}
                 style={{
                   padding: '6px 14px',
-                  borderRadius: '8px',
+                  borderRadius: 'var(--radius-sm)',
                   fontSize: '0.825rem',
                   fontWeight: 600,
-                  background: activeTab === 'links' ? '#ffffff' : 'transparent',
+                  background: activeTab === 'links' ? 'var(--bg-card)' : 'transparent',
                   color: activeTab === 'links' ? 'var(--primary)' : 'var(--text-muted)',
-                  boxShadow: activeTab === 'links' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                  boxShadow: activeTab === 'links' ? 'var(--shadow-sm)' : 'none',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px',
@@ -298,7 +299,7 @@ export const LandingHero = ({ onGetStartedClick, onLoginClick }) => {
               onClick={handleSimulateUpload}
               disabled={uploading}
               className="btn-primary"
-              style={{ padding: '6px 14px', fontSize: '0.825rem', borderRadius: '8px' }}
+              style={{ padding: '6px 14px', fontSize: '0.825rem', borderRadius: 'var(--radius-sm)' }}
             >
               <UploadCloud size={14} /> {uploading ? 'Subiendo...' : '+ Subir Archivo'}
             </button>
@@ -311,7 +312,7 @@ export const LandingHero = ({ onGetStartedClick, onLoginClick }) => {
                 <span>Subiendo objeto al almacenamiento en la nube...</span>
                 <span>{uploadProgress}%</span>
               </div>
-              <div style={{ width: '100%', height: '5px', background: 'var(--accent-indigo-border)', borderRadius: '4px', overflow: 'hidden' }}>
+              <div style={{ width: '100%', height: '5px', background: 'var(--accent-indigo-border)', borderRadius: 'var(--radius-xs)', overflow: 'hidden' }}>
                 <div style={{ width: `${uploadProgress}%`, height: '100%', background: 'var(--primary)', transition: 'width 0.2s ease' }} />
               </div>
             </div>
@@ -319,7 +320,7 @@ export const LandingHero = ({ onGetStartedClick, onLoginClick }) => {
 
           {/* Tab 1: Files Grid */}
           {activeTab === 'files' && (
-            <div style={{ padding: '20px', minHeight: '260px', background: '#ffffff' }}>
+            <div style={{ padding: '20px', minHeight: '260px', background: 'var(--bg-card)' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: '14px' }}>
                 {simulatedFiles.map((file) => {
                   const IconComp = file.icon;
@@ -329,7 +330,7 @@ export const LandingHero = ({ onGetStartedClick, onLoginClick }) => {
                       style={{
                         background: 'var(--bg-subtle)',
                         border: '1px solid var(--border-color)',
-                        borderRadius: '12px',
+                        borderRadius: 'var(--radius-md)',
                         padding: '14px',
                         display: 'flex',
                         flexDirection: 'column',
@@ -345,7 +346,7 @@ export const LandingHero = ({ onGetStartedClick, onLoginClick }) => {
                           style={{
                             width: '36px',
                             height: '36px',
-                            borderRadius: '8px',
+                            borderRadius: 'var(--radius-sm)',
                             background: file.bg,
                             color: file.color,
                             display: 'flex',
@@ -364,7 +365,7 @@ export const LandingHero = ({ onGetStartedClick, onLoginClick }) => {
                         </div>
                       </div>
 
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '8px', borderTop: '1px solid var(--bg-hover)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '8px', borderTop: '1px solid var(--border-color)' }}>
                         <span style={{ fontSize: '0.72rem', color: file.shared ? 'var(--accent-sky)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 500 }}>
                           {file.shared ? <Share2 size={11} /> : <Lock size={11} />}
                           {file.shared ? 'Compartido' : 'Privado'}
@@ -373,13 +374,13 @@ export const LandingHero = ({ onGetStartedClick, onLoginClick }) => {
                           <button
                             title="Copiar enlace"
                             onClick={handleCopyDemoLink}
-                            style={{ padding: '4px', borderRadius: '4px', color: 'var(--text-muted)' }}
+                            style={{ padding: '4px', borderRadius: 'var(--radius-xs)', color: 'var(--text-muted)' }}
                           >
                             <Copy size={13} />
                           </button>
                           <button
                             title="Descargar"
-                            style={{ padding: '4px', borderRadius: '4px', color: 'var(--text-muted)' }}
+                            style={{ padding: '4px', borderRadius: 'var(--radius-xs)', color: 'var(--text-muted)' }}
                           >
                             <Download size={13} />
                           </button>
@@ -391,7 +392,7 @@ export const LandingHero = ({ onGetStartedClick, onLoginClick }) => {
               </div>
 
               {copiedLink && (
-                <div style={{ marginTop: '12px', padding: '8px 12px', background: 'var(--success-bg)', border: '1px solid var(--success-light)', borderRadius: '8px', color: 'var(--success-dark)', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div style={{ marginTop: '12px', padding: '8px 12px', background: 'var(--success-bg)', border: '1px solid var(--success-light)', borderRadius: 'var(--radius-sm)', color: 'var(--success-dark)', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <CheckCircle2 size={14} color="var(--success)" /> ¡Enlace copiado al portapapeles!
                 </div>
               )}
@@ -407,14 +408,14 @@ export const LandingHero = ({ onGetStartedClick, onLoginClick }) => {
                   width: '100%',
                   maxWidth: '480px',
                   border: '2px dashed var(--border-hover)',
-                  borderRadius: '16px',
+                  borderRadius: 'var(--radius-lg)',
                   padding: '28px 20px',
                   background: 'var(--bg-subtle)',
                   textAlign: 'center',
                   cursor: 'pointer',
                 }}
               >
-                <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'var(--primary-light)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px auto' }}>
+                <div style={{ width: '48px', height: '48px', borderRadius: 'var(--radius-full)', background: 'var(--primary-light)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px auto' }}>
                   <UploadCloud size={24} />
                 </div>
                 <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '4px' }}>
@@ -434,9 +435,9 @@ export const LandingHero = ({ onGetStartedClick, onLoginClick }) => {
           {activeTab === 'links' && (
             <div style={{ padding: '20px', minHeight: '260px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--bg-subtle)', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--bg-subtle)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <div style={{ padding: '6px', borderRadius: '6px', background: 'var(--accent-sky-bg)', color: 'var(--accent-sky)' }}>
+                    <div style={{ padding: '6px', borderRadius: 'var(--radius-xs)', background: 'var(--accent-sky-bg)', color: 'var(--accent-sky)' }}>
                       <Share2 size={16} />
                     </div>
                     <div>
@@ -445,7 +446,7 @@ export const LandingHero = ({ onGetStartedClick, onLoginClick }) => {
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 600, background: 'var(--primary-light)', color: 'var(--primary)', padding: '2px 8px', borderRadius: '6px' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 600, background: 'var(--primary-light)', color: 'var(--primary)', padding: '2px 8px', borderRadius: 'var(--radius-xs)' }}>
                       Con Contraseña
                     </span>
                     <span style={{ fontSize: '0.75rem', color: 'var(--warning-strong)', display: 'flex', alignItems: 'center', gap: '3px' }}>
@@ -454,9 +455,9 @@ export const LandingHero = ({ onGetStartedClick, onLoginClick }) => {
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--bg-subtle)', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--bg-subtle)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <div style={{ padding: '6px', borderRadius: '6px', background: 'var(--accent-violet-bg)', color: 'var(--accent-violet)' }}>
+                    <div style={{ padding: '6px', borderRadius: 'var(--radius-xs)', background: 'var(--accent-violet-bg)', color: 'var(--accent-violet)' }}>
                       <Share2 size={16} />
                     </div>
                     <div>
@@ -464,7 +465,7 @@ export const LandingHero = ({ onGetStartedClick, onLoginClick }) => {
                       <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>https://nimbox.com/s/k39c09d • 108 descargas</p>
                     </div>
                   </div>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 600, background: 'var(--success-bg)', color: 'var(--success-hover)', padding: '2px 8px', borderRadius: '6px' }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 600, background: 'var(--success-bg)', color: 'var(--success-hover)', padding: '2px 8px', borderRadius: 'var(--radius-xs)' }}>
                     Público Activo
                   </span>
                 </div>
@@ -476,3 +477,5 @@ export const LandingHero = ({ onGetStartedClick, onLoginClick }) => {
     </section>
   );
 };
+
+export default LandingHero;

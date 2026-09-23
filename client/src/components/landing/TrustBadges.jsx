@@ -44,7 +44,7 @@ export const TrustBadges = () => {
         padding: '3.5rem 0 4.5rem 0',
         borderTop: '1px solid var(--border-color)',
         borderBottom: '1px solid var(--border-color)',
-        background: '#ffffff',
+        background: 'var(--bg-body)',
       }}
     >
       <div className="landing-container">
@@ -80,7 +80,7 @@ export const TrustBadges = () => {
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'space-between',
-                  borderRadius: '16px',
+                  borderRadius: 'var(--radius-lg)',
                 }}
               >
                 <div>
@@ -96,7 +96,7 @@ export const TrustBadges = () => {
                       style={{
                         width: '40px',
                         height: '40px',
-                        borderRadius: '10px',
+                        borderRadius: 'var(--radius-sm)',
                         background: feat.bg,
                         color: feat.color,
                         display: 'flex',
@@ -113,7 +113,7 @@ export const TrustBadges = () => {
                         color: feat.color,
                         background: feat.bg,
                         padding: '3px 8px',
-                        borderRadius: '6px',
+                        borderRadius: 'var(--radius-xs)',
                       }}
                     >
                       {feat.badge}
@@ -135,3 +135,5 @@ export const TrustBadges = () => {
     </section>
   );
 };
+
+export default TrustBadges;

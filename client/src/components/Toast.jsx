@@ -18,9 +18,9 @@ export const Toast = ({ toast, onClose }) => {
         alignItems: 'center',
         gap: '12px',
         padding: '14px 20px',
-        background: '#ffffff',
-        borderRadius: '12px',
-        boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+        background: 'var(--bg-card)',
+        borderRadius: 'var(--radius-md)',
+        boxShadow: 'var(--shadow-lg)',
         borderLeft: `5px solid ${isSuccess ? 'var(--success)' : isError ? 'var(--danger)' : 'var(--info)'}`,
         color: 'var(--text-main)',
         fontSize: '0.9rem',
@@ -39,3 +39,5 @@ export const Toast = ({ toast, onClose }) => {
     </div>
   );
 };
+
+export default Toast;

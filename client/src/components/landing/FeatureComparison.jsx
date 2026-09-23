@@ -47,7 +47,7 @@ export const FeatureComparison = () => {
     if (val === true) {
       return (
         <div style={{ display: 'flex', justifyContent: 'center' }}>
-          <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'var(--success-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: '20px', height: '20px', borderRadius: 'var(--radius-full)', background: 'var(--success-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Check size={13} color="var(--success-hover)" />
           </div>
         </div>
@@ -75,13 +75,13 @@ export const FeatureComparison = () => {
               alignItems: 'center',
               gap: '8px',
               padding: '0.75rem 1.75rem',
-              borderRadius: '9999px',
-              background: '#ffffff',
+              borderRadius: 'var(--radius-full)',
+              background: 'var(--bg-card)',
               border: '1px solid var(--border-hover)',
               color: 'var(--text-main)',
               fontSize: '0.95rem',
               fontWeight: 600,
-              boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+              boxShadow: 'var(--shadow-sm)',
               cursor: 'pointer',
             }}
           >
@@ -95,12 +95,12 @@ export const FeatureComparison = () => {
         {expanded && (
           <div
             style={{
-              background: '#ffffff',
+              background: 'var(--bg-card)',
               border: '1px solid var(--border-color)',
-              borderRadius: '20px',
+              borderRadius: 'var(--radius-xl)',
               overflow: 'hidden',
               padding: '1.5rem',
-              boxShadow: '0 10px 25px -5px rgba(0,0,0,0.05)',
+              boxShadow: 'var(--shadow-md)',
             }}
           >
             <div style={{ overflowX: 'auto' }}>
@@ -113,7 +113,7 @@ export const FeatureComparison = () => {
                     <th style={{ padding: '14px 18px', fontSize: '0.9rem', color: 'var(--text-secondary)', textAlign: 'center', width: '20%' }}>
                       Básico ($5/mes)
                     </th>
-                    <th style={{ padding: '14px 18px', fontSize: '0.9rem', color: 'var(--primary)', textAlign: 'center', width: '20%', background: 'var(--primary-light)', borderRadius: '8px 8px 0 0' }}>
+                    <th style={{ padding: '14px 18px', fontSize: '0.9rem', color: 'var(--primary)', textAlign: 'center', width: '20%', background: 'var(--primary-light)', borderRadius: 'var(--radius-sm) var(--radius-sm) 0 0' }}>
                       Pro ($12/mes)
                     </th>
                     <th style={{ padding: '14px 18px', fontSize: '0.9rem', color: 'var(--text-main)', textAlign: 'center', width: '20%' }}>
@@ -170,3 +170,5 @@ export const FeatureComparison = () => {
     </section>
   );
 };
+
+export default FeatureComparison;

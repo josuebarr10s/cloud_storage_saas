@@ -27,17 +27,17 @@ export const LandingFooter = () => {
                 style={{
                   width: '36px',
                   height: '36px',
-                  borderRadius: '10px',
+                  borderRadius: 'var(--radius-sm)',
                   background: 'var(--primary)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: '#ffffff',
+                  color: 'var(--text-white)',
                 }}
               >
                 <Cloud size={20} />
               </div>
-              <span style={{ fontSize: '1.3rem', fontWeight: 800, color: '#ffffff', letterSpacing: '-0.02em' }}>
+              <span style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--text-white)', letterSpacing: '-0.02em' }}>
                 Nimbox
               </span>
             </div>
@@ -53,22 +53,22 @@ export const LandingFooter = () => {
                 alignItems: 'center',
                 gap: '8px',
                 padding: '4px 12px',
-                borderRadius: '9999px',
-                background: 'rgba(16, 185, 129, 0.15)',
-                border: '1px solid rgba(16, 185, 129, 0.3)',
+                borderRadius: 'var(--radius-full)',
+                background: 'var(--success-bg)',
+                border: '1px solid var(--success-light)',
                 fontSize: '0.75rem',
-                color: '#6ee7b7',
+                color: 'var(--success-hover)',
                 fontWeight: 600,
               }}
             >
-              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--success)', boxShadow: '0 0 6px var(--success)' }} />
+              <span style={{ width: '6px', height: '6px', borderRadius: 'var(--radius-full)', background: 'var(--success)', boxShadow: '0 0 6px var(--success)' }} />
               Sistemas: 100% Operacional
             </div>
           </div>
 
           {/* Col 2: Producto */}
           <div>
-            <h4 style={{ color: '#ffffff', fontSize: '0.95rem', fontWeight: 700, marginBottom: '1.25rem' }}>
+            <h4 style={{ color: 'var(--text-white)', fontSize: '0.95rem', fontWeight: 700, marginBottom: '1.25rem' }}>
               Producto
             </h4>
             <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.875rem' }}>
@@ -82,7 +82,7 @@ export const LandingFooter = () => {
 
           {/* Col 3: Recursos */}
           <div>
-            <h4 style={{ color: '#ffffff', fontSize: '0.95rem', fontWeight: 700, marginBottom: '1.25rem' }}>
+            <h4 style={{ color: 'var(--text-white)', fontSize: '0.95rem', fontWeight: 700, marginBottom: '1.25rem' }}>
               Recursos
             </h4>
             <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.875rem' }}>
@@ -95,7 +95,7 @@ export const LandingFooter = () => {
 
           {/* Col 4: Legal & Proyecto */}
           <div>
-            <h4 style={{ color: '#ffffff', fontSize: '0.95rem', fontWeight: 700, marginBottom: '1.25rem' }}>
+            <h4 style={{ color: 'var(--text-white)', fontSize: '0.95rem', fontWeight: 700, marginBottom: '1.25rem' }}>
               Legal y Proyecto
             </h4>
             <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.875rem' }}>
@@ -132,3 +132,5 @@ export const LandingFooter = () => {
     </footer>
   );
 };
+
+export default LandingFooter;

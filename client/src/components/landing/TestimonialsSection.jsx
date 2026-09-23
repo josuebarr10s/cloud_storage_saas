@@ -37,7 +37,7 @@ export const TestimonialsSection = () => {
     <section
       style={{
         padding: '5.5rem 0',
-        background: '#ffffff',
+        background: 'var(--bg-body)',
         borderTop: '1px solid var(--border-color)',
       }}
     >
@@ -81,7 +81,7 @@ export const TestimonialsSection = () => {
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'space-between',
-                borderRadius: '20px',
+                borderRadius: 'var(--radius-xl)',
               }}
             >
               <div>
@@ -99,7 +99,7 @@ export const TestimonialsSection = () => {
                 <img
                   src={t.avatar}
                   alt={t.author}
-                  style={{ width: '44px', height: '44px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--primary-light)' }}
+                  style={{ width: '44px', height: '44px', borderRadius: 'var(--radius-full)', objectFit: 'cover', border: '2px solid var(--primary-light)' }}
                 />
                 <div>
                   <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main)' }}>
@@ -119,7 +119,7 @@ export const TestimonialsSection = () => {
           style={{
             background: 'var(--bg-subtle)',
             border: '1px solid var(--border-color)',
-            borderRadius: '20px',
+            borderRadius: 'var(--radius-xl)',
             padding: '2.5rem 2rem',
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
@@ -153,3 +153,5 @@ export const TestimonialsSection = () => {
     </section>
   );
 };
+
+export default TestimonialsSection;

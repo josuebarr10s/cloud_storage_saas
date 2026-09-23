@@ -31,10 +31,10 @@ export const LandingNavbar = ({ onLoginClick, onRegisterClick }) => {
         zIndex: 1000,
         padding: scrolled ? '0.75rem 1.5rem' : '1.15rem 1.5rem',
         transition: 'all 0.25s ease',
-        background: scrolled ? 'rgba(255, 255, 255, 0.95)' : 'rgba(255, 255, 255, 0.85)',
+        background: scrolled ? 'var(--bg-overlay-light)' : 'var(--bg-overlay-glass)',
         backdropFilter: 'blur(12px)',
         borderBottom: '1px solid var(--border-color)',
-        boxShadow: scrolled ? '0 4px 6px -1px rgba(0, 0, 0, 0.05)' : 'none',
+        boxShadow: scrolled ? 'var(--shadow-sm)' : 'none',
       }}
     >
       <div
@@ -52,13 +52,13 @@ export const LandingNavbar = ({ onLoginClick, onRegisterClick }) => {
             style={{
               width: '36px',
               height: '36px',
-              borderRadius: '10px',
+              borderRadius: 'var(--radius-sm)',
               background: 'var(--primary)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#ffffff',
-              boxShadow: '0 4px 10px rgba(79, 70, 229, 0.3)',
+              color: 'var(--text-white)',
+              boxShadow: 'var(--shadow-glow-primary)',
             }}
           >
             <Cloud size={22} />
@@ -110,7 +110,7 @@ export const LandingNavbar = ({ onLoginClick, onRegisterClick }) => {
           <button
             onClick={onRegisterClick}
             className="btn-primary"
-            style={{ padding: '0.65rem 1.35rem', fontSize: '0.9rem', borderRadius: '10px' }}
+            style={{ padding: '0.65rem 1.35rem', fontSize: '0.9rem', borderRadius: 'var(--radius-sm)' }}
           >
             Comenzar ahora <ArrowRight size={16} />
           </button>
@@ -123,7 +123,7 @@ export const LandingNavbar = ({ onLoginClick, onRegisterClick }) => {
           style={{
             color: 'var(--text-main)',
             padding: '8px',
-            borderRadius: '8px',
+            borderRadius: 'var(--radius-sm)',
             background: 'var(--bg-hover)',
             border: '1px solid var(--border-color)',
             display: 'flex',
@@ -141,14 +141,14 @@ export const LandingNavbar = ({ onLoginClick, onRegisterClick }) => {
         <div
           style={{
             marginTop: '1rem',
-            background: '#ffffff',
+            background: 'var(--bg-card)',
             border: '1px solid var(--border-color)',
-            borderRadius: '16px',
+            borderRadius: 'var(--radius-lg)',
             padding: '1.5rem',
             display: 'flex',
             flexDirection: 'column',
             gap: '14px',
-            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+            boxShadow: 'var(--shadow-lg)',
           }}
         >
           {navLinks.map((link) => (
@@ -191,3 +191,5 @@ export const LandingNavbar = ({ onLoginClick, onRegisterClick }) => {
     </header>
   );
 };
+
+export default LandingNavbar;

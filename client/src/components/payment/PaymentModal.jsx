@@ -248,7 +248,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
         position: 'fixed',
         inset: 0,
         zIndex: 9999,
-        background: 'rgba(15, 23, 42, 0.75)',
+        background: 'var(--bg-overlay)',
         backdropFilter: 'blur(8px)',
         display: 'flex',
         alignItems: 'center',
@@ -264,8 +264,8 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
           width: '100%',
           maxWidth: '920px',
           maxHeight: '92vh',
-          borderRadius: 'var(--radius-xl)',
-          boxShadow: 'var(--shadow-xl)',
+          borderRadius: 'var(--radius-2xl)',
+          boxShadow: 'var(--shadow-modal)',
           border: '1px solid var(--border-color)',
           display: 'flex',
           flexDirection: 'column',
@@ -294,8 +294,8 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#ffffff',
-                boxShadow: 'var(--shadow-sm)'
+                color: 'var(--text-white)',
+                boxShadow: 'var(--shadow-glow-primary)'
               }}
             >
               <ShieldCheck size={20} />
@@ -364,7 +364,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                   height: '24px',
                   borderRadius: 'var(--radius-full)',
                   background: currentStep >= 1 ? 'var(--primary)' : 'var(--border-color)',
-                  color: '#ffffff',
+                  color: 'var(--text-white)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -397,7 +397,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                   height: '24px',
                   borderRadius: 'var(--radius-full)',
                   background: currentStep === 2 ? 'var(--primary)' : 'var(--border-color)',
-                  color: currentStep === 2 ? '#ffffff' : 'var(--text-muted)',
+                  color: currentStep === 2 ? 'var(--text-white)' : 'var(--text-muted)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -620,10 +620,10 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                 {/* Virtual Credit Card Preview */}
                 <div
                   style={{
-                    background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 40%, var(--primary) 100%)',
+                    background: 'var(--bg-card-dark)',
                     borderRadius: 'var(--radius-lg)',
                     padding: '1.25rem',
-                    color: '#ffffff',
+                    color: 'var(--text-white)',
                     boxShadow: 'var(--shadow-lg)',
                     marginBottom: '1.25rem',
                     position: 'relative',
@@ -638,14 +638,14 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                       width: '120px',
                       height: '120px',
                       borderRadius: 'var(--radius-full)',
-                      background: 'rgba(255, 255, 255, 0.08)',
+                      background: 'var(--white-alpha-10)',
                       pointerEvents: 'none'
                     }}
                   />
                   
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <div style={{ width: '28px', height: '20px', borderRadius: '4px', background: 'linear-gradient(135deg, var(--warning) 0%, var(--warning-hover) 100%)' }} />
+                      <div style={{ width: '28px', height: '20px', borderRadius: 'var(--radius-xs)', background: 'var(--gold-gradient)' }} />
                       <span style={{ fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.05em', opacity: 0.8 }}>NIMBOX PAY</span>
                     </div>
                     <span style={{ fontSize: '0.9rem', fontWeight: 800, fontStyle: 'italic', letterSpacing: '1px' }}>
@@ -653,7 +653,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                     </span>
                   </div>
 
-                  <div style={{ fontSize: '1.15rem', fontWeight: 600, letterSpacing: '2px', fontFamily: 'monospace', marginBottom: '1rem', textShadow: '0 2px 4px rgba(0,0,0,0.3)' }}>
+                  <div style={{ fontSize: '1.15rem', fontWeight: 600, letterSpacing: '2px', fontFamily: 'monospace', marginBottom: '1rem' }}>
                     {cardNumber || '•••• •••• •••• ••••'}
                   </div>
 
@@ -1028,7 +1028,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    color: '#ffffff'
+                    color: 'var(--text-white)'
                   }}
                 >
                   <Lock size={28} />
@@ -1085,7 +1085,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                   alignItems: 'center',
                   justifyContent: 'center',
                   marginBottom: '1.25rem',
-                  boxShadow: '0 8px 16px rgba(16, 185, 129, 0.2)'
+                  boxShadow: 'var(--shadow-glow-success)'
                 }}
               >
                 <CheckCircle2 size={36} />
