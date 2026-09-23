@@ -11,7 +11,7 @@ import { FAQSection } from '../components/landing/FAQSection.jsx';
 import { LandingFooter } from '../components/landing/LandingFooter.jsx';
 import { Toast } from '../components/Toast.jsx';
 
-export const LandingPage = ({ onNavigateLogin, onNavigateRegister }) => {
+export const LandingPage = ({ onOpenCheckout, onOpenLogin }) => {
   const [toast, setToast] = useState(null);
 
   const showNotification = (message, type = 'info') => {
@@ -20,29 +20,37 @@ export const LandingPage = ({ onNavigateLogin, onNavigateRegister }) => {
   };
 
   const handleLoginClick = () => {
-    if (onNavigateLogin) {
-      onNavigateLogin();
+    if (onOpenLogin) {
+      onOpenLogin();
     } else {
-      showNotification('Módulo de autenticación: Listo para la Fase 2 (Login/Registro)', 'info');
+      showNotification('Iniciando sesión...', 'info');
     }
   };
 
   const handleRegisterClick = () => {
-    if (onNavigateRegister) {
-      onNavigateRegister();
-    } else {
-      showNotification('Creación de cuenta: Listo para la Fase 2 (Registro de Usuario)', 'success');
+    // Default to popular Pro plan when clicking generic "Comenzar"
+    if (onOpenCheckout) {
+      onOpenCheckout({
+        id_plan: 2,
+        nombre: 'Pro',
+        descripcion: 'Para profesionales y pequeños equipos',
+        precio: 12,
+        precioAnual: 9.6,
+        features: [
+          '500 GB de almacenamiento',
+          'Dispositivos ilimitados',
+          'Compartir con permisos avanzados',
+          'Soporte prioritario 24/7'
+        ]
+      }, 'monthly');
     }
   };
 
   const handleSelectPlan = (plan, cycle = 'monthly') => {
-    showNotification(`Has seleccionado el Plan ${plan.nombre || plan.name} (${cycle === 'annual' ? 'Facturación Anual -20%' : 'Mensual'}). ¡Fase de pago lista para el siguiente paso!`, 'success');
-  };
-
-  const scrollToPricing = () => {
-    const elem = document.getElementById('pricing');
-    if (elem) {
-      elem.scrollIntoView({ behavior: 'smooth' });
+    if (onOpenCheckout) {
+      onOpenCheckout(plan, cycle);
+    } else {
+      showNotification(`Has seleccionado el Plan ${plan.nombre || plan.name} (${cycle === 'annual' ? 'Facturación Anual -20%' : 'Mensual'}).`, 'success');
     }
   };
 
@@ -57,6 +65,7 @@ export const LandingPage = ({ onNavigateLogin, onNavigateRegister }) => {
       {/* 2. Hero Section with Interactive Mockup */}
       <LandingHero
         onGetStartedClick={handleRegisterClick}
+        onLoginClick={handleLoginClick}
       />
 
       {/* 3. Security & Trust Badges */}
