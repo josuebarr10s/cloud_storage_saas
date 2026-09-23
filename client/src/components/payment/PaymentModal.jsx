@@ -13,7 +13,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
   const [cardNumber, setCardNumber] = useState('');
   const [cardExpiry, setCardExpiry] = useState('');
   const [cardCvc, setCardCvc] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('card'); // 'card' | 'paypal' | 'applepay'
+  const [paymentMethod, setPaymentMethod] = useState('card'); // 'card' | 'paypal'
   
   // Account Form State
   const [fullName, setFullName] = useState('');
@@ -99,7 +99,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
 
   // Calculate Password Strength
   const getPasswordStrength = (pass) => {
-    if (!pass) return { score: 0, label: 'Vacía', color: '#cbd5e1' };
+    if (!pass) return { score: 0, label: 'Vacía', color: 'var(--border-color)' };
     let score = 0;
     if (pass.length >= 6) score += 1;
     if (pass.length >= 8) score += 1;
@@ -199,7 +199,6 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
 
     // Stage 4: Finish & Register User in State / LocalStorage
     setTimeout(() => {
-      // Save user in localStorage
       const newUser = {
         name: fullName,
         email: email.toLowerCase().trim(),
@@ -214,7 +213,6 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
         cardLast4: cardNumber.replace(/\s/g, '').slice(-4) || '4242'
       };
 
-      // Store in users list
       try {
         const existingUsers = JSON.parse(localStorage.getItem('nimbox_registered_users') || '[]');
         const filtered = existingUsers.filter(u => u.email !== newUser.email);
@@ -262,12 +260,12 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
       {/* Modal Container */}
       <div
         style={{
-          background: '#ffffff',
+          background: 'var(--bg-card)',
           width: '100%',
           maxWidth: '920px',
           maxHeight: '92vh',
-          borderRadius: '24px',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+          borderRadius: 'var(--radius-xl)',
+          boxShadow: 'var(--shadow-xl)',
           border: '1px solid var(--border-color)',
           display: 'flex',
           flexDirection: 'column',
@@ -291,13 +289,13 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
               style={{
                 width: '36px',
                 height: '36px',
-                borderRadius: '10px',
+                borderRadius: 'var(--radius-sm)',
                 background: 'var(--primary)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: '#ffffff',
-                boxShadow: '0 2px 8px rgba(79, 70, 229, 0.3)'
+                boxShadow: 'var(--shadow-sm)'
               }}
             >
               <ShieldCheck size={20} />
@@ -314,7 +312,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                     color: 'var(--primary)',
                     background: 'var(--primary-light)',
                     padding: '2px 8px',
-                    borderRadius: '9999px',
+                    borderRadius: 'var(--radius-full)',
                     letterSpacing: '0.02em'
                   }}
                 >
@@ -332,12 +330,12 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
             style={{
               width: '36px',
               height: '36px',
-              borderRadius: '50%',
+              borderRadius: 'var(--radius-full)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               color: 'var(--text-muted)',
-              background: '#ffffff',
+              background: 'var(--bg-body)',
               border: '1px solid var(--border-color)',
               transition: 'all 0.2s'
             }}
@@ -355,7 +353,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
               alignItems: 'center',
               justifyContent: 'space-between',
               padding: '0.75rem 2rem',
-              background: '#ffffff',
+              background: 'var(--bg-body)',
               borderBottom: '1px solid var(--border-color)'
             }}
           >
@@ -364,7 +362,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                 style={{
                   width: '24px',
                   height: '24px',
-                  borderRadius: '50%',
+                  borderRadius: 'var(--radius-full)',
                   background: currentStep >= 1 ? 'var(--primary)' : 'var(--border-color)',
                   color: '#ffffff',
                   display: 'flex',
@@ -397,7 +395,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                 style={{
                   width: '24px',
                   height: '24px',
-                  borderRadius: '50%',
+                  borderRadius: 'var(--radius-full)',
                   background: currentStep === 2 ? 'var(--primary)' : 'var(--border-color)',
                   color: currentStep === 2 ? '#ffffff' : 'var(--text-muted)',
                   display: 'flex',
@@ -416,7 +414,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
           </div>
         )}
 
-        {/* Modal Body - 2 Columns Layout for Steps 1 & 2 */}
+        {/* Modal Body */}
         <div
           style={{
             flex: 1,
@@ -426,9 +424,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
             minHeight: '440px'
           }}
         >
-          {/* ========================================================
-              LEFT COLUMN: Order Summary & Plan Highlights (Steps 1 & 2)
-              ======================================================== */}
+          {/* LEFT COLUMN: Order Summary (Steps 1 & 2) */}
           {currentStep <= 2 && (
             <div
               style={{
@@ -457,7 +453,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                       fontSize: '0.75rem',
                       fontWeight: 700,
                       padding: '4px 10px',
-                      borderRadius: '9999px'
+                      borderRadius: 'var(--radius-full)'
                     }}
                   >
                     {isAnnual ? 'Facturación Anual' : 'Facturación Mensual'}
@@ -480,7 +476,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                           style={{
                             width: '16px',
                             height: '16px',
-                            borderRadius: '50%',
+                            borderRadius: 'var(--radius-full)',
                             background: 'var(--success-bg)',
                             color: 'var(--success-hover)',
                             display: 'flex',
@@ -500,9 +496,9 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                 {/* Price Breakdown */}
                 <div
                   style={{
-                    background: '#ffffff',
+                    background: 'var(--bg-card)',
                     border: '1px solid var(--border-color)',
-                    borderRadius: '14px',
+                    borderRadius: 'var(--radius-md)',
                     padding: '1.25rem',
                     display: 'flex',
                     flexDirection: 'column',
@@ -548,9 +544,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
             </div>
           )}
 
-          {/* ========================================================
-              RIGHT COLUMN: STEP 1 - PAYMENT DETAILS & INTERACTIVE CARD
-              ======================================================== */}
+          {/* RIGHT COLUMN: STEP 1 - PAYMENT DETAILS & INTERACTIVE CARD */}
           {currentStep === 1 && (
             <div style={{ padding: '1.75rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
               <div>
@@ -562,14 +556,14 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                     style={{
                       flex: 1,
                       padding: '8px 12px',
-                      borderRadius: '10px',
+                      borderRadius: 'var(--radius-sm)',
                       fontSize: '0.85rem',
                       fontWeight: 600,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       gap: '6px',
-                      background: paymentMethod === 'card' ? 'var(--primary-light)' : '#ffffff',
+                      background: paymentMethod === 'card' ? 'var(--primary-light)' : 'var(--bg-body)',
                       color: paymentMethod === 'card' ? 'var(--primary)' : 'var(--text-muted)',
                       border: paymentMethod === 'card' ? '1.5px solid var(--primary)' : '1px solid var(--border-color)'
                     }}
@@ -582,16 +576,16 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                     style={{
                       flex: 1,
                       padding: '8px 12px',
-                      borderRadius: '10px',
+                      borderRadius: 'var(--radius-sm)',
                       fontSize: '0.85rem',
                       fontWeight: 600,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       gap: '6px',
-                      background: paymentMethod === 'paypal' ? '#fef3c7' : '#ffffff',
-                      color: paymentMethod === 'paypal' ? '#b45309' : 'var(--text-muted)',
-                      border: paymentMethod === 'paypal' ? '1.5px solid #f59e0b' : '1px solid var(--border-color)'
+                      background: paymentMethod === 'paypal' ? 'var(--warning-bg)' : 'var(--bg-body)',
+                      color: paymentMethod === 'paypal' ? 'var(--warning-strong)' : 'var(--text-muted)',
+                      border: paymentMethod === 'paypal' ? '1.5px solid var(--warning)' : '1px solid var(--border-color)'
                     }}
                   >
                     🅿️ PayPal (Simulado)
@@ -606,9 +600,9 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                     style={{
                       width: '100%',
                       padding: '8px 12px',
-                      background: 'linear-gradient(135deg, #eef2ff 0%, #f5f3ff 100%)',
+                      background: 'var(--primary-light)',
                       border: '1px dashed var(--primary)',
-                      borderRadius: '10px',
+                      borderRadius: 'var(--radius-sm)',
                       color: 'var(--primary)',
                       fontSize: '0.825rem',
                       fontWeight: 600,
@@ -626,17 +620,16 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                 {/* Virtual Credit Card Preview */}
                 <div
                   style={{
-                    background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 40%, #4338ca 100%)',
-                    borderRadius: '16px',
+                    background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 40%, var(--primary) 100%)',
+                    borderRadius: 'var(--radius-lg)',
                     padding: '1.25rem',
                     color: '#ffffff',
-                    boxShadow: '0 10px 20px -5px rgba(49, 46, 129, 0.4)',
+                    boxShadow: 'var(--shadow-lg)',
                     marginBottom: '1.25rem',
                     position: 'relative',
                     overflow: 'hidden'
                   }}
                 >
-                  {/* Decorative background glow */}
                   <div
                     style={{
                       position: 'absolute',
@@ -644,7 +637,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                       top: '-20px',
                       width: '120px',
                       height: '120px',
-                      borderRadius: '50%',
+                      borderRadius: 'var(--radius-full)',
                       background: 'rgba(255, 255, 255, 0.08)',
                       pointerEvents: 'none'
                     }}
@@ -652,7 +645,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                   
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <div style={{ width: '28px', height: '20px', borderRadius: '4px', background: 'linear-gradient(135deg, #fbbf24 0%, #d97706 100%)' }} />
+                      <div style={{ width: '28px', height: '20px', borderRadius: '4px', background: 'linear-gradient(135deg, var(--warning) 0%, var(--warning-hover) 100%)' }} />
                       <span style={{ fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.05em', opacity: 0.8 }}>NIMBOX PAY</span>
                     </div>
                     <span style={{ fontSize: '0.9rem', fontWeight: 800, fontStyle: 'italic', letterSpacing: '1px' }}>
@@ -667,7 +660,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', fontSize: '0.75rem' }}>
                     <div>
                       <div style={{ opacity: 0.7, textTransform: 'uppercase', fontSize: '0.65rem' }}>Titular</div>
-                      <div style={{ fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSerif: 'nowrap' }}>
+                      <div style={{ fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {cardName || 'NOMBRE APELLIDO'}
                       </div>
                     </div>
@@ -698,7 +691,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                       style={{
                         width: '100%',
                         padding: '9px 12px',
-                        borderRadius: '10px',
+                        borderRadius: 'var(--radius-sm)',
                         border: errors.cardName ? '1px solid var(--danger)' : '1px solid var(--border-color)',
                         fontSize: '0.875rem',
                         outline: 'none'
@@ -721,7 +714,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                         style={{
                           width: '100%',
                           padding: '9px 12px 9px 36px',
-                          borderRadius: '10px',
+                          borderRadius: 'var(--radius-sm)',
                           border: errors.cardNumber ? '1px solid var(--danger)' : '1px solid var(--border-color)',
                           fontSize: '0.875rem',
                           fontFamily: 'monospace',
@@ -747,7 +740,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                         style={{
                           width: '100%',
                           padding: '9px 12px',
-                          borderRadius: '10px',
+                          borderRadius: 'var(--radius-sm)',
                           border: errors.cardExpiry ? '1px solid var(--danger)' : '1px solid var(--border-color)',
                           fontSize: '0.875rem',
                           textAlign: 'center',
@@ -770,7 +763,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                         style={{
                           width: '100%',
                           padding: '9px 12px',
-                          borderRadius: '10px',
+                          borderRadius: 'var(--radius-sm)',
                           border: errors.cardCvc ? '1px solid var(--danger)' : '1px solid var(--border-color)',
                           fontSize: '0.875rem',
                           textAlign: 'center',
@@ -797,9 +790,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
             </div>
           )}
 
-          {/* ========================================================
-              RIGHT COLUMN: STEP 2 - ACCOUNT CREDENTIALS FOR LOGIN
-              ======================================================== */}
+          {/* RIGHT COLUMN: STEP 2 - ACCOUNT CREDENTIALS FOR LOGIN */}
           {currentStep === 2 && (
             <div style={{ padding: '1.75rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
               <div>
@@ -829,7 +820,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                       style={{
                         width: '100%',
                         padding: '9px 12px',
-                        borderRadius: '10px',
+                        borderRadius: 'var(--radius-sm)',
                         border: errors.fullName ? '1px solid var(--danger)' : '1px solid var(--border-color)',
                         fontSize: '0.875rem',
                         outline: 'none'
@@ -854,7 +845,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                       style={{
                         width: '100%',
                         padding: '9px 12px',
-                        borderRadius: '10px',
+                        borderRadius: 'var(--radius-sm)',
                         border: errors.email ? '1px solid var(--danger)' : '1px solid var(--border-color)',
                         fontSize: '0.875rem',
                         outline: 'none'
@@ -887,7 +878,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                         style={{
                           width: '100%',
                           padding: '9px 38px 9px 12px',
-                          borderRadius: '10px',
+                          borderRadius: 'var(--radius-sm)',
                           border: errors.password ? '1px solid var(--danger)' : '1px solid var(--border-color)',
                           fontSize: '0.875rem',
                           outline: 'none'
@@ -920,7 +911,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                               flex: 1,
                               height: '4px',
                               borderRadius: '2px',
-                              background: passwordStrength.score >= step ? passwordStrength.color : '#e2e8f0',
+                              background: passwordStrength.score >= step ? passwordStrength.color : 'var(--border-color)',
                               transition: 'all 0.2s'
                             }}
                           />
@@ -946,7 +937,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                       style={{
                         width: '100%',
                         padding: '9px 12px',
-                        borderRadius: '10px',
+                        borderRadius: 'var(--radius-sm)',
                         border: errors.confirmPassword ? '1px solid var(--danger)' : '1px solid var(--border-color)',
                         fontSize: '0.875rem',
                         outline: 'none'
@@ -978,9 +969,9 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                   onClick={() => setCurrentStep(1)}
                   style={{
                     padding: '0.85rem 1.25rem',
-                    borderRadius: '10px',
+                    borderRadius: 'var(--radius-sm)',
                     border: '1px solid var(--border-color)',
-                    background: '#ffffff',
+                    background: 'var(--bg-body)',
                     color: 'var(--text-main)',
                     fontWeight: 600,
                     fontSize: '0.9rem',
@@ -1003,9 +994,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
             </div>
           )}
 
-          {/* ========================================================
-              STEP 3 - PROCESSING SIMULATION SCREEN (FULL WIDTH)
-              ======================================================== */}
+          {/* STEP 3 - PROCESSING SIMULATION SCREEN */}
           {currentStep === 3 && (
             <div
               style={{
@@ -1024,7 +1013,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                   style={{
                     position: 'absolute',
                     inset: 0,
-                    borderRadius: '50%',
+                    borderRadius: 'var(--radius-full)',
                     border: '4px solid var(--primary-light)',
                     borderTopColor: 'var(--primary)',
                     animation: 'spin 1s linear infinite'
@@ -1034,7 +1023,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                   style={{
                     position: 'absolute',
                     inset: '12px',
-                    borderRadius: '50%',
+                    borderRadius: 'var(--radius-full)',
                     background: 'var(--primary)',
                     display: 'flex',
                     alignItems: 'center',
@@ -1054,13 +1043,13 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
               </p>
 
               {/* Progress Bar */}
-              <div style={{ width: '100%', maxWidth: '380px', height: '8px', background: 'var(--border-color)', borderRadius: '9999px', overflow: 'hidden' }}>
+              <div style={{ width: '100%', maxWidth: '380px', height: '8px', background: 'var(--border-color)', borderRadius: 'var(--radius-full)', overflow: 'hidden' }}>
                 <div
                   style={{
                     width: `${processingProgress}%`,
                     height: '100%',
-                    background: 'linear-gradient(90deg, var(--primary) 0%, var(--accent-violet) 100%)',
-                    borderRadius: '9999px',
+                    background: 'var(--primary-gradient)',
+                    borderRadius: 'var(--radius-full)',
                     transition: 'width 0.4s ease'
                   }}
                 />
@@ -1072,9 +1061,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
             </div>
           )}
 
-          {/* ========================================================
-              STEP 4 - SUCCESS & DIGITAL RECEIPT (FULL WIDTH)
-              ======================================================== */}
+          {/* STEP 4 - SUCCESS & DIGITAL RECEIPT */}
           {currentStep === 4 && (
             <div
               style={{
@@ -1087,12 +1074,11 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                 textAlign: 'center'
               }}
             >
-              {/* Success Icon */}
               <div
                 style={{
                   width: '64px',
                   height: '64px',
-                  borderRadius: '50%',
+                  borderRadius: 'var(--radius-full)',
                   background: 'var(--success-bg)',
                   color: 'var(--success)',
                   display: 'flex',
@@ -1119,7 +1105,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                   maxWidth: '520px',
                   background: 'var(--bg-subtle)',
                   border: '1px solid var(--border-color)',
-                  borderRadius: '16px',
+                  borderRadius: 'var(--radius-lg)',
                   padding: '1.5rem',
                   textAlign: 'left',
                   marginBottom: '2rem'
@@ -1132,7 +1118,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                       {transactionId}
                     </div>
                   </div>
-                  <span style={{ background: 'var(--success-bg)', color: 'var(--success-hover)', fontSize: '0.75rem', fontWeight: 700, padding: '3px 10px', borderRadius: '9999px' }}>
+                  <span style={{ background: 'var(--success-bg)', color: 'var(--success-hover)', fontSize: '0.75rem', fontWeight: 700, padding: '3px 10px', borderRadius: 'var(--radius-full)' }}>
                     PAGADO
                   </span>
                 </div>
@@ -1183,13 +1169,6 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
           )}
         </div>
       </div>
-
-      <style>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
     </div>
   );
 };
