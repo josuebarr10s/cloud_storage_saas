@@ -33,7 +33,7 @@ export const LandingNavbar = ({ onLoginClick, onRegisterClick }) => {
         transition: 'all 0.25s ease',
         background: scrolled ? 'rgba(255, 255, 255, 0.95)' : 'rgba(255, 255, 255, 0.85)',
         backdropFilter: 'blur(12px)',
-        borderBottom: '1px solid #e2e8f0',
+        borderBottom: '1px solid var(--border-color)',
         boxShadow: scrolled ? '0 4px 6px -1px rgba(0, 0, 0, 0.05)' : 'none',
       }}
     >
@@ -47,21 +47,13 @@ export const LandingNavbar = ({ onLoginClick, onRegisterClick }) => {
         }}
       >
         {/* Brand Logo */}
-        <a
-          href="#"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            textDecoration: 'none',
-          }}
-        >
+        <a href="#" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
           <div
             style={{
               width: '36px',
               height: '36px',
               borderRadius: '10px',
-              background: '#4f46e5',
+              background: 'var(--primary)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -76,7 +68,7 @@ export const LandingNavbar = ({ onLoginClick, onRegisterClick }) => {
               fontSize: '1.35rem',
               fontWeight: 800,
               letterSpacing: '-0.02em',
-              color: '#0f172a',
+              color: 'var(--text-main)',
             }}
           >
             Nimbox
@@ -93,18 +85,7 @@ export const LandingNavbar = ({ onLoginClick, onRegisterClick }) => {
           className="desktop-nav"
         >
           {navLinks.map((link) => (
-            <a
-              key={link.label}
-              href={link.href}
-              style={{
-                fontSize: '0.9rem',
-                color: '#475569',
-                fontWeight: 500,
-                transition: 'color 0.2s ease',
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = '#4f46e5')}
-              onMouseLeave={(e) => (e.currentTarget.style.color = '#475569')}
-            >
+            <a key={link.label} href={link.href} style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontWeight: 500, transition: 'color 0.2s ease' }} onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--primary)')} onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-secondary)')}>
               {link.label}
             </a>
           ))}
@@ -122,7 +103,7 @@ export const LandingNavbar = ({ onLoginClick, onRegisterClick }) => {
           <button
             onClick={onLoginClick}
             className="btn-ghost"
-            style={{ fontSize: '0.9rem', color: '#334155', fontWeight: 600 }}
+            style={{ fontSize: '0.9rem', color: 'var(--text-strong)', fontWeight: 600 }}
           >
             Iniciar Sesión
           </button>
@@ -140,11 +121,11 @@ export const LandingNavbar = ({ onLoginClick, onRegisterClick }) => {
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           className="mobile-toggle"
           style={{
-            color: '#0f172a',
+            color: 'var(--text-main)',
             padding: '8px',
             borderRadius: '8px',
-            background: '#f1f5f9',
-            border: '1px solid #e2e8f0',
+            background: 'var(--bg-hover)',
+            border: '1px solid var(--border-color)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -161,7 +142,7 @@ export const LandingNavbar = ({ onLoginClick, onRegisterClick }) => {
           style={{
             marginTop: '1rem',
             background: '#ffffff',
-            border: '1px solid #e2e8f0',
+            border: '1px solid var(--border-color)',
             borderRadius: '16px',
             padding: '1.5rem',
             display: 'flex',
@@ -171,18 +152,7 @@ export const LandingNavbar = ({ onLoginClick, onRegisterClick }) => {
           }}
         >
           {navLinks.map((link) => (
-            <a
-              key={link.label}
-              href={link.href}
-              onClick={() => setMobileMenuOpen(false)}
-              style={{
-                fontSize: '0.95rem',
-                color: '#334155',
-                fontWeight: 500,
-                padding: '8px 0',
-                borderBottom: '1px solid #f1f5f9',
-              }}
-            >
+            <a key={link.label} href={link.href} onClick={() => setMobileMenuOpen(false)} style={{ fontSize: '0.95rem', color: 'var(--text-strong)', fontWeight: 500, padding: '8px 0', borderBottom: '1px solid var(--bg-hover)' }}>
               {link.label}
             </a>
           ))}

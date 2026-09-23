@@ -8,32 +8,32 @@ export const TrustBadges = () => {
       title: 'Cifrado AES-256',
       description: 'Encriptación de grado militar en reposo y en tránsito SSL/TLS.',
       badge: 'Estándar Global',
-      color: '#4f46e5',
-      bg: '#eef2ff'
+      color: 'var(--primary)',
+      bg: 'var(--primary-light)'
     },
     {
       icon: Activity,
       title: 'SLA 99.99% Uptime',
       description: 'Alta disponibilidad garantizada con redundancia y almacenamiento distribuido.',
       badge: 'Resiliencia',
-      color: '#059669',
-      bg: '#ecfdf5'
+      color: 'var(--success-hover)',
+      bg: 'var(--success-bg)'
     },
     {
       icon: ShieldCheck,
       title: 'Zero-Knowledge',
       description: 'Arquitectura privada donde solo tú tienes acceso a tus archivos.',
       badge: '100% Privado',
-      color: '#0284c7',
-      bg: '#e0f2fe'
+      color: 'var(--accent-sky)',
+      bg: 'var(--accent-sky-bg)'
     },
     {
       icon: Award,
       title: 'SOC-2 & GDPR',
       description: 'Cumplimiento estricto con normativas internacionales de protección de datos.',
       badge: 'Certificado',
-      color: '#7c3aed',
-      bg: '#f5f3ff'
+      color: 'var(--accent-violet)',
+      bg: 'var(--accent-violet-bg)'
     },
   ];
 
@@ -42,8 +42,8 @@ export const TrustBadges = () => {
       id="security"
       style={{
         padding: '3.5rem 0 4.5rem 0',
-        borderTop: '1px solid #e2e8f0',
-        borderBottom: '1px solid #e2e8f0',
+        borderTop: '1px solid var(--border-color)',
+        borderBottom: '1px solid var(--border-color)',
         background: '#ffffff',
       }}
     >
@@ -54,7 +54,7 @@ export const TrustBadges = () => {
             fontSize: '0.8rem',
             textTransform: 'uppercase',
             letterSpacing: '0.1em',
-            color: '#64748b',
+            color: 'var(--text-muted)',
             fontWeight: 700,
             marginBottom: '2.5rem',
           }}
@@ -120,10 +120,10 @@ export const TrustBadges = () => {
                     </span>
                   </div>
 
-                  <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#0f172a', marginBottom: '0.4rem' }}>
+                  <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.4rem' }}>
                     {feat.title}
                   </h3>
-                  <p style={{ fontSize: '0.85rem', color: '#64748b', lineHeight: 1.5 }}>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
                     {feat.description}
                   </p>
                 </div>

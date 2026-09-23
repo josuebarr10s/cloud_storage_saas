@@ -5,8 +5,8 @@ export const LandingFooter = () => {
   return (
     <footer
       style={{
-        background: '#0f172a',
-        color: '#94a3b8',
+        background: 'var(--text-main)',
+        color: 'var(--text-light)',
         padding: '5rem 0 2.5rem 0',
       }}
     >
@@ -28,7 +28,7 @@ export const LandingFooter = () => {
                   width: '36px',
                   height: '36px',
                   borderRadius: '10px',
-                  background: '#4f46e5',
+                  background: 'var(--primary)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -42,7 +42,7 @@ export const LandingFooter = () => {
               </span>
             </div>
 
-            <p style={{ fontSize: '0.875rem', lineHeight: 1.65, color: '#94a3b8', marginBottom: '1.5rem' }}>
+            <p style={{ fontSize: '0.875rem', lineHeight: 1.65, color: 'var(--text-light)', marginBottom: '1.5rem' }}>
               Plataforma de almacenamiento en la nube segura, rápida y escalable (STaaS). Diseñada para la protección y distribución de archivos digitales.
             </p>
 
@@ -61,7 +61,7 @@ export const LandingFooter = () => {
                 fontWeight: 600,
               }}
             >
-              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 6px #10b981' }} />
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--success)', boxShadow: '0 0 6px var(--success)' }} />
               Sistemas: 100% Operacional
             </div>
           </div>
@@ -72,11 +72,11 @@ export const LandingFooter = () => {
               Producto
             </h4>
             <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.875rem' }}>
-              <li><a href="#features" style={{ color: '#94a3b8' }}>Características</a></li>
-              <li><a href="#calculator" style={{ color: '#94a3b8' }}>Calculadora de Espacio</a></li>
-              <li><a href="#pricing" style={{ color: '#94a3b8' }}>Planes y Precios</a></li>
-              <li><a href="#security" style={{ color: '#94a3b8' }}>Seguridad y Cifrado</a></li>
-              <li><a href="#faq" style={{ color: '#94a3b8' }}>Preguntas Frecuentes</a></li>
+              <li><a href="#features" style={{ color: 'var(--text-light)' }}>Características</a></li>
+              <li><a href="#calculator" style={{ color: 'var(--text-light)' }}>Calculadora de Espacio</a></li>
+              <li><a href="#pricing" style={{ color: 'var(--text-light)' }}>Planes y Precios</a></li>
+              <li><a href="#security" style={{ color: 'var(--text-light)' }}>Seguridad y Cifrado</a></li>
+              <li><a href="#faq" style={{ color: 'var(--text-light)' }}>Preguntas Frecuentes</a></li>
             </ul>
           </div>
 
@@ -86,10 +86,10 @@ export const LandingFooter = () => {
               Recursos
             </h4>
             <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.875rem' }}>
-              <li><a href="#" style={{ color: '#94a3b8' }}>Documentación Técnica</a></li>
-              <li><a href="#" style={{ color: '#94a3b8' }}>Guía de Uso</a></li>
-              <li><a href="#" style={{ color: '#94a3b8' }}>Políticas de Archivo</a></li>
-              <li><a href="#" style={{ color: '#94a3b8' }}>Centro de Asistencia</a></li>
+              <li><a href="#" style={{ color: 'var(--text-light)' }}>Documentación Técnica</a></li>
+              <li><a href="#" style={{ color: 'var(--text-light)' }}>Guía de Uso</a></li>
+              <li><a href="#" style={{ color: 'var(--text-light)' }}>Políticas de Archivo</a></li>
+              <li><a href="#" style={{ color: 'var(--text-light)' }}>Centro de Asistencia</a></li>
             </ul>
           </div>
 
@@ -99,9 +99,9 @@ export const LandingFooter = () => {
               Legal y Proyecto
             </h4>
             <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.875rem' }}>
-              <li><a href="#" style={{ color: '#94a3b8' }}>Privacidad y Términos</a></li>
-              <li><a href="#" style={{ color: '#94a3b8' }}>Acuerdo de Servicio (SLA)</a></li>
-              <li><a href="#" style={{ color: '#94a3b8' }}>Seguridad de Datos</a></li>
+              <li><a href="#" style={{ color: 'var(--text-light)' }}>Privacidad y Términos</a></li>
+              <li><a href="#" style={{ color: 'var(--text-light)' }}>Acuerdo de Servicio (SLA)</a></li>
+              <li><a href="#" style={{ color: 'var(--text-light)' }}>Seguridad de Datos</a></li>
             </ul>
           </div>
         </div>
@@ -110,14 +110,14 @@ export const LandingFooter = () => {
         <div
           style={{
             paddingTop: '2rem',
-            borderTop: '1px solid #1e293b',
+            borderTop: '1px solid var(--bg-dark)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             flexWrap: 'wrap',
             gap: '16px',
             fontSize: '0.8rem',
-            color: '#64748b',
+            color: 'var(--text-muted)',
           }}
         >
           <div>

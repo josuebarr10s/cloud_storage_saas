@@ -36,7 +36,7 @@ export const FAQSection = ({ onGetStartedClick }) => {
   };
 
   return (
-    <section id="faq" style={{ padding: '5.5rem 0', background: '#ffffff', borderTop: '1px solid #e2e8f0' }}>
+    <section id="faq" style={{ padding: '5.5rem 0', background: '#ffffff', borderTop: '1px solid var(--border-color)' }}>
       <div className="landing-container">
         {/* Section Header */}
         <div style={{ textAlign: 'center', maxWidth: '700px', margin: '0 auto 3.5rem auto' }}>
@@ -47,14 +47,14 @@ export const FAQSection = ({ onGetStartedClick }) => {
             style={{
               fontSize: 'clamp(2rem, 4vw, 2.6rem)',
               fontWeight: 800,
-              color: '#0f172a',
+              color: 'var(--text-main)',
               letterSpacing: '-0.03em',
               marginBottom: '0.75rem',
             }}
           >
             Preguntas Frecuentes
           </h2>
-          <p style={{ color: '#64748b', fontSize: '1.05rem' }}>
+          <p style={{ color: 'var(--text-muted)', fontSize: '1.05rem' }}>
             Todo lo que necesitas saber sobre el funcionamiento, la seguridad y los planes de Nimbox.
           </p>
         </div>
@@ -69,8 +69,8 @@ export const FAQSection = ({ onGetStartedClick }) => {
                 style={{
                   borderRadius: '14px',
                   overflow: 'hidden',
-                  border: isOpen ? '1px solid #c7d2fe' : '1px solid #e2e8f0',
-                  background: isOpen ? '#f8faff' : '#ffffff',
+                  border: isOpen ? '1px solid var(--accent-indigo-border)' : '1px solid var(--border-color)',
+                  background: isOpen ? 'var(--bg-tint)' : '#ffffff',
                   boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
                   transition: 'all 0.2s',
                 }}
@@ -84,7 +84,7 @@ export const FAQSection = ({ onGetStartedClick }) => {
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     textAlign: 'left',
-                    color: '#0f172a',
+                    color: 'var(--text-main)',
                     fontWeight: 600,
                     fontSize: '1rem',
                     gap: '16px',
@@ -96,11 +96,11 @@ export const FAQSection = ({ onGetStartedClick }) => {
                       width: '28px',
                       height: '28px',
                       borderRadius: '50%',
-                      background: isOpen ? '#eef2ff' : '#f1f5f9',
+                      background: isOpen ? 'var(--primary-light)' : 'var(--bg-hover)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      color: isOpen ? '#4f46e5' : '#64748b',
+                      color: isOpen ? 'var(--primary)' : 'var(--text-muted)',
                       flexShrink: 0,
                     }}
                   >
@@ -112,10 +112,10 @@ export const FAQSection = ({ onGetStartedClick }) => {
                   <div
                     style={{
                       padding: '0 1.5rem 1.25rem 1.5rem',
-                      color: '#475569',
+                      color: 'var(--text-secondary)',
                       fontSize: '0.925rem',
                       lineHeight: 1.6,
-                      borderTop: '1px solid #eef2ff',
+                      borderTop: '1px solid var(--primary-light)',
                       paddingTop: '0.75rem',
                     }}
                   >
@@ -130,7 +130,7 @@ export const FAQSection = ({ onGetStartedClick }) => {
         {/* Final CTA Banner (Figma Banner style) */}
         <div
           style={{
-            background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)',
+            background: 'linear-gradient(135deg, var(--primary) 0%, #6366f1 100%)',
             borderRadius: '24px',
             padding: '4rem 2rem',
             textAlign: 'center',
@@ -168,7 +168,7 @@ export const FAQSection = ({ onGetStartedClick }) => {
               ¿Listo para almacenar y compartir tus archivos sin fricción?
             </h3>
 
-            <p style={{ color: '#e0e7ff', fontSize: '1.05rem', marginBottom: '2.5rem', lineHeight: 1.6 }}>
+            <p style={{ color: 'var(--accent-indigo-bg)', fontSize: '1.05rem', marginBottom: '2.5rem', lineHeight: 1.6 }}>
               Comienza hoy mismo con 10 GB de almacenamiento seguro en Nimbox.
             </p>
 
@@ -180,7 +180,7 @@ export const FAQSection = ({ onGetStartedClick }) => {
                 fontWeight: 700,
                 borderRadius: '12px',
                 background: '#ffffff',
-                color: '#4f46e5',
+                color: 'var(--primary)',
                 boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
                 display: 'inline-flex',
                 alignItems: 'center',

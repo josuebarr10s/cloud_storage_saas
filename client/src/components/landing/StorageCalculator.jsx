@@ -60,7 +60,7 @@ export const StorageCalculator = ({ onSelectPlan }) => {
       style={{
         padding: '5.5rem 0',
         background: '#ffffff',
-        borderTop: '1px solid #e2e8f0',
+        borderTop: '1px solid var(--border-color)',
       }}
     >
       <div className="landing-container">
@@ -73,14 +73,14 @@ export const StorageCalculator = ({ onSelectPlan }) => {
             style={{
               fontSize: 'clamp(2rem, 4vw, 2.6rem)',
               fontWeight: 800,
-              color: '#0f172a',
+              color: 'var(--text-main)',
               letterSpacing: '-0.03em',
               marginBottom: '0.75rem',
             }}
           >
             Calcula el espacio que tu equipo necesita
           </h2>
-          <p style={{ color: '#64748b', fontSize: '1.05rem' }}>
+          <p style={{ color: 'var(--text-muted)', fontSize: '1.05rem' }}>
             Ajusta la capacidad deseada para conocer la equivalencia en archivos y el plan recomendado de Nimbox.
           </p>
         </div>
@@ -97,15 +97,15 @@ export const StorageCalculator = ({ onSelectPlan }) => {
           {/* Left Panel: Slider & File Equivalencies */}
           <div
             style={{
-              background: '#f8fafc',
-              border: '1px solid #e2e8f0',
+              background: 'var(--bg-subtle)',
+              border: '1px solid var(--border-color)',
               borderRadius: '20px',
               padding: '2.25rem',
             }}
           >
             {/* Presets */}
             <div style={{ marginBottom: '1.5rem' }}>
-              <p style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600, marginBottom: '8px' }}>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '8px' }}>
                 Casos de uso comunes:
               </p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
@@ -118,9 +118,9 @@ export const StorageCalculator = ({ onSelectPlan }) => {
                       borderRadius: '8px',
                       fontSize: '0.8rem',
                       fontWeight: 600,
-                      background: storageGB === p.value ? '#4f46e5' : '#ffffff',
-                      color: storageGB === p.value ? '#ffffff' : '#475569',
-                      border: storageGB === p.value ? '1px solid #4f46e5' : '1px solid #cbd5e1',
+                      background: storageGB === p.value ? 'var(--primary)' : '#ffffff',
+                      color: storageGB === p.value ? '#ffffff' : 'var(--text-secondary)',
+                      border: storageGB === p.value ? '1px solid var(--primary)' : '1px solid var(--border-hover)',
                     }}
                   >
                     {p.label}
@@ -132,8 +132,8 @@ export const StorageCalculator = ({ onSelectPlan }) => {
             {/* Slider */}
             <div style={{ margin: '2rem 0' }}>
               <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '10px' }}>
-                <span style={{ fontSize: '0.9rem', color: '#64748b', fontWeight: 500 }}>Capacidad seleccionada:</span>
-                <span style={{ fontSize: '2.25rem', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em' }}>
+                <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)', fontWeight: 500 }}>Capacidad seleccionada:</span>
+                <span style={{ fontSize: '2.25rem', fontWeight: 800, color: 'var(--text-main)', letterSpacing: '-0.02em' }}>
                   {storageGB >= 1000 ? `${(storageGB / 1000).toFixed(1)} TB` : `${storageGB} GB`}
                 </span>
               </div>
@@ -149,13 +149,13 @@ export const StorageCalculator = ({ onSelectPlan }) => {
                   width: '100%',
                   height: '8px',
                   borderRadius: '6px',
-                  background: `linear-gradient(to right, #4f46e5 0%, #4f46e5 ${(storageGB / 2500) * 100}%, #e2e8f0 ${(storageGB / 2500) * 100}%, #e2e8f0 100%)`,
+                  background: `linear-gradient(to right, var(--primary) 0%, var(--primary) ${(storageGB / 2500) * 100}%, var(--border-color) ${(storageGB / 2500) * 100}%, var(--border-color) 100%)`,
                   appearance: 'none',
                   outline: 'none',
                   cursor: 'pointer',
                 }}
               />
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#94a3b8', marginTop: '6px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-light)', marginTop: '6px' }}>
                 <span>10 GB (Básico - $5)</span>
                 <span>500 GB (Pro - $12)</span>
                 <span>2 TB+ (Empresarial - $49)</span>
@@ -169,25 +169,25 @@ export const StorageCalculator = ({ onSelectPlan }) => {
                 gridTemplateColumns: 'repeat(3, 1fr)',
                 gap: '10px',
                 paddingTop: '1.25rem',
-                borderTop: '1px solid #e2e8f0',
+                borderTop: '1px solid var(--border-color)',
               }}
             >
-              <div style={{ textAlign: 'center', background: '#ffffff', padding: '12px 8px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                <Camera size={18} color="#0284c7" style={{ margin: '0 auto 4px auto' }} />
-                <p style={{ fontSize: '0.95rem', fontWeight: 700, color: '#0f172a' }}>~{photosCount.toLocaleString()}</p>
-                <p style={{ fontSize: '0.72rem', color: '#64748b' }}>Fotos HD</p>
+              <div style={{ textAlign: 'center', background: '#ffffff', padding: '12px 8px', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+                <Camera size={18} color="var(--accent-sky)" style={{ margin: '0 auto 4px auto' }} />
+                <p style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main)' }}>~{photosCount.toLocaleString()}</p>
+                <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Fotos HD</p>
               </div>
 
-              <div style={{ textAlign: 'center', background: '#ffffff', padding: '12px 8px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                <Film size={18} color="#7c3aed" style={{ margin: '0 auto 4px auto' }} />
-                <p style={{ fontSize: '0.95rem', fontWeight: 700, color: '#0f172a' }}>~{videoHours.toLocaleString()} hrs</p>
-                <p style={{ fontSize: '0.72rem', color: '#64748b' }}>Video 4K</p>
+              <div style={{ textAlign: 'center', background: '#ffffff', padding: '12px 8px', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+                <Film size={18} color="var(--accent-violet)" style={{ margin: '0 auto 4px auto' }} />
+                <p style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main)' }}>~{videoHours.toLocaleString()} hrs</p>
+                <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Video 4K</p>
               </div>
 
-              <div style={{ textAlign: 'center', background: '#ffffff', padding: '12px 8px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                <FileText size={18} color="#059669" style={{ margin: '0 auto 4px auto' }} />
-                <p style={{ fontSize: '0.95rem', fontWeight: 700, color: '#0f172a' }}>~{docsCount.toLocaleString()}</p>
-                <p style={{ fontSize: '0.72rem', color: '#64748b' }}>Documentos</p>
+              <div style={{ textAlign: 'center', background: '#ffffff', padding: '12px 8px', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+                <FileText size={18} color="var(--success-hover)" style={{ margin: '0 auto 4px auto' }} />
+                <p style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main)' }}>~{docsCount.toLocaleString()}</p>
+                <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Documentos</p>
               </div>
             </div>
           </div>
@@ -195,7 +195,7 @@ export const StorageCalculator = ({ onSelectPlan }) => {
           {/* Right Panel: Recommended Plan Banner */}
           <div
             style={{
-              background: 'linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)',
+              background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%)',
               color: '#ffffff',
               borderRadius: '20px',
               padding: '2.5rem',
@@ -225,7 +225,7 @@ export const StorageCalculator = ({ onSelectPlan }) => {
                     fontSize: '0.75rem',
                     fontWeight: 700,
                     color: '#ffffff',
-                    background: '#10b981',
+                    background: 'var(--success)',
                     padding: '3px 10px',
                     borderRadius: '9999px',
                   }}
@@ -237,7 +237,7 @@ export const StorageCalculator = ({ onSelectPlan }) => {
               <h3 style={{ fontSize: '1.8rem', fontWeight: 800, marginBottom: '0.5rem' }}>
                 Plan {recommendedPlan.name}
               </h3>
-              <p style={{ fontSize: '0.9rem', color: '#e0e7ff', marginBottom: '1.75rem', lineHeight: 1.5 }}>
+              <p style={{ fontSize: '0.9rem', color: 'var(--accent-indigo-bg)', marginBottom: '1.75rem', lineHeight: 1.5 }}>
                 {recommendedPlan.desc}
               </p>
 
@@ -245,7 +245,7 @@ export const StorageCalculator = ({ onSelectPlan }) => {
                 <span style={{ fontSize: '3.25rem', fontWeight: 800, letterSpacing: '-0.03em' }}>
                   ${recommendedPlan.price}
                 </span>
-                <span style={{ fontSize: '0.95rem', color: '#c7d2fe' }}>
+                <span style={{ fontSize: '0.95rem', color: 'var(--accent-indigo-border)' }}>
                   {recommendedPlan.period}
                 </span>
               </div>
@@ -260,7 +260,7 @@ export const StorageCalculator = ({ onSelectPlan }) => {
                 fontWeight: 700,
                 fontSize: '0.95rem',
                 background: '#ffffff',
-                color: '#4f46e5',
+                color: 'var(--primary)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',

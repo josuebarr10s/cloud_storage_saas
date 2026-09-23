@@ -62,7 +62,7 @@ export const PricingSection = ({ onChoosePlan }) => {
   ];
 
   return (
-    <section id="pricing" style={{ padding: '5.5rem 0', background: '#f8fafc', borderTop: '1px solid #e2e8f0' }}>
+    <section id="pricing" style={{ padding: '5.5rem 0', background: 'var(--bg-subtle)', borderTop: '1px solid var(--border-color)' }}>
       <div className="landing-container">
         {/* Header */}
         <div style={{ textAlign: 'center', maxWidth: '750px', margin: '0 auto 3rem auto' }}>
@@ -70,14 +70,14 @@ export const PricingSection = ({ onChoosePlan }) => {
             style={{
               fontSize: 'clamp(2rem, 4vw, 2.6rem)',
               fontWeight: 800,
-              color: '#0f172a',
+              color: 'var(--text-main)',
               letterSpacing: '-0.03em',
               marginBottom: '0.75rem',
             }}
           >
             Un plan para cada etapa
           </h2>
-          <p style={{ color: '#64748b', fontSize: '1.05rem', marginBottom: '2rem' }}>
+          <p style={{ color: 'var(--text-muted)', fontSize: '1.05rem', marginBottom: '2rem' }}>
             Empieza sin tarjeta de crédito. Escala cuando lo necesites.
           </p>
 
@@ -87,7 +87,7 @@ export const PricingSection = ({ onChoosePlan }) => {
               display: 'inline-flex',
               alignItems: 'center',
               background: '#ffffff',
-              border: '1px solid #e2e8f0',
+              border: '1px solid var(--border-color)',
               padding: '4px',
               borderRadius: '9999px',
               boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
@@ -101,8 +101,8 @@ export const PricingSection = ({ onChoosePlan }) => {
                 borderRadius: '9999px',
                 fontSize: '0.85rem',
                 fontWeight: 600,
-                background: billingCycle === 'monthly' ? '#4f46e5' : 'transparent',
-                color: billingCycle === 'monthly' ? '#ffffff' : '#64748b',
+                background: billingCycle === 'monthly' ? 'var(--primary)' : 'transparent',
+                color: billingCycle === 'monthly' ? '#ffffff' : 'var(--text-muted)',
                 transition: 'all 0.2s',
               }}
             >
@@ -115,8 +115,8 @@ export const PricingSection = ({ onChoosePlan }) => {
                 borderRadius: '9999px',
                 fontSize: '0.85rem',
                 fontWeight: 600,
-                background: billingCycle === 'annual' ? '#4f46e5' : 'transparent',
-                color: billingCycle === 'annual' ? '#ffffff' : '#64748b',
+                background: billingCycle === 'annual' ? 'var(--primary)' : 'transparent',
+                color: billingCycle === 'annual' ? '#ffffff' : 'var(--text-muted)',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px',
@@ -128,8 +128,8 @@ export const PricingSection = ({ onChoosePlan }) => {
                 style={{
                   fontSize: '0.7rem',
                   fontWeight: 700,
-                  background: billingCycle === 'annual' ? 'rgba(255,255,255,0.25)' : '#ecfdf5',
-                  color: billingCycle === 'annual' ? '#ffffff' : '#059669',
+                  background: billingCycle === 'annual' ? 'rgba(255,255,255,0.25)' : 'var(--success-bg)',
+                  color: billingCycle === 'annual' ? '#ffffff' : 'var(--success-hover)',
                   padding: '2px 6px',
                   borderRadius: '9999px',
                 }}
@@ -157,12 +157,12 @@ export const PricingSection = ({ onChoosePlan }) => {
                 key={plan.id_plan}
                 style={{
                   background: plan.popular
-                    ? 'linear-gradient(180deg, #4f46e5 0%, #4338ca 100%)'
+                    ? 'linear-gradient(180deg, var(--primary) 0%, var(--primary-hover) 100%)'
                     : '#ffffff',
-                  color: plan.popular ? '#ffffff' : '#0f172a',
+                  color: plan.popular ? '#ffffff' : 'var(--text-main)',
                   borderRadius: '20px',
                   padding: '2.5rem 2rem',
-                  border: plan.popular ? 'none' : '1px solid #e2e8f0',
+                  border: plan.popular ? 'none' : '1px solid var(--border-color)',
                   boxShadow: plan.popular
                     ? '0 20px 25px -5px rgba(79, 70, 229, 0.3)'
                     : '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
@@ -183,7 +183,7 @@ export const PricingSection = ({ onChoosePlan }) => {
                       top: '-14px',
                       left: '50%',
                       transform: 'translateX(-50%)',
-                      background: '#10b981',
+                      background: 'var(--success)',
                       color: '#ffffff',
                       fontSize: '0.75rem',
                       fontWeight: 700,
@@ -205,7 +205,7 @@ export const PricingSection = ({ onChoosePlan }) => {
                   <p
                     style={{
                       fontSize: '0.875rem',
-                      color: plan.popular ? '#c7d2fe' : '#64748b',
+                      color: plan.popular ? 'var(--accent-indigo-border)' : 'var(--text-muted)',
                       minHeight: '38px',
                       marginBottom: '1.5rem',
                       lineHeight: 1.5,
@@ -218,7 +218,7 @@ export const PricingSection = ({ onChoosePlan }) => {
                     <span style={{ fontSize: '3rem', fontWeight: 800, letterSpacing: '-0.03em' }}>
                       ${currentPrice % 1 === 0 ? currentPrice : currentPrice.toFixed(2)}
                     </span>
-                    <span style={{ fontSize: '0.9rem', color: plan.popular ? '#c7d2fe' : '#64748b' }}>
+                    <span style={{ fontSize: '0.9rem', color: plan.popular ? 'var(--accent-indigo-border)' : 'var(--text-muted)' }}>
                       /mes
                     </span>
                   </div>
@@ -240,7 +240,7 @@ export const PricingSection = ({ onChoosePlan }) => {
                             width: '18px',
                             height: '18px',
                             borderRadius: '50%',
-                            background: plan.popular ? 'rgba(255,255,255,0.2)' : '#eef2ff',
+                            background: plan.popular ? 'rgba(255,255,255,0.2)' : 'var(--primary-light)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -248,9 +248,9 @@ export const PricingSection = ({ onChoosePlan }) => {
                             marginTop: '2px',
                           }}
                         >
-                          <Check size={12} color={plan.popular ? '#ffffff' : '#4f46e5'} />
+                          <Check size={12} color={plan.popular ? '#ffffff' : 'var(--primary)'} />
                         </div>
-                        <span style={{ color: plan.popular ? '#f1f5f9' : '#334155' }}>{f}</span>
+                        <span style={{ color: plan.popular ? 'var(--bg-hover)' : 'var(--text-strong)' }}>{f}</span>
                       </li>
                     ))}
                   </ul>
@@ -264,8 +264,8 @@ export const PricingSection = ({ onChoosePlan }) => {
                     borderRadius: '12px',
                     fontWeight: 600,
                     fontSize: '0.95rem',
-                    background: plan.popular ? '#ffffff' : '#4f46e5',
-                    color: plan.popular ? '#4f46e5' : '#ffffff',
+                    background: plan.popular ? '#ffffff' : 'var(--primary)',
+                    color: plan.popular ? 'var(--primary)' : '#ffffff',
                     boxShadow: plan.popular ? '0 4px 6px rgba(0,0,0,0.1)' : '0 2px 4px rgba(79, 70, 229, 0.25)',
                     display: 'flex',
                     alignItems: 'center',

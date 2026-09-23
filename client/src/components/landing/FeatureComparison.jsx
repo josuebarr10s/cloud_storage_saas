@@ -47,8 +47,8 @@ export const FeatureComparison = () => {
     if (val === true) {
       return (
         <div style={{ display: 'flex', justifyContent: 'center' }}>
-          <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: '#ecfdf5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Check size={13} color="#059669" />
+          <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'var(--success-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Check size={13} color="var(--success-hover)" />
           </div>
         </div>
       );
@@ -56,15 +56,15 @@ export const FeatureComparison = () => {
     if (val === false) {
       return (
         <div style={{ display: 'flex', justifyContent: 'center' }}>
-          <Minus size={16} color="#94a3b8" />
+          <Minus size={16} color="var(--text-light)" />
         </div>
       );
     }
-    return <span style={{ color: '#0f172a', fontSize: '0.85rem', fontWeight: 600 }}>{val}</span>;
+    return <span style={{ color: 'var(--text-main)', fontSize: '0.85rem', fontWeight: 600 }}>{val}</span>;
   };
 
   return (
-    <section style={{ padding: '2rem 0 5rem 0', background: '#f8fafc' }}>
+    <section style={{ padding: '2rem 0 5rem 0', background: 'var(--bg-subtle)' }}>
       <div className="landing-container">
         {/* Toggle Button */}
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
@@ -77,15 +77,15 @@ export const FeatureComparison = () => {
               padding: '0.75rem 1.75rem',
               borderRadius: '9999px',
               background: '#ffffff',
-              border: '1px solid #cbd5e1',
-              color: '#0f172a',
+              border: '1px solid var(--border-hover)',
+              color: 'var(--text-main)',
               fontSize: '0.95rem',
               fontWeight: 600,
               boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
               cursor: 'pointer',
             }}
           >
-            <Layers size={18} color="#4f46e5" />
+            <Layers size={18} color="var(--primary)" />
             <span>{expanded ? 'Ocultar comparativa detallada' : 'Ver comparativa completa de funciones'}</span>
             {expanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
           </button>
@@ -96,7 +96,7 @@ export const FeatureComparison = () => {
           <div
             style={{
               background: '#ffffff',
-              border: '1px solid #e2e8f0',
+              border: '1px solid var(--border-color)',
               borderRadius: '20px',
               overflow: 'hidden',
               padding: '1.5rem',
@@ -106,17 +106,17 @@ export const FeatureComparison = () => {
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '650px' }}>
                 <thead>
-                  <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
-                    <th style={{ padding: '14px 18px', fontSize: '0.95rem', color: '#0f172a', fontWeight: 700, width: '40%' }}>
+                  <tr style={{ borderBottom: '2px solid var(--bg-hover)' }}>
+                    <th style={{ padding: '14px 18px', fontSize: '0.95rem', color: 'var(--text-main)', fontWeight: 700, width: '40%' }}>
                       Función / Característica
                     </th>
-                    <th style={{ padding: '14px 18px', fontSize: '0.9rem', color: '#475569', textAlign: 'center', width: '20%' }}>
+                    <th style={{ padding: '14px 18px', fontSize: '0.9rem', color: 'var(--text-secondary)', textAlign: 'center', width: '20%' }}>
                       Básico ($5/mes)
                     </th>
-                    <th style={{ padding: '14px 18px', fontSize: '0.9rem', color: '#4f46e5', textAlign: 'center', width: '20%', background: '#eef2ff', borderRadius: '8px 8px 0 0' }}>
+                    <th style={{ padding: '14px 18px', fontSize: '0.9rem', color: 'var(--primary)', textAlign: 'center', width: '20%', background: 'var(--primary-light)', borderRadius: '8px 8px 0 0' }}>
                       Pro ($12/mes)
                     </th>
-                    <th style={{ padding: '14px 18px', fontSize: '0.9rem', color: '#0f172a', textAlign: 'center', width: '20%' }}>
+                    <th style={{ padding: '14px 18px', fontSize: '0.9rem', color: 'var(--text-main)', textAlign: 'center', width: '20%' }}>
                       Empresarial ($49/mes)
                     </th>
                   </tr>
@@ -124,17 +124,17 @@ export const FeatureComparison = () => {
                 <tbody>
                   {comparisonRows.map((cat, catIdx) => (
                     <React.Fragment key={catIdx}>
-                      <tr style={{ background: '#f8fafc' }}>
+                      <tr style={{ background: 'var(--bg-subtle)' }}>
                         <td
                           colSpan={4}
                           style={{
                             padding: '12px 18px',
                             fontSize: '0.75rem',
                             fontWeight: 700,
-                            color: '#4f46e5',
+                            color: 'var(--primary)',
                             textTransform: 'uppercase',
                             letterSpacing: '0.05em',
-                            borderTop: '1px solid #e2e8f0',
+                            borderTop: '1px solid var(--border-color)',
                           }}
                         >
                           {cat.category}
@@ -143,15 +143,15 @@ export const FeatureComparison = () => {
                       {cat.items.map((item, itemIdx) => (
                         <tr
                           key={itemIdx}
-                          style={{ borderBottom: '1px solid #f1f5f9' }}
+                          style={{ borderBottom: '1px solid var(--bg-hover)' }}
                         >
-                          <td style={{ padding: '12px 18px', fontSize: '0.85rem', color: '#334155' }}>
+                          <td style={{ padding: '12px 18px', fontSize: '0.85rem', color: 'var(--text-strong)' }}>
                             {item.feature}
                           </td>
                           <td style={{ padding: '12px 18px', textAlign: 'center' }}>
                             {renderCell(item.basic)}
                           </td>
-                          <td style={{ padding: '12px 18px', textAlign: 'center', background: '#f5f7ff' }}>
+                          <td style={{ padding: '12px 18px', textAlign: 'center', background: 'var(--bg-tint)' }}>
                             {renderCell(item.pro)}
                           </td>
                           <td style={{ padding: '12px 18px', textAlign: 'center' }}>

@@ -38,27 +38,27 @@ export const TestimonialsSection = () => {
       style={{
         padding: '5.5rem 0',
         background: '#ffffff',
-        borderTop: '1px solid #e2e8f0',
+        borderTop: '1px solid var(--border-color)',
       }}
     >
       <div className="landing-container">
         {/* Header */}
         <div style={{ textAlign: 'center', maxWidth: '700px', margin: '0 auto 3.5rem auto' }}>
           <div className="pill-badge" style={{ marginBottom: '1rem' }}>
-            <Star size={14} fill="#4f46e5" /> Testimonios Reales
+            <Star size={14} fill="var(--primary)" /> Testimonios Reales
           </div>
           <h2
             style={{
               fontSize: 'clamp(2rem, 4vw, 2.6rem)',
               fontWeight: 800,
-              color: '#0f172a',
+              color: 'var(--text-main)',
               letterSpacing: '-0.03em',
               marginBottom: '0.75rem',
             }}
           >
             La confianza de creadores y equipos
           </h2>
-          <p style={{ color: '#64748b', fontSize: '1.05rem' }}>
+          <p style={{ color: 'var(--text-muted)', fontSize: '1.05rem' }}>
             Descubre cómo Nimbox ayuda a optimizar el almacenamiento de archivos diario.
           </p>
         </div>
@@ -87,25 +87,25 @@ export const TestimonialsSection = () => {
               <div>
                 <div style={{ display: 'flex', gap: '4px', marginBottom: '1rem' }}>
                   {[...Array(t.stars)].map((_, i) => (
-                    <Star key={i} size={16} fill="#f59e0b" color="#f59e0b" />
+                    <Star key={i} size={16} fill="var(--warning)" color="var(--warning)" />
                   ))}
                 </div>
-                <p style={{ color: '#334155', fontSize: '0.95rem', lineHeight: 1.6, fontStyle: 'italic', marginBottom: '1.5rem' }}>
+                <p style={{ color: 'var(--text-strong)', fontSize: '0.95rem', lineHeight: 1.6, fontStyle: 'italic', marginBottom: '1.5rem' }}>
                   "{t.quote}"
                 </p>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', paddingTop: '1rem', borderTop: '1px solid #f1f5f9' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', paddingTop: '1rem', borderTop: '1px solid var(--bg-hover)' }}>
                 <img
                   src={t.avatar}
                   alt={t.author}
-                  style={{ width: '44px', height: '44px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #eef2ff' }}
+                  style={{ width: '44px', height: '44px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--primary-light)' }}
                 />
                 <div>
-                  <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#0f172a' }}>
+                  <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main)' }}>
                     {t.author}
                   </h4>
-                  <p style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                  <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
                     {t.role}
                   </p>
                 </div>
@@ -117,8 +117,8 @@ export const TestimonialsSection = () => {
         {/* Stats Banner */}
         <div
           style={{
-            background: '#f8fafc',
-            border: '1px solid #e2e8f0',
+            background: 'var(--bg-subtle)',
+            border: '1px solid var(--border-color)',
             borderRadius: '20px',
             padding: '2.5rem 2rem',
             display: 'grid',
@@ -134,16 +134,16 @@ export const TestimonialsSection = () => {
                   fontSize: '2.4rem',
                   fontWeight: 800,
                   letterSpacing: '-0.03em',
-                  color: '#4f46e5',
+                  color: 'var(--primary)',
                   marginBottom: '2px',
                 }}
               >
                 {s.value}
               </p>
-              <p style={{ fontSize: '0.9rem', fontWeight: 700, color: '#0f172a', marginBottom: '2px' }}>
+              <p style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '2px' }}>
                 {s.label}
               </p>
-              <p style={{ fontSize: '0.78rem', color: '#64748b' }}>
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
                 {s.subtext}
               </p>
             </div>
