@@ -1,65 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Check, ArrowRight } from 'lucide-react';
+import { plansService } from '../../services/plansService.js';
 
 export const PricingSection = ({ onChoosePlan }) => {
   const [billingCycle, setBillingCycle] = useState('monthly'); // 'monthly' | 'annual'
+  const [plans, setPlans] = useState([]);
 
-  const plans = [
-    {
-      id_plan: 1,
-      nombre: 'Básico',
-      descripcion: 'Para uso personal y organización',
-      precio: 5,
-      precioAnual: 4.0, // 20% off
-      popular: false,
-      features: [
-        '10 GB de almacenamiento',
-        'Acceso desde 2 dispositivos',
-        'Compartir por enlace',
-        'Soporte por email',
-        'Historial de versiones (7 días)'
-      ],
-      buttonText: 'Elegir Básico'
-    },
-    {
-      id_plan: 2,
-      nombre: 'Pro',
-      descripcion: 'Para profesionales y pequeños equipos',
-      precio: 12,
-      precioAnual: 9.6, // 20% off
-      popular: true,
-      badge: 'Recomendado',
-      features: [
-        '500 GB de almacenamiento',
-        'Dispositivos ilimitados',
-        'Compartir con permisos avanzados',
-        'Soporte prioritario 24/7',
-        'Historial de versiones 30 días',
-        'Colaboración en equipo',
-        'Integraciones con terceros'
-      ],
-      buttonText: 'Elegir Pro'
-    },
-    {
-      id_plan: 3,
-      nombre: 'Empresarial',
-      descripcion: 'Para organizaciones exigentes',
-      precio: 49,
-      precioAnual: 39.2, // 20% off
-      popular: false,
-      features: [
-        'Almacenamiento Ilimitado',
-        'SSO y control de acceso',
-        'SLA garantizado 99.99%',
-        'Soporte dedicado',
-        'Historial de versiones ilimitado',
-        'Auditoría y cumplimiento',
-        'API privada y webhooks',
-        'Facturación personalizada'
-      ],
-      buttonText: 'Contactar ventas'
+  useEffect(() => {
+    async function loadPlans() {
+      const dbPlans = await plansService.getPlans();
+      setPlans(dbPlans);
     }
-  ];
+    loadPlans();
+  }, []);
 
   return (
     <section id="pricing" style={{ padding: '5.5rem 0', background: 'var(--bg-subtle)', borderTop: '1px solid var(--border-color)' }}>

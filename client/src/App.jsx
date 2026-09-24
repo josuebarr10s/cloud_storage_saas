@@ -4,6 +4,7 @@ import { DashboardView } from './views/DashboardView.jsx';
 import { PaymentModal } from './components/payment/PaymentModal.jsx';
 import { LoginModal } from './components/auth/LoginModal.jsx';
 import { Toast } from './components/Toast.jsx';
+import { authService } from './services/authService.js';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -25,19 +26,30 @@ export default function App() {
     setTimeout(() => setToast(null), 4000);
   };
 
-  // Check existing session in localStorage on mount
+  // Check existing session in Supabase & localStorage on mount
   useEffect(() => {
-    try {
-      const savedUser = localStorage.getItem('nimbox_current_user');
-      if (savedUser) {
-        const user = JSON.parse(savedUser);
-        setCurrentUser(user);
-        // Optional: you can start on dashboard or keep on landing
-        // setCurrentView('dashboard');
+    async function loadSession() {
+      try {
+        const user = await authService.getCurrentUser();
+        if (user) {
+          setCurrentUser(user);
+        }
+      } catch (e) {
+        console.error('Error al cargar sesión de Supabase', e);
       }
-    } catch (e) {
-      console.error('Error loading session', e);
     }
+    loadSession();
+
+    // Escuchar cambios de estado en Supabase Auth
+    const { data: listener } = authService.onAuthStateChange((user) => {
+      if (user) {
+        setCurrentUser(user);
+      }
+    });
+
+    return () => {
+      listener?.subscription?.unsubscribe();
+    };
   }, []);
 
   // Open Checkout Flow
@@ -56,7 +68,7 @@ export default function App() {
   const handlePaymentSuccess = (user) => {
     setCurrentUser(user);
     setCurrentView('dashboard');
-    showNotification(`¡Bienvenido a Nimbox, ${user.name}! Tu Plan ${user.plan} está activado.`, 'success');
+    showNotification(`¡Bienvenido a Nimbox, ${user.name}! Tu Plan ${user.plan} está activado en Supabase.`, 'success');
   };
 
   // Handle successful login
@@ -67,8 +79,8 @@ export default function App() {
   };
 
   // Handle logout
-  const handleLogout = () => {
-    localStorage.removeItem('nimbox_current_user');
+  const handleLogout = async () => {
+    await authService.signOut();
     setCurrentUser(null);
     setCurrentView('landing');
     showNotification('Has cerrado sesión exitosamente.', 'info');
