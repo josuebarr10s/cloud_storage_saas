@@ -1,5 +1,9 @@
 import supabase from '../lib/supabase.js';
 
+// Roles definidos en la tabla public.rol
+const ROLES = { 1: 'Administrador', 2: 'Cliente' };
+const getRolNombre = (idRol) => ROLES[idRol] || 'Cliente';
+
 export const authService = {
   /**
    * Registrar nuevo usuario en Supabase Auth y en las tablas del esquema usuario / almacenamiento / suscripcion / pago
@@ -40,6 +44,7 @@ export const authService = {
       id: userId || `usr-${Date.now()}`,
       name: name,
       email: formattedEmail,
+      rol: 'Cliente',
       plan: plan || 'Pro',
       planId: planId || 2,
       storageQuota: plan?.toLowerCase().includes('básico') ? '10 GB' : '500 GB',
@@ -155,6 +160,7 @@ export const authService = {
             id: authData.user.id,
             name: fullName,
             email: formattedEmail,
+            rol: getRolNombre(dbUser.id_rol),
             plan: planName,
             planId: activeSub?.id_plan || 2,
             storageQuota: planName.toLowerCase().includes('básico') ? '10 GB' : '500 GB'
@@ -167,6 +173,7 @@ export const authService = {
           id: authData.user.id,
           name: authData.user.user_metadata?.full_name || formattedEmail.split('@')[0],
           email: formattedEmail,
+          rol: 'Cliente',
           plan: 'Pro',
           storageQuota: '500 GB'
         };
@@ -184,7 +191,7 @@ export const authService = {
       );
 
       if (localUser) {
-        const cleanUser = { ...localUser };
+        const cleanUser = { ...localUser, rol: 'Cliente' };
         delete cleanUser.password;
         localStorage.setItem('nimbox_current_user', JSON.stringify(cleanUser));
         return { user: cleanUser, error: null };
@@ -213,7 +220,7 @@ export const authService = {
       if (session?.user) {
         const { data: dbUser } = await supabase
           .from('usuario')
-          .select('nombre, apellido')
+          .select('nombre, apellido, id_rol')
           .eq('id_usuario', session.user.id)
           .single();
 
@@ -223,6 +230,7 @@ export const authService = {
           id: session.user.id,
           name: fullName,
           email: session.user.email,
+          rol: getRolNombre(dbUser?.id_rol),
           plan: session.user.user_metadata?.plan_name || 'Pro',
           storageQuota: '500 GB'
         };
@@ -231,7 +239,7 @@ export const authService = {
 
     try {
       const saved = localStorage.getItem('nimbox_current_user');
-      if (saved) return JSON.parse(saved);
+      if (saved) return { ...JSON.parse(saved), rol: 'Cliente' };
     } catch (e) {}
 
     return null;
@@ -240,13 +248,11 @@ export const authService = {
   onAuthStateChange(callback) {
     return supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
-        callback({
-          id: session.user.id,
-          name: session.user.user_metadata?.full_name || session.user.email.split('@')[0],
-          email: session.user.email,
-          plan: session.user.user_metadata?.plan_name || 'Pro',
-          storageQuota: '500 GB'
-        });
+        // Se consulta la BD fuera del listener (setTimeout) para no bloquear a Supabase
+        setTimeout(async () => {
+          const user = await authService.getCurrentUser();
+          callback(user);
+        }, 0);
       } else {
         callback(null);
       }

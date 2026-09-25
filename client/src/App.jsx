@@ -76,6 +76,7 @@ export default function App() {
     setCurrentUser(user);
     setCurrentView('dashboard');
     showNotification(`¡Hola de nuevo, ${user.name}! Sesión iniciada correctamente.`, 'success');
+    console.log('Usuario logueado:', user); // solo para observar en consola
   };
 
   // Handle logout
