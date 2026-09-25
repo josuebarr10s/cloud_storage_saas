@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { X, Lock, Mail, Eye, EyeOff, ArrowRight, Sparkles, LogIn, AlertCircle, Loader2 } from 'lucide-react';
 import { authService } from '../../services/authService.js';
 
-export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onOpenRegister }) => {
+export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onOpenRegister, onForgotPassword }) => {
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -220,9 +221,13 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onOpenRegister }) 
                 <label style={{ fontSize: '0.825rem', fontWeight: 600, color: 'var(--text-strong)' }}>
                   Contraseña
                 </label>
-                <span style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 600, cursor: 'pointer' }}>
+                                <span 
+                  onClick={onForgotPassword}
+                  style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 600, cursor: 'pointer' }}
+                >
                   ¿Olvidaste tu contraseña?
                 </span>
+
               </div>
               <div style={{ position: 'relative' }}>
                 <input

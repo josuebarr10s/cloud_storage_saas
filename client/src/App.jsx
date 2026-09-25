@@ -3,7 +3,9 @@ import { LandingPage } from './views/LandingPage.jsx';
 import { DashboardView } from './views/DashboardView.jsx';
 import { PaymentModal } from './components/payment/PaymentModal.jsx';
 import { LoginModal } from './components/auth/LoginModal.jsx';
+import { ForgotPasswordModal } from './components/auth/ForgotPasswordModal.jsx';
 import { Toast } from './components/Toast.jsx';
+
 import { authService } from './services/authService.js';
 
 export default function App() {
@@ -15,10 +17,12 @@ export default function App() {
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [billingCycle, setBillingCycle] = useState('monthly');
 
-  // Login Modal State
+    // Login Modal State
   const [isLoginOpen, setIsLoginOpen] = useState(false);
+  const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
 
   // Global Toast Notification
+
   const [toast, setToast] = useState(null);
 
   const showNotification = (message, type = 'info') => {
@@ -59,10 +63,17 @@ export default function App() {
     setIsPaymentOpen(true);
   };
 
-  // Open Login Flow
+    // Open Login Flow
   const handleOpenLogin = () => {
     setIsLoginOpen(true);
+    setIsForgotPasswordOpen(false);
   };
+
+  const handleOpenForgotPassword = () => {
+    setIsLoginOpen(false);
+    setIsForgotPasswordOpen(true);
+  };
+
 
   // Handle successful payment & registration
   const handlePaymentSuccess = (user) => {
@@ -112,11 +123,12 @@ export default function App() {
         onPaymentSuccess={handlePaymentSuccess}
       />
 
-      {/* Login Modal */}
+            {/* Login Modal */}
       <LoginModal
         isOpen={isLoginOpen}
         onClose={() => setIsLoginOpen(false)}
         onLoginSuccess={handleLoginSuccess}
+        onForgotPassword={handleOpenForgotPassword}
         onOpenRegister={() => {
           setIsLoginOpen(false);
           handleOpenCheckout({
@@ -134,6 +146,14 @@ export default function App() {
           }, 'monthly');
         }}
       />
+
+      {/* Forgot Password Modal */}
+      <ForgotPasswordModal
+        isOpen={isForgotPasswordOpen}
+        onClose={() => setIsForgotPasswordOpen(false)}
+        onBackToLogin={handleOpenLogin}
+      />
+
 
       {/* Global Toast */}
       <Toast toast={toast} onClose={() => setToast(null)} />
