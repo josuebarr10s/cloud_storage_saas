@@ -1168,7 +1168,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                   className="btn-primary"
                   style={{ flex: 1, padding: '0.9rem', fontSize: '1rem', justifyContent: 'center' }}
                 >
-                  🚀 Ir a mi Almacenamiento en la Nube
+                   Ir a mi Almacenamiento en la Nube
                 </button>
               </div>
             </div>
