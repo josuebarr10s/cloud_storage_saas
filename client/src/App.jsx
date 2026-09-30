@@ -131,19 +131,7 @@ export default function App() {
         onForgotPassword={handleOpenForgotPassword}
         onOpenRegister={() => {
           setIsLoginOpen(false);
-          handleOpenCheckout({
-            id_plan: 2,
-            nombre: 'Pro',
-            descripcion: 'Para profesionales y pequeños equipos',
-            precio: 12,
-            precioAnual: 9.6,
-            features: [
-              '500 GB de almacenamiento',
-              'Dispositivos ilimitados',
-              'Compartir con permisos avanzados',
-              'Soporte prioritario 24/7'
-            ]
-          }, 'monthly');
+          handleOpenCheckout(null, 'monthly');
         }}
       />
 

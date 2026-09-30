@@ -1,16 +1,75 @@
 import React, { useState, useEffect } from 'react';
 import { 
   X, Check, ShieldCheck, CreditCard, Lock, ArrowRight, ArrowLeft, 
-  Sparkles, CheckCircle2, Copy, Download, RefreshCw, Eye, EyeOff, AlertCircle, Calendar, Hash, User, Mail
+  Sparkles, CheckCircle2, Copy, Download, RefreshCw, Eye, EyeOff, AlertCircle, Calendar, Hash, User, Mail, Zap, Layers
 } from 'lucide-react';
 import { authService } from '../../services/authService.js';
 import { plansService } from '../../services/plansService.js';
+
+const DEFAULT_PLANS = [
+  {
+    id_plan: '11111111-1111-1111-1111-111111111111',
+    nombre: 'Básico',
+    descripcion: 'Para uso personal y organización esencial',
+    precio: 5,
+    precioAnual: 4.0,
+    storageQuota: '10 GB',
+    popular: false,
+    badge: 'Económico',
+    features: [
+      '10 GB de almacenamiento seguro',
+      'Acceso desde 2 dispositivos',
+      'Compartir por enlace',
+      'Soporte por email',
+      'Historial de versiones (7 días)'
+    ]
+  },
+  {
+    id_plan: '22222222-2222-2222-2222-222222222222',
+    nombre: 'Pro',
+    descripcion: 'Para profesionales y pequeños equipos',
+    precio: 12,
+    precioAnual: 9.6,
+    storageQuota: '500 GB',
+    popular: true,
+    badge: 'Recomendado',
+    features: [
+      '500 GB de almacenamiento en la nube',
+      'Dispositivos ilimitados',
+      'Compartir con permisos avanzados',
+      'Soporte prioritario 24/7',
+      'Historial de versiones 30 días'
+    ]
+  },
+  {
+    id_plan: '33333333-3333-3333-3333-333333333333',
+    nombre: 'Empresarial',
+    descripcion: 'Para organizaciones con máxima exigencia',
+    precio: 49,
+    precioAnual: 39.2,
+    storageQuota: 'Ilimitado',
+    popular: false,
+    badge: 'Máximo poder',
+    features: [
+      'Almacenamiento Ilimitado',
+      'SSO y control de acceso',
+      'SLA garantizado 99.99%',
+      'Soporte dedicado 24/7',
+      'Historial de versiones ilimitado'
+    ]
+  }
+];
 
 export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'monthly', onPaymentSuccess }) => {
   // Steps: 1 = Account Credentials, 2 = Payment Details, 3 = Processing, 4 = Success Receipt
   const [currentStep, setCurrentStep] = useState(1);
   
-  // Account Form State (Step 1)
+  // Plans & Billing State (Left Column)
+  const [availablePlans, setAvailablePlans] = useState(DEFAULT_PLANS);
+  const [activePlan, setActivePlan] = useState(selectedPlan || DEFAULT_PLANS[1]);
+  const [activeBillingCycle, setActiveBillingCycle] = useState(billingCycle || 'monthly');
+
+  // Account Form State (Step 1 - Right Column)
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -18,7 +77,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
   const [showPassword, setShowPassword] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(true);
 
-  // Payment Form State (Step 2)
+  // Payment Form State (Step 2 - Right Column)
   const [cardName, setCardName] = useState('');
   const [cardNumber, setCardNumber] = useState('');
   const [cardExpiry, setCardExpiry] = useState('');
@@ -36,19 +95,32 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
   const [transactionId, setTransactionId] = useState('');
   const [transactionDate, setTransactionDate] = useState('');
 
-  // Default fallback plan if none passed
-  const plan = selectedPlan || {
-    id_plan: 2,
-    nombre: 'Pro',
-    descripcion: 'Para profesionales y pequeños equipos',
-    precio: 12,
-    precioAnual: 9.6,
-    features: ['500 GB de almacenamiento', 'Dispositivos ilimitados', 'Soporte prioritario 24/7']
-  };
+  // Load plans from Supabase if available
+  useEffect(() => {
+    async function loadPlans() {
+      try {
+        const dbPlans = await plansService.getPlans();
+        if (dbPlans && dbPlans.length > 0) {
+          setAvailablePlans(dbPlans);
+        }
+      } catch (e) {
+        console.warn('Usando planes locales en PaymentModal');
+      }
+    }
+    loadPlans();
+  }, []);
 
-  const isAnnual = billingCycle === 'annual';
-  const monthlyPrice = isAnnual ? (plan.precioAnual || plan.precio * 0.8) : plan.precio;
-  const billedTotal = isAnnual ? (monthlyPrice * 12).toFixed(2) : monthlyPrice.toFixed(2);
+  // Update selected plan and cycle when props change
+  useEffect(() => {
+    if (selectedPlan) {
+      setActivePlan(selectedPlan);
+    } else {
+      setActivePlan(availablePlans[1] || availablePlans[0] || DEFAULT_PLANS[1]);
+    }
+    if (billingCycle) {
+      setActiveBillingCycle(billingCycle);
+    }
+  }, [selectedPlan, billingCycle, availablePlans]);
 
   // Reset form when modal is reopened
   useEffect(() => {
@@ -60,6 +132,12 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
   }, [isOpen]);
 
   if (!isOpen) return null;
+
+  const plan = activePlan || DEFAULT_PLANS[1];
+  const isAnnual = activeBillingCycle === 'annual';
+  const monthlyPrice = isAnnual ? (plan.precioAnual || plan.precio * 0.8) : plan.precio;
+  const billedTotal = isAnnual ? (monthlyPrice * 12).toFixed(2) : monthlyPrice.toFixed(2);
+  const quotaDisplay = plan.storageQuota || (plan.nombre?.toLowerCase().includes('básico') ? '10 GB' : plan.nombre?.toLowerCase().includes('pro') ? '500 GB' : 'Ilimitado');
 
   // Format Card Number (with spaces every 4 digits)
   const handleCardNumberChange = (e) => {
@@ -211,7 +289,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
         name: fullName,
         plan: plan.nombre,
         planId: plan.id_plan,
-        billingCycle: billingCycle,
+        billingCycle: activeBillingCycle,
         amountPaid: billedTotal,
         transactionId: tId,
         cardLast4: cardLast4
@@ -228,7 +306,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
         userId: registeredUser.id,
         planId: plan.id_plan,
         planName: plan.nombre,
-        billingCycle: billingCycle,
+        billingCycle: activeBillingCycle,
         amountPaid: billedTotal,
         transactionId: tId,
         cardLast4: cardLast4
@@ -245,8 +323,8 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
       password: password,
       plan: plan.nombre,
       planId: plan.id_plan,
-      storageQuota: plan.nombre.toLowerCase().includes('básico') ? '10 GB' : plan.nombre.toLowerCase().includes('pro') ? '500 GB' : 'Ilimitado',
-      billingCycle: billingCycle,
+      storageQuota: quotaDisplay,
+      billingCycle: activeBillingCycle,
       transactionId: transactionId
     };
     onPaymentSuccess && onPaymentSuccess(user);
@@ -273,8 +351,8 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
         style={{
           background: 'var(--bg-card)',
           width: '100%',
-          maxWidth: '920px',
-          maxHeight: '92vh',
+          maxWidth: '960px',
+          maxHeight: '94vh',
           borderRadius: 'var(--radius-2xl)',
           boxShadow: 'var(--shadow-modal)',
           border: '1px solid var(--border-color)',
@@ -331,7 +409,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                 </span>
               </div>
               <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
-                Cifrado SSL de 256 bits y protección contra fraude
+                Cifrado SSL de 256 bits y aprovisionamiento seguro
               </p>
             </div>
           </div>
@@ -436,10 +514,10 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
             overflowY: 'auto',
             display: currentStep <= 2 ? 'grid' : 'flex',
             gridTemplateColumns: currentStep <= 2 ? '1fr 1.15fr' : '1fr',
-            minHeight: '440px'
+            minHeight: '460px'
           }}
         >
-          {/* LEFT COLUMN: Order Summary (Steps 1 & 2) */}
+          {/* LEFT COLUMN: SELECCIÓN DEL PLAN Y RESUMEN (Únicamente del lado izquierdo) */}
           {currentStep <= 2 && (
             <div
               style={{
@@ -448,49 +526,161 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                 borderRight: '1px solid var(--border-color)',
                 display: 'flex',
                 flexDirection: 'column',
-                justifyContent: 'space-between'
+                justifyContent: 'space-between',
+                gap: '16px'
               }}
             >
               <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' }}>
-                  <div>
-                    <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', fontWeight: 700 }}>
-                      Suscripción elegida
+                {/* 1. PLAN SELECTOR BUTTONS */}
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <Layers size={14} color="var(--primary)" /> Selecciona tu Plan:
                     </span>
-                    <h4 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-main)', marginTop: '2px' }}>
-                      Plan {plan.nombre}
-                    </h4>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 700 }}>
+                      {quotaDisplay}
+                    </span>
                   </div>
-                  <span
+
+                  <div
                     style={{
-                      background: 'var(--primary-light)',
-                      color: 'var(--primary)',
-                      fontSize: '0.75rem',
-                      fontWeight: 700,
-                      padding: '4px 10px',
-                      borderRadius: 'var(--radius-full)'
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(3, 1fr)',
+                      gap: '6px',
+                      background: 'var(--bg-card)',
+                      padding: '4px',
+                      borderRadius: 'var(--radius-md)',
+                      border: '1px solid var(--border-color)'
                     }}
                   >
-                    {isAnnual ? 'Facturación Anual' : 'Facturación Mensual'}
-                  </span>
+                    {availablePlans.map((p) => {
+                      const isSelected = (plan.id_plan === p.id_plan) || (plan.nombre?.toLowerCase() === p.nombre?.toLowerCase());
+                      const priceVal = isAnnual ? (p.precioAnual || p.precio * 0.8) : p.precio;
+                      return (
+                        <button
+                          key={p.id_plan || p.nombre}
+                          type="button"
+                          onClick={() => setActivePlan(p)}
+                          style={{
+                            padding: '10px 4px',
+                            borderRadius: 'var(--radius-sm)',
+                            border: isSelected ? '1.5px solid var(--primary)' : '1px solid transparent',
+                            background: isSelected ? 'var(--primary)' : 'transparent',
+                            color: isSelected ? 'var(--text-white)' : 'var(--text-main)',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '3px',
+                            transition: 'all 0.2s ease',
+                            position: 'relative'
+                          }}
+                        >
+                          <span style={{ fontSize: '0.85rem', fontWeight: isSelected ? 800 : 600 }}>
+                            {p.nombre}
+                          </span>
+                          <span style={{ fontSize: '0.72rem', opacity: isSelected ? 0.95 : 0.75, fontWeight: 500 }}>
+                            ${priceVal % 1 === 0 ? priceVal : priceVal.toFixed(1)}/m
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.5rem', lineHeight: 1.4 }}>
-                  {plan.descripcion || 'Almacenamiento seguro en la nube con sincronización instantánea.'}
-                </p>
+                {/* 2. BILLING CYCLE SWITCH (Monthly / Annual) */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    background: 'var(--bg-card)',
+                    padding: '8px 12px',
+                    borderRadius: 'var(--radius-sm)',
+                    border: '1px solid var(--border-color)',
+                    marginBottom: '1.25rem'
+                  }}
+                >
+                  <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                    Ciclo de facturación:
+                  </span>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setActiveBillingCycle('monthly')}
+                      style={{
+                        padding: '4px 10px',
+                        fontSize: '0.72rem',
+                        fontWeight: 600,
+                        borderRadius: 'var(--radius-xs)',
+                        border: 'none',
+                        cursor: 'pointer',
+                        background: activeBillingCycle === 'monthly' ? 'var(--primary-light)' : 'transparent',
+                        color: activeBillingCycle === 'monthly' ? 'var(--primary)' : 'var(--text-muted)',
+                        transition: 'all 0.15s'
+                      }}
+                    >
+                      Mensual
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveBillingCycle('annual')}
+                      style={{
+                        padding: '4px 10px',
+                        fontSize: '0.72rem',
+                        fontWeight: 600,
+                        borderRadius: 'var(--radius-xs)',
+                        border: 'none',
+                        cursor: 'pointer',
+                        background: activeBillingCycle === 'annual' ? 'var(--primary-light)' : 'transparent',
+                        color: activeBillingCycle === 'annual' ? 'var(--primary)' : 'var(--text-muted)',
+                        transition: 'all 0.15s'
+                      }}
+                    >
+                      Anual (-20%)
+                    </button>
+                  </div>
+                </div>
 
-                {/* Plan Highlights */}
-                <div style={{ marginBottom: '1.75rem' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                {/* 3. PLAN DETAILS & HIGHLIGHTS */}
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <h4 style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
+                      Plan {plan.nombre} ({quotaDisplay})
+                    </h4>
+                    {plan.badge && (
+                      <span
+                        style={{
+                          background: 'var(--primary-light)',
+                          color: 'var(--primary)',
+                          fontSize: '0.7rem',
+                          fontWeight: 700,
+                          padding: '2px 8px',
+                          borderRadius: 'var(--radius-full)'
+                        }}
+                      >
+                        {plan.badge}
+                      </span>
+                    )}
+                  </div>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.4 }}>
+                    {plan.descripcion || 'Almacenamiento seguro en la nube con sincronización instantánea.'}
+                  </p>
+                </div>
+
+                {/* Plan Features */}
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                     Beneficios incluidos:
                   </span>
-                  <ul style={{ listStyle: 'none', marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <ul style={{ listStyle: 'none', marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     {plan.features?.slice(0, 4).map((feat, idx) => (
-                      <li key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.825rem', color: 'var(--text-strong)' }}>
+                      <li key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', color: 'var(--text-strong)' }}>
                         <div
                           style={{
-                            width: '16px',
-                            height: '16px',
+                            width: '15px',
+                            height: '15px',
                             borderRadius: 'var(--radius-full)',
                             background: 'var(--success-bg)',
                             color: 'var(--success-hover)',
@@ -500,7 +690,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                             flexShrink: 0
                           }}
                         >
-                          <Check size={11} />
+                          <Check size={10} />
                         </div>
                         <span>{feat}</span>
                       </li>
@@ -514,25 +704,25 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                     background: 'var(--bg-card)',
                     border: '1px solid var(--border-color)',
                     borderRadius: 'var(--radius-md)',
-                    padding: '1.25rem',
+                    padding: '1rem',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '8px'
+                    gap: '6px'
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.825rem', color: 'var(--text-muted)' }}>
                     <span>Subtotal {isAnnual ? '(12 meses)' : '(1 mes)'}</span>
                     <span>${(plan.precio * (isAnnual ? 12 : 1)).toFixed(2)} USD</span>
                   </div>
 
                   {isAnnual && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--success-hover)', fontWeight: 600 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.825rem', color: 'var(--success-hover)', fontWeight: 600 }}>
                       <span>Descuento anual (20%)</span>
                       <span>-${((plan.precio * 12) - parseFloat(billedTotal)).toFixed(2)} USD</span>
                     </div>
                   )}
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.825rem', color: 'var(--text-muted)' }}>
                     <span>Impuestos estimados</span>
                     <span>$0.00 USD</span>
                   </div>
@@ -540,9 +730,9 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                   <div style={{ height: '1px', background: 'var(--border-color)', margin: '4px 0' }} />
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                    <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main)' }}>Total a pagar</span>
+                    <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-main)' }}>Total a pagar</span>
                     <div style={{ textAlign: 'right' }}>
-                      <span style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--primary)' }}>
+                      <span style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--primary)' }}>
                         ${billedTotal}
                       </span>
                       <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '4px' }}>USD</span>
@@ -552,23 +742,23 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
               </div>
 
               {/* Trust footer in left column */}
-              <div style={{ marginTop: '1.5rem', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
-                <Lock size={14} color="var(--success)" />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-muted)', fontSize: '0.72rem' }}>
+                <Lock size={13} color="var(--success)" />
                 <span>Garantía de reembolso de 14 días sin preguntas.</span>
               </div>
             </div>
           )}
 
-          {/* RIGHT COLUMN: STEP 1 - ACCOUNT CREDENTIALS FOR LOGIN (FIRST STEP) */}
+          {/* RIGHT COLUMN: STEP 1 - CORREO Y CONTRASEÑA (Lado derecho) */}
           {currentStep === 1 && (
             <div style={{ padding: '1.75rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
               <div>
                 <div style={{ marginBottom: '1.25rem' }}>
-                  <h4 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '4px' }}>
+                  <h4 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-main)', margin: '0 0 4px 0' }}>
                     Paso 1: Crea tu cuenta de acceso
                   </h4>
                   <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)', margin: 0 }}>
-                    Ingresa tus credenciales para registrarte e iniciar sesión en tu panel de almacenamiento Nimbox.
+                    Ingresa tu correo y contraseña para registrar tu cuenta en Nimbox.
                   </p>
                 </div>
 
@@ -598,7 +788,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                   </button>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '11px' }}>
                   {/* Full Name */}
                   <div>
                     <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-strong)', marginBottom: '4px' }}>
@@ -1182,7 +1372,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                     <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>Plan & Almacenamiento</span>
                     <div style={{ fontWeight: 600, color: 'var(--primary)' }}>Plan {plan.nombre}</div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                      {plan.nombre.toLowerCase().includes('básico') ? '10 GB' : plan.nombre.toLowerCase().includes('pro') ? '500 GB' : 'Ilimitado'} en la nube
+                      {quotaDisplay} en la nube
                     </div>
                   </div>
 

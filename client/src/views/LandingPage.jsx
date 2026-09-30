@@ -28,21 +28,9 @@ export const LandingPage = ({ onOpenCheckout, onOpenLogin }) => {
   };
 
   const handleRegisterClick = () => {
-    // Default to popular Pro plan when clicking generic "Comenzar"
+    // Abre directamente la ventana modal permitiendo al usuario elegir cualquier plan
     if (onOpenCheckout) {
-      onOpenCheckout({
-        id_plan: 2,
-        nombre: 'Pro',
-        descripcion: 'Para profesionales y pequeños equipos',
-        precio: 12,
-        precioAnual: 9.6,
-        features: [
-          '500 GB de almacenamiento',
-          'Dispositivos ilimitados',
-          'Compartir con permisos avanzados',
-          'Soporte prioritario 24/7'
-        ]
-      }, 'monthly');
+      onOpenCheckout(null, 'monthly');
     }
   };
 
