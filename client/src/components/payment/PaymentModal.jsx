@@ -1,29 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import { 
   X, Check, ShieldCheck, CreditCard, Lock, ArrowRight, ArrowLeft, 
-  Sparkles, CheckCircle2, Copy, Download, RefreshCw, Eye, EyeOff, AlertCircle, Calendar, Hash
+  Sparkles, CheckCircle2, Copy, Download, RefreshCw, Eye, EyeOff, AlertCircle, Calendar, Hash, User, Mail
 } from 'lucide-react';
 import { authService } from '../../services/authService.js';
 import { plansService } from '../../services/plansService.js';
 
 export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'monthly', onPaymentSuccess }) => {
-  // Steps: 1 = Payment Details, 2 = Account Credentials, 3 = Processing, 4 = Success Receipt
+  // Steps: 1 = Account Credentials, 2 = Payment Details, 3 = Processing, 4 = Success Receipt
   const [currentStep, setCurrentStep] = useState(1);
   
-  // Payment Form State
-  const [cardName, setCardName] = useState('');
-  const [cardNumber, setCardNumber] = useState('');
-  const [cardExpiry, setCardExpiry] = useState('');
-  const [cardCvc, setCardCvc] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('card'); // 'card' | 'paypal'
-  
-  // Account Form State
+  // Account Form State (Step 1)
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(true);
+
+  // Payment Form State (Step 2)
+  const [cardName, setCardName] = useState('');
+  const [cardNumber, setCardNumber] = useState('');
+  const [cardExpiry, setCardExpiry] = useState('');
+  const [cardCvc, setCardCvc] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('card'); // 'card' | 'paypal'
 
   // Errors & Validation State
   const [errors, setErrors] = useState({});
@@ -88,14 +88,15 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
 
   // Quick Autofill Test Data
   const handleAutofillTestData = () => {
-    setCardName('Carlos Mendoza');
+    const defaultName = 'Carlos Mendoza';
+    setFullName(defaultName);
+    setEmail('carlos.mendoza@nimbox.com');
+    setPassword('Nimbox2026!');
+    setConfirmPassword('Nimbox2026!');
+    setCardName(defaultName);
     setCardNumber('4242 4242 4242 4242');
     setCardExpiry('12/28');
     setCardCvc('884');
-    setFullName('Carlos Mendoza');
-    if (!email) setEmail('carlos.mendoza@nimbox.com');
-    if (!password) setPassword('Nimbox2026!');
-    if (!confirmPassword) setConfirmPassword('Nimbox2026!');
     setErrors({});
   };
 
@@ -116,22 +117,8 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
 
   const passwordStrength = getPasswordStrength(password);
 
-  // Validate Step 1 (Payment)
+  // Validate Step 1 (Account Details: Name, Email, Password)
   const validateStep1 = () => {
-    const errs = {};
-    if (paymentMethod === 'card') {
-      if (!cardName.trim()) errs.cardName = 'Ingresa el nombre del titular';
-      const cleanCard = cardNumber.replace(/\s/g, '');
-      if (cleanCard.length < 15) errs.cardNumber = 'Ingresa un número de tarjeta válido (16 dígitos)';
-      if (!cardExpiry || cardExpiry.length < 5) errs.cardExpiry = 'Fecha MM/AA inválida';
-      if (!cardCvc || cardCvc.length < 3) errs.cardCvc = 'CVC requerido (3 dígitos)';
-    }
-    setErrors(errs);
-    return Object.keys(errs).length === 0;
-  };
-
-  // Validate Step 2 (Account Details)
-  const validateStep2 = () => {
     const errs = {};
     if (!fullName.trim()) errs.fullName = 'Ingresa tu nombre completo';
     
@@ -156,11 +143,25 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
     return Object.keys(errs).length === 0;
   };
 
-  // Proceed to Step 2
-  const handleProceedToAccount = () => {
+  // Validate Step 2 (Payment Method & Card)
+  const validateStep2 = () => {
+    const errs = {};
+    if (paymentMethod === 'card') {
+      if (!cardName.trim()) errs.cardName = 'Ingresa el nombre del titular';
+      const cleanCard = cardNumber.replace(/\s/g, '');
+      if (cleanCard.length < 15) errs.cardNumber = 'Ingresa un número de tarjeta válido (16 dígitos)';
+      if (!cardExpiry || cardExpiry.length < 5) errs.cardExpiry = 'Fecha MM/AA inválida';
+      if (!cardCvc || cardCvc.length < 3) errs.cardCvc = 'CVC requerido (3 dígitos)';
+    }
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  // Proceed to Step 2 (Payment)
+  const handleProceedToPayment = () => {
     if (validateStep1()) {
-      if (!fullName && cardName) {
-        setFullName(cardName);
+      if (!cardName && fullName) {
+        setCardName(fullName);
       }
       setCurrentStep(2);
     }
@@ -217,7 +218,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
       });
 
       if (signUpError || !registeredUser) {
-        setCurrentStep(2);
+        setCurrentStep(1); // Volver al paso 1 si el correo ya existe o hay error de credenciales
         setErrors({ email: signUpError?.message || 'Error al registrar el usuario en Supabase.' });
         return;
       }
@@ -326,7 +327,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                     letterSpacing: '0.02em'
                   }}
                 >
-                  SIMULACIÓN EN VIVO
+                  REGISTRO Y PAGO
                 </span>
               </div>
               <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
@@ -347,7 +348,8 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
               color: 'var(--text-muted)',
               background: 'var(--bg-body)',
               border: '1px solid var(--border-color)',
-              transition: 'all 0.2s'
+              transition: 'all 0.2s',
+              cursor: 'pointer'
             }}
             aria-label="Cerrar ventana de pago"
           >
@@ -367,7 +369,8 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
               borderBottom: '1px solid var(--border-color)'
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: currentStep === 1 ? 1 : 0.6 }}>
+            {/* Step 1: Account */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: currentStep === 1 ? 1 : 0.85 }}>
               <div
                 style={{
                   width: '24px',
@@ -385,10 +388,11 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                 1
               </div>
               <span style={{ fontSize: '0.85rem', fontWeight: 600, color: currentStep === 1 ? 'var(--primary)' : 'var(--text-main)' }}>
-                Datos de Pago
+                1. Crear Cuenta (Login)
               </span>
             </div>
 
+            {/* Progress line */}
             <div style={{ flex: 1, height: '2px', background: 'var(--border-color)', margin: '0 12px' }}>
               <div
                 style={{
@@ -400,6 +404,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
               />
             </div>
 
+            {/* Step 2: Payment */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: currentStep === 2 ? 1 : 0.6 }}>
               <div
                 style={{
@@ -418,7 +423,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                 2
               </div>
               <span style={{ fontSize: '0.85rem', fontWeight: 600, color: currentStep === 2 ? 'var(--primary)' : 'var(--text-muted)' }}>
-                Crear Cuenta (Login)
+                2. Datos de Pago
               </span>
             </div>
           </div>
@@ -554,52 +559,17 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
             </div>
           )}
 
-          {/* RIGHT COLUMN: STEP 1 - PAYMENT DETAILS & INTERACTIVE CARD */}
+          {/* RIGHT COLUMN: STEP 1 - ACCOUNT CREDENTIALS FOR LOGIN (FIRST STEP) */}
           {currentStep === 1 && (
             <div style={{ padding: '1.75rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
               <div>
-                {/* Method Selector */}
-                <div style={{ display: 'flex', gap: '8px', marginBottom: '1.25rem' }}>
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod('card')}
-                    style={{
-                      flex: 1,
-                      padding: '8px 12px',
-                      borderRadius: 'var(--radius-sm)',
-                      fontSize: '0.85rem',
-                      fontWeight: 600,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '6px',
-                      background: paymentMethod === 'card' ? 'var(--primary-light)' : 'var(--bg-body)',
-                      color: paymentMethod === 'card' ? 'var(--primary)' : 'var(--text-muted)',
-                      border: paymentMethod === 'card' ? '1.5px solid var(--primary)' : '1px solid var(--border-color)'
-                    }}
-                  >
-                    <CreditCard size={16} /> Tarjeta Débito/Crédito
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod('paypal')}
-                    style={{
-                      flex: 1,
-                      padding: '8px 12px',
-                      borderRadius: 'var(--radius-sm)',
-                      fontSize: '0.85rem',
-                      fontWeight: 600,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '6px',
-                      background: paymentMethod === 'paypal' ? 'var(--warning-bg)' : 'var(--bg-body)',
-                      color: paymentMethod === 'paypal' ? 'var(--warning-strong)' : 'var(--text-muted)',
-                      border: paymentMethod === 'paypal' ? '1.5px solid var(--warning)' : '1px solid var(--border-color)'
-                    }}
-                  >
-                    🅿️ PayPal (Simulado)
-                  </button>
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <h4 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '4px' }}>
+                    Paso 1: Crea tu cuenta de acceso
+                  </h4>
+                  <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)', margin: 0 }}>
+                    Ingresa tus credenciales para registrarte e iniciar sesión en tu panel de almacenamiento Nimbox.
+                  </p>
                 </div>
 
                 {/* Quick Autofill Test Data Button */}
@@ -620,7 +590,260 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                       alignItems: 'center',
                       justifyContent: 'center',
                       gap: '8px',
-                      transition: 'all 0.2s ease'
+                      transition: 'all 0.2s ease',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <Sparkles size={15} /> Autocompletar datos de prueba
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {/* Full Name */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-strong)', marginBottom: '4px' }}>
+                      Nombre completo
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ej. Carlos Mendoza"
+                      value={fullName}
+                      onChange={(e) => {
+                        setFullName(e.target.value);
+                        if (errors.fullName) setErrors(prev => ({ ...prev, fullName: null }));
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        borderRadius: 'var(--radius-sm)',
+                        border: errors.fullName ? '1px solid var(--danger)' : '1px solid var(--border-color)',
+                        fontSize: '0.875rem',
+                        outline: 'none'
+                      }}
+                    />
+                    {errors.fullName && <span style={{ fontSize: '0.75rem', color: 'var(--danger)', marginTop: '2px', display: 'block' }}>{errors.fullName}</span>}
+                  </div>
+
+                  {/* Email */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-strong)', marginBottom: '4px' }}>
+                      Correo Electrónico (para Login)
+                    </label>
+                    <input
+                      type="email"
+                      placeholder="tunombre@empresa.com"
+                      value={email}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        if (errors.email) setErrors(prev => ({ ...prev, email: null }));
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        borderRadius: 'var(--radius-sm)',
+                        border: errors.email ? '1px solid var(--danger)' : '1px solid var(--border-color)',
+                        fontSize: '0.875rem',
+                        outline: 'none'
+                      }}
+                    />
+                    {errors.email && <span style={{ fontSize: '0.75rem', color: 'var(--danger)', marginTop: '2px', display: 'block' }}>{errors.email}</span>}
+                  </div>
+
+                  {/* Password with Eye toggle */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                      <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-strong)' }}>
+                        Crear Contraseña
+                      </label>
+                      {password && (
+                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: passwordStrength.color }}>
+                          Seguridad: {passwordStrength.label}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        placeholder="Mínimo 6 caracteres"
+                        value={password}
+                        onChange={(e) => {
+                          setPassword(e.target.value);
+                          if (errors.password) setErrors(prev => ({ ...prev, password: null }));
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '9px 38px 9px 12px',
+                          borderRadius: 'var(--radius-sm)',
+                          border: errors.password ? '1px solid var(--danger)' : '1px solid var(--border-color)',
+                          fontSize: '0.875rem',
+                          outline: 'none'
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        style={{
+                          position: 'absolute',
+                          right: '10px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          color: 'var(--text-light)',
+                          background: 'none',
+                          border: 'none',
+                          display: 'flex',
+                          alignItems: 'center',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+
+                    {/* Strength Bar */}
+                    {password && (
+                      <div style={{ display: 'flex', gap: '4px', marginTop: '6px' }}>
+                        {[1, 2, 3, 4].map((step) => (
+                          <div
+                            key={step}
+                            style={{
+                              flex: 1,
+                              height: '4px',
+                              borderRadius: '2px',
+                              background: passwordStrength.score >= step ? passwordStrength.color : 'var(--border-color)',
+                              transition: 'all 0.2s'
+                            }}
+                          />
+                        ))}
+                      </div>
+                    )}
+                    {errors.password && <span style={{ fontSize: '0.75rem', color: 'var(--danger)', marginTop: '2px', display: 'block' }}>{errors.password}</span>}
+                  </div>
+
+                  {/* Confirm Password */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-strong)', marginBottom: '4px' }}>
+                      Confirmar Contraseña
+                    </label>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="Repite tu contraseña"
+                      value={confirmPassword}
+                      onChange={(e) => {
+                        setConfirmPassword(e.target.value);
+                        if (errors.confirmPassword) setErrors(prev => ({ ...prev, confirmPassword: null }));
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        borderRadius: 'var(--radius-sm)',
+                        border: errors.confirmPassword ? '1px solid var(--danger)' : '1px solid var(--border-color)',
+                        fontSize: '0.875rem',
+                        outline: 'none'
+                      }}
+                    />
+                    {errors.confirmPassword && <span style={{ fontSize: '0.75rem', color: 'var(--danger)', marginTop: '2px', display: 'block' }}>{errors.confirmPassword}</span>}
+                  </div>
+
+                  {/* Terms Checkbox */}
+                  <div style={{ marginTop: '4px' }}>
+                    <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                      <input
+                        type="checkbox"
+                        checked={agreeTerms}
+                        onChange={(e) => setAgreeTerms(e.target.checked)}
+                        style={{ marginTop: '3px' }}
+                      />
+                      <span>Acepto los términos de servicio, política de privacidad y autorizo el proceso de suscripción.</span>
+                    </label>
+                    {errors.agreeTerms && <span style={{ fontSize: '0.75rem', color: 'var(--danger)', marginTop: '2px', display: 'block' }}>{errors.agreeTerms}</span>}
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom Action Button for Step 1 */}
+              <div style={{ marginTop: '1.5rem' }}>
+                <button
+                  type="button"
+                  onClick={handleProceedToPayment}
+                  className="btn-primary"
+                  style={{ width: '100%', padding: '0.85rem', fontSize: '0.95rem', cursor: 'pointer' }}
+                >
+                  Continuar a Información de Pago <ArrowRight size={16} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* RIGHT COLUMN: STEP 2 - PAYMENT DETAILS & INTERACTIVE CARD (SECOND STEP) */}
+          {currentStep === 2 && (
+            <div style={{ padding: '1.75rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+              <div>
+                {/* Method Selector */}
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '1.25rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod('card')}
+                    style={{
+                      flex: 1,
+                      padding: '8px 12px',
+                      borderRadius: 'var(--radius-sm)',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                      background: paymentMethod === 'card' ? 'var(--primary-light)' : 'var(--bg-body)',
+                      color: paymentMethod === 'card' ? 'var(--primary)' : 'var(--text-muted)',
+                      border: paymentMethod === 'card' ? '1.5px solid var(--primary)' : '1px solid var(--border-color)',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <CreditCard size={16} /> Tarjeta Débito/Crédito
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod('paypal')}
+                    style={{
+                      flex: 1,
+                      padding: '8px 12px',
+                      borderRadius: 'var(--radius-sm)',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                      background: paymentMethod === 'paypal' ? 'var(--warning-bg)' : 'var(--bg-body)',
+                      color: paymentMethod === 'paypal' ? 'var(--warning-strong)' : 'var(--text-muted)',
+                      border: paymentMethod === 'paypal' ? '1.5px solid var(--warning)' : '1px solid var(--border-color)',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    🅿️ PayPal (Simulado)
+                  </button>
+                </div>
+
+                {/* Quick Autofill Card Data Button */}
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <button
+                    type="button"
+                    onClick={handleAutofillTestData}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      background: 'var(--primary-light)',
+                      border: '1px dashed var(--primary)',
+                      borderRadius: 'var(--radius-sm)',
+                      color: 'var(--primary)',
+                      fontSize: '0.825rem',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      transition: 'all 0.2s ease',
+                      cursor: 'pointer'
                     }}
                   >
                     <Sparkles size={15} /> Autocompletar datos de tarjeta para pruebas
@@ -671,7 +894,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                     <div>
                       <div style={{ opacity: 0.7, textTransform: 'uppercase', fontSize: '0.65rem' }}>Titular</div>
                       <div style={{ fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {cardName || 'NOMBRE APELLIDO'}
+                        {cardName || fullName || 'NOMBRE APELLIDO'}
                       </div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
@@ -786,192 +1009,6 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                 </div>
               </div>
 
-              {/* Bottom Action Button */}
-              <div style={{ marginTop: '1.5rem' }}>
-                <button
-                  type="button"
-                  onClick={handleProceedToAccount}
-                  className="btn-primary"
-                  style={{ width: '100%', padding: '0.85rem', fontSize: '0.95rem' }}
-                >
-                  Continuar al Registro de Cuenta <ArrowRight size={16} />
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* RIGHT COLUMN: STEP 2 - ACCOUNT CREDENTIALS FOR LOGIN */}
-          {currentStep === 2 && (
-            <div style={{ padding: '1.75rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-              <div>
-                <div style={{ marginBottom: '1.25rem' }}>
-                  <h4 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '4px' }}>
-                    Crea tu cuenta de acceso
-                  </h4>
-                  <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
-                    Con este correo y contraseña podrás iniciar sesión en tu panel de almacenamiento Nimbox.
-                  </p>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {/* Full Name */}
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-strong)', marginBottom: '4px' }}>
-                      Nombre completo
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Ej. Carlos Mendoza"
-                      value={fullName}
-                      onChange={(e) => {
-                        setFullName(e.target.value);
-                        if (errors.fullName) setErrors(prev => ({ ...prev, fullName: null }));
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '9px 12px',
-                        borderRadius: 'var(--radius-sm)',
-                        border: errors.fullName ? '1px solid var(--danger)' : '1px solid var(--border-color)',
-                        fontSize: '0.875rem',
-                        outline: 'none'
-                      }}
-                    />
-                    {errors.fullName && <span style={{ fontSize: '0.75rem', color: 'var(--danger)', marginTop: '2px', display: 'block' }}>{errors.fullName}</span>}
-                  </div>
-
-                  {/* Email */}
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-strong)', marginBottom: '4px' }}>
-                      Correo Electrónico (para Login)
-                    </label>
-                    <input
-                      type="email"
-                      placeholder="tunombre@empresa.com"
-                      value={email}
-                      onChange={(e) => {
-                        setEmail(e.target.value);
-                        if (errors.email) setErrors(prev => ({ ...prev, email: null }));
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '9px 12px',
-                        borderRadius: 'var(--radius-sm)',
-                        border: errors.email ? '1px solid var(--danger)' : '1px solid var(--border-color)',
-                        fontSize: '0.875rem',
-                        outline: 'none'
-                      }}
-                    />
-                    {errors.email && <span style={{ fontSize: '0.75rem', color: 'var(--danger)', marginTop: '2px', display: 'block' }}>{errors.email}</span>}
-                  </div>
-
-                  {/* Password with Eye toggle */}
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                      <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-strong)' }}>
-                        Crear Contraseña
-                      </label>
-                      {password && (
-                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: passwordStrength.color }}>
-                          Seguridad: {passwordStrength.label}
-                        </span>
-                      )}
-                    </div>
-                    <div style={{ position: 'relative' }}>
-                      <input
-                        type={showPassword ? 'text' : 'password'}
-                        placeholder="Mínimo 6 caracteres"
-                        value={password}
-                        onChange={(e) => {
-                          setPassword(e.target.value);
-                          if (errors.password) setErrors(prev => ({ ...prev, password: null }));
-                        }}
-                        style={{
-                          width: '100%',
-                          padding: '9px 38px 9px 12px',
-                          borderRadius: 'var(--radius-sm)',
-                          border: errors.password ? '1px solid var(--danger)' : '1px solid var(--border-color)',
-                          fontSize: '0.875rem',
-                          outline: 'none'
-                        }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        style={{
-                          position: 'absolute',
-                          right: '10px',
-                          top: '50%',
-                          transform: 'translateY(-50%)',
-                          color: 'var(--text-light)',
-                          display: 'flex',
-                          alignItems: 'center'
-                        }}
-                      >
-                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                      </button>
-                    </div>
-
-                    {/* Strength Bar */}
-                    {password && (
-                      <div style={{ display: 'flex', gap: '4px', marginTop: '6px' }}>
-                        {[1, 2, 3, 4].map((step) => (
-                          <div
-                            key={step}
-                            style={{
-                              flex: 1,
-                              height: '4px',
-                              borderRadius: '2px',
-                              background: passwordStrength.score >= step ? passwordStrength.color : 'var(--border-color)',
-                              transition: 'all 0.2s'
-                            }}
-                          />
-                        ))}
-                      </div>
-                    )}
-                    {errors.password && <span style={{ fontSize: '0.75rem', color: 'var(--danger)', marginTop: '2px', display: 'block' }}>{errors.password}</span>}
-                  </div>
-
-                  {/* Confirm Password */}
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-strong)', marginBottom: '4px' }}>
-                      Confirmar Contraseña
-                    </label>
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      placeholder="Repite tu contraseña"
-                      value={confirmPassword}
-                      onChange={(e) => {
-                        setConfirmPassword(e.target.value);
-                        if (errors.confirmPassword) setErrors(prev => ({ ...prev, confirmPassword: null }));
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '9px 12px',
-                        borderRadius: 'var(--radius-sm)',
-                        border: errors.confirmPassword ? '1px solid var(--danger)' : '1px solid var(--border-color)',
-                        fontSize: '0.875rem',
-                        outline: 'none'
-                      }}
-                    />
-                    {errors.confirmPassword && <span style={{ fontSize: '0.75rem', color: 'var(--danger)', marginTop: '2px', display: 'block' }}>{errors.confirmPassword}</span>}
-                  </div>
-
-                  {/* Terms Checkbox */}
-                  <div style={{ marginTop: '4px' }}>
-                    <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                      <input
-                        type="checkbox"
-                        checked={agreeTerms}
-                        onChange={(e) => setAgreeTerms(e.target.checked)}
-                        style={{ marginTop: '3px' }}
-                      />
-                      <span>Acepto los términos de servicio, política de privacidad y autorizo el cobro simulado.</span>
-                    </label>
-                    {errors.agreeTerms && <span style={{ fontSize: '0.75rem', color: 'var(--danger)', marginTop: '2px', display: 'block' }}>{errors.agreeTerms}</span>}
-                  </div>
-                </div>
-              </div>
-
               {/* Bottom Buttons for Step 2 */}
               <div style={{ marginTop: '1.5rem', display: 'flex', gap: '10px' }}>
                 <button
@@ -987,7 +1024,8 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                     fontSize: '0.9rem',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '6px'
+                    gap: '6px',
+                    cursor: 'pointer'
                   }}
                 >
                   <ArrowLeft size={16} /> Volver
@@ -996,7 +1034,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                   type="button"
                   onClick={handleStartProcessing}
                   className="btn-primary"
-                  style={{ flex: 1, padding: '0.85rem', fontSize: '0.95rem' }}
+                  style={{ flex: 1, padding: '0.85rem', fontSize: '0.95rem', cursor: 'pointer' }}
                 >
                   Confirmar y Pagar ${billedTotal} <Lock size={15} />
                 </button>
@@ -1170,7 +1208,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
                   type="button"
                   onClick={handleFinishAndGoToDashboard}
                   className="btn-primary"
-                  style={{ flex: 1, padding: '0.9rem', fontSize: '1rem', justifyContent: 'center' }}
+                  style={{ flex: 1, padding: '0.9rem', fontSize: '1rem', justifyContent: 'center', cursor: 'pointer' }}
                 >
                    Ir a mi Almacenamiento en la Nube
                 </button>
