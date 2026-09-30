@@ -16,9 +16,10 @@ export const authService = {
     
     // Determinar límite en bytes según plan
     let quotaBytes = 536870912000; // 500 GB por defecto (Pro)
-    if (plan?.toLowerCase().includes('básico')) {
+    const cleanPlan = (plan || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    if (cleanPlan.includes('basico')) {
       quotaBytes = 10737418240; // 10 GB
-    } else if (plan?.toLowerCase().includes('empresa')) {
+    } else if (cleanPlan.includes('empresa')) {
       quotaBytes = 10995116277760; // 10 TB
     }
 
@@ -37,86 +38,94 @@ export const authService = {
 
     if (authError) {
       console.error('Error en Supabase Auth signUp:', authError.message);
+      return { user: null, error: authError };
     }
 
     const userId = authData?.user?.id;
+    if (!userId) {
+      return { user: null, error: new Error('No se pudo obtener el ID del usuario creado en Supabase Auth.') };
+    }
+
     const userObj = {
-      id: userId || `usr-${Date.now()}`,
+      id: userId,
       name: name,
       email: formattedEmail,
       rol: 'Cliente',
       plan: plan || 'Pro',
-      planId: planId || 2,
-      storageQuota: plan?.toLowerCase().includes('básico') ? '10 GB' : '500 GB',
+      planId: planId || '22222222-2222-2222-2222-222222222222',
+      storageQuota: cleanPlan.includes('basico') ? '10 GB' : '500 GB',
       billingCycle: billingCycle || 'monthly',
       amountPaid: amountPaid,
       transactionId: transactionId || `NMB-${Math.floor(100000 + Math.random() * 900000)}`,
       cardLast4: cardLast4 || '4242'
     };
 
-    if (userId) {
-      // 2. Insertar en tabla public.usuario
-      try {
-        await supabase.from('usuario').upsert({
-          id_usuario: userId,
-          id_rol: 2, // Rol por defecto (cliente)
-          nombre: nombre,
-          apellido: apellido,
-          estado: 'activo'
-        });
-      } catch (err) {
-        console.error('Error al insertar en public.usuario:', err);
-      }
+    // 2. Insertar en tabla public.usuario
+    try {
+      await supabase.from('usuario').upsert({
+        id_usuario: userId,
+        id_rol: 2, // Rol por defecto (cliente)
+        nombre: nombre,
+        apellido: apellido,
+        estado: 'activo'
+      });
+    } catch (err) {
+      console.error('Error al insertar en public.usuario:', err);
+    }
 
-      // 3. Insertar registro de almacenamiento en public.almacenamiento
-      try {
-        await supabase.from('almacenamiento').upsert({
-          id_usuario: userId,
-          capacidad_total_bytes: quotaBytes,
-          espacio_usado_bytes: 0
-        });
-      } catch (err) {
-        console.error('Error al insertar en public.almacenamiento:', err);
-      }
+    // 3. Insertar registro de almacenamiento en public.almacenamiento
+    try {
+      await supabase.from('almacenamiento').upsert({
+        id_usuario: userId,
+        capacidad_total_bytes: quotaBytes,
+        espacio_usado_bytes: 0
+      });
+    } catch (err) {
+      console.error('Error al insertar en public.almacenamiento:', err);
+    }
 
-      // 4. Intentar vincular plan y suscripción en public.suscripcion
-      try {
-        let planUuid = planId;
-        // Buscar el id_plan de la tabla public.plan
-        const { data: dbPlans } = await supabase.from('plan').select('id_plan, nombre').ilike('nombre', `%${plan || 'Pro'}%`).limit(1);
+    // 4. Intentar vincular plan y suscripción en public.suscripcion
+    try {
+      const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+      let planUuid = planId;
+      
+      if (!uuidRegex.test(planUuid)) {
+        const { data: dbPlans } = await supabase.from('plan').select('id_plan, nombre');
         if (dbPlans && dbPlans.length > 0) {
-          planUuid = dbPlans[0].id_plan;
+          const matched = dbPlans.find(p => p.nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().includes(cleanPlan));
+          planUuid = matched ? matched.id_plan : dbPlans[0].id_plan;
+        } else {
+          planUuid = cleanPlan.includes('basico') ? '11111111-1111-1111-1111-111111111111' : '22222222-2222-2222-2222-222222222222';
         }
-
-        if (planUuid) {
-          const fechaInicio = new Date();
-          const fechaFin = new Date();
-          fechaFin.setDate(fechaFin.getDate() + (billingCycle === 'annual' ? 365 : 30));
-
-          const { data: subData, error: subErr } = await supabase.from('suscripcion').insert({
-            id_usuario: userId,
-            id_plan: planUuid,
-            fecha_inicio: fechaInicio.toISOString(),
-            fecha_fin: fechaFin.toISOString(),
-            estado: 'activa',
-            precio_contratado: parseFloat(amountPaid || 12),
-            limite_bytes_contratado: quotaBytes
-          }).select();
-
-          if (subData && subData.length > 0) {
-            // Registrar el pago en public.pago
-            await supabase.from('pago').insert({
-              id_suscripcion: subData[0].id_suscripcion,
-              monto: parseFloat(amountPaid || 12),
-              metodo_pago: 'tarjeta_simulada',
-              referencia_transaccion: transactionId,
-              estado: 'completado'
-            });
-          }
-        }
-      } catch (err) {
-        console.error('Error al registrar suscripcion/pago:', err);
       }
+
+      if (planUuid && uuidRegex.test(planUuid)) {
+        const fechaInicio = new Date();
+        const fechaFin = new Date();
+        fechaFin.setDate(fechaFin.getDate() + (billingCycle === 'annual' ? 365 : 30));
+
+        const { data: subData } = await supabase.from('suscripcion').insert({
+          id_usuario: userId,
+          id_plan: planUuid,
+          fecha_inicio: fechaInicio.toISOString(),
+          fecha_fin: fechaFin.toISOString(),
+          estado: 'activa',
+          precio_contratado: parseFloat(amountPaid || 12),
+          limite_bytes_contratado: quotaBytes
+        }).select();
+
+        if (subData && subData.length > 0) {
+          await supabase.from('pago').insert({
+            id_suscripcion: subData[0].id_suscripcion,
+            monto: parseFloat(amountPaid || 12),
+            metodo_pago: 'tarjeta_simulada',
+            referencia_transaccion: transactionId,
+            estado: 'completado'
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Error al registrar suscripcion/pago:', err);
     }
 
     // Persistencia local para respaldo
@@ -128,7 +137,7 @@ export const authService = {
       localStorage.setItem('nimbox_current_user', JSON.stringify(userObj));
     } catch (e) {}
 
-    return { user: userObj, error: authError };
+    return { user: userObj, error: null };
   },
 
   /**

@@ -204,7 +204,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
       const cardLast4 = cardNumber.replace(/\s/g, '').slice(-4) || '4242';
 
       // 1. Registrar usuario en Supabase Auth y base de datos
-      const { user: registeredUser } = await authService.signUp({
+      const { user: registeredUser, error: signUpError } = await authService.signUp({
         email: email,
         password: password,
         name: fullName,
@@ -216,18 +216,22 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
         cardLast4: cardLast4
       });
 
-      // 2. Registrar la suscripción en Supabase BD
-      if (registeredUser) {
-        await plansService.createSubscription({
-          userId: registeredUser.id,
-          planId: plan.id_plan,
-          planName: plan.nombre,
-          billingCycle: billingCycle,
-          amountPaid: billedTotal,
-          transactionId: tId,
-          cardLast4: cardLast4
-        });
+      if (signUpError || !registeredUser) {
+        setCurrentStep(2);
+        setErrors({ email: signUpError?.message || 'Error al registrar el usuario en Supabase.' });
+        return;
       }
+
+      // 2. Registrar la suscripción en Supabase BD
+      await plansService.createSubscription({
+        userId: registeredUser.id,
+        planId: plan.id_plan,
+        planName: plan.nombre,
+        billingCycle: billingCycle,
+        amountPaid: billedTotal,
+        transactionId: tId,
+        cardLast4: cardLast4
+      });
 
       setCurrentStep(4);
     }, 3200);

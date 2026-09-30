@@ -2,7 +2,7 @@ import supabase from '../lib/supabase.js';
 
 const DEFAULT_PLANS = [
   {
-    id_plan: '1',
+    id_plan: '11111111-1111-1111-1111-111111111111',
     nombre: 'Básico',
     descripcion: 'Para uso personal y organización',
     precio: 5,
@@ -19,7 +19,7 @@ const DEFAULT_PLANS = [
     buttonText: 'Elegir Básico'
   },
   {
-    id_plan: '2',
+    id_plan: '22222222-2222-2222-2222-222222222222',
     nombre: 'Pro',
     descripcion: 'Para profesionales y pequeños equipos',
     precio: 12,
@@ -39,7 +39,7 @@ const DEFAULT_PLANS = [
     buttonText: 'Elegir Pro'
   },
   {
-    id_plan: '3',
+    id_plan: '33333333-3333-3333-3333-333333333333',
     nombre: 'Empresarial',
     descripcion: 'Para organizaciones exigentes',
     precio: 49,
@@ -106,17 +106,39 @@ export const plansService = {
    * Registrar una transacción en las tablas public.suscripcion y public.pago
    */
   async createSubscription({ userId, planId, planName, billingCycle, amountPaid, transactionId }) {
-    if (!userId) return { subscription: null, error: null };
+    if (!userId) return { subscription: null, error: new Error('userId es requerido') };
+
+    const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+    if (!uuidRegex.test(userId)) {
+      console.error('userId no es un UUID válido:', userId);
+      return { subscription: null, error: new Error('ID de usuario no es un UUID válido') };
+    }
 
     try {
-      // 1. Obtener id_plan real si fue pasado por nombre
       let planUuid = planId;
-      const { data: dbPlans } = await supabase.from('plan').select('id_plan, limite_almacenamiento_bytes').ilike('nombre', `%${planName || 'Pro'}%`).limit(1);
-      
+
+      if (!uuidRegex.test(planUuid)) {
+        const cleanName = (planName || 'Pro').normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const { data: dbPlans } = await supabase.from('plan').select('id_plan, limite_almacenamiento_bytes, nombre');
+        
+        if (dbPlans && dbPlans.length > 0) {
+          const matched = dbPlans.find(p => p.nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().includes(cleanName.toLowerCase()));
+          if (matched) {
+            planUuid = matched.id_plan;
+          } else {
+            planUuid = dbPlans[0].id_plan;
+          }
+        } else {
+          if (cleanName.toLowerCase().includes('basico')) planUuid = '11111111-1111-1111-1111-111111111111';
+          else if (cleanName.toLowerCase().includes('empresa')) planUuid = '33333333-3333-3333-3333-333333333333';
+          else planUuid = '22222222-2222-2222-2222-222222222222';
+        }
+      }
+
       let limitBytes = 536870912000;
-      if (dbPlans && dbPlans.length > 0) {
-        planUuid = dbPlans[0].id_plan;
-        limitBytes = dbPlans[0].limite_almacenamiento_bytes || limitBytes;
+      const { data: planInfo } = await supabase.from('plan').select('limite_almacenamiento_bytes').eq('id_plan', planUuid).single();
+      if (planInfo?.limite_almacenamiento_bytes) {
+        limitBytes = planInfo.limite_almacenamiento_bytes;
       }
 
       const fechaInicio = new Date();

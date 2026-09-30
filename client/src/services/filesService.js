@@ -97,6 +97,11 @@ export const filesService = {
       throw new Error('Debes iniciar sesión para subir archivos a la nube.');
     }
 
+    const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+    if (!uuidRegex.test(activeUserId)) {
+      throw new Error('El ID de usuario no es un UUID de Supabase válido. Asegúrate de registrarte o iniciar sesión correctamente.');
+    }
+
     // 1. Asegurar que existe registro del usuario en la tabla public.usuario para evitar error de FK
     try {
       const { data: dbUser } = await supabase.from('usuario').select('id_usuario').eq('id_usuario', activeUserId).single();
