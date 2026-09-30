@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { 
   Cloud, HardDrive, Upload, FolderPlus, Share2, LogOut, Search, 
   FileText, Image as ImageIcon, Video, FileCode, Archive, Trash2, Download, 
-  CheckCircle, Shield, MoreVertical, Plus, Clock, ExternalLink, Loader2
+  CheckCircle, Shield, MoreVertical, Plus, Clock, ExternalLink, Loader2,
+  Eye, LayoutGrid, List, Music, Sparkles
 } from 'lucide-react';
 import { filesService } from '../services/filesService.js';
+import { FilePreviewModal } from '../components/files/FilePreviewModal.jsx';
 
 export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
   const [activeTab, setActiveTab] = useState('all'); // 'all' | 'docs' | 'images' | 'media'
@@ -12,6 +14,11 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
   const [files, setFiles] = useState([]);
   const [isLoadingFiles, setIsLoadingFiles] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
+  const [viewMode, setViewMode] = useState('list'); // 'list' | 'grid'
+
+  // Modal de vista previa
+  const [selectedPreviewFile, setSelectedPreviewFile] = useState(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   // Cargar archivos del usuario desde Supabase
   useEffect(() => {
@@ -58,17 +65,42 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
       const newFile = await filesService.uploadFile(currentUser?.id, uploadedFile);
       setFiles(prev => [newFile, ...prev]);
       onNotification && onNotification(`Archivo "${uploadedFile.name}" subido y guardado exitosamente en la nube.`, 'success');
+      // Abrir vista previa automáticamente tras subir el archivo
+      setSelectedPreviewFile(newFile);
+      setIsPreviewOpen(true);
     } catch (err) {
       onNotification && onNotification(`Error al subir el archivo: ${err.message}`, 'error');
     } finally {
       setIsUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  // Abrir vista previa
+  const handleOpenPreview = (file) => {
+    setSelectedPreviewFile(file);
+    setIsPreviewOpen(true);
+  };
+
+  // Descargar archivo real
+  const handleDownloadFile = async (file) => {
+    try {
+      onNotification && onNotification(`Descargando copia de "${file.name}"...`, 'info');
+      await filesService.downloadFile(file.file_path, file.name);
+      onNotification && onNotification(`Archivo "${file.name}" descargado con éxito.`, 'success');
+    } catch (err) {
+      onNotification && onNotification(`Error al descargar: ${err.message}`, 'error');
     }
   };
 
   // Eliminación de archivo en Supabase BD y Storage
-  const handleDeleteFile = async (id, name, filePath) => {
+  const handleDeleteFile = async (id, name, filePath, e) => {
+    e && e.stopPropagation();
     try {
       setFiles(prev => prev.filter(f => f.id !== id));
+      if (selectedPreviewFile?.id === id) {
+        setIsPreviewOpen(false);
+      }
       await filesService.deleteFile(currentUser?.id, id, filePath);
       onNotification && onNotification(`Archivo "${name}" eliminado.`, 'info');
     } catch (err) {
@@ -77,20 +109,26 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
   };
 
   // Cambiar compartir
-  const handleToggleShare = async (id, currentShared) => {
+  const handleToggleShare = async (id, currentShared, e) => {
+    e && e.stopPropagation();
     setFiles(prev => prev.map(f => f.id === id ? { ...f, shared: !currentShared } : f));
     await filesService.toggleShareFile(id, currentShared);
     onNotification && onNotification(`Permisos de compartido actualizados.`, 'success');
   };
 
-  const getFileIcon = (type) => {
+  const getFileIcon = (type, ext) => {
     switch (type) {
       case 'image':
         return <ImageIcon size={20} color="var(--accent-cyan)" />;
       case 'video':
         return <Video size={20} color="var(--accent-purple)" />;
+      case 'audio':
+        return <Music size={20} color="var(--primary)" />;
       case 'zip':
+      case 'archive':
         return <Archive size={20} color="var(--warning)" />;
+      case 'code':
+        return <FileCode size={20} color="var(--success-hover)" />;
       default:
         return <FileText size={20} color="var(--primary)" />;
     }
@@ -234,7 +272,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
               ¡Bienvenido a tu nube, {currentUser?.name || 'Cliente'}!
             </h2>
             <p style={{ opacity: 0.85, fontSize: '0.9rem', maxWidth: '520px' }}>
-              Tu cuenta está suscrita al <strong>Plan {planName}</strong> con <strong>{storageQuota}</strong> de capacidad disponible para almacenar, sincronizar y compartir.
+              Tu cuenta está suscrita al <strong>Plan {planName}</strong> con <strong>{storageQuota}</strong> de capacidad disponible para almacenar, sincronizar, previsualizar y compartir.
             </p>
           </div>
 
@@ -292,12 +330,15 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
             ].map((tab) => (
               <button
                 key={tab.id}
+                type="button"
                 onClick={() => setActiveTab(tab.id)}
                 style={{
                   padding: '6px 14px',
                   borderRadius: 'var(--radius-sm)',
                   fontSize: '0.85rem',
                   fontWeight: 600,
+                  border: 'none',
+                  cursor: 'pointer',
                   background: activeTab === tab.id ? 'var(--primary)' : 'transparent',
                   color: activeTab === tab.id ? 'var(--text-white)' : 'var(--text-muted)',
                   transition: 'all 0.2s'
@@ -308,8 +349,54 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
             ))}
           </div>
 
-          {/* Search & Upload */}
+          {/* Search, View Mode & Upload */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {/* View Mode Toggle */}
+            <div
+              style={{
+                display: 'flex',
+                background: 'var(--bg-card)',
+                padding: '3px',
+                borderRadius: 'var(--radius-sm)',
+                border: '1px solid var(--border-color)',
+                gap: '2px'
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setViewMode('list')}
+                style={{
+                  padding: '6px',
+                  borderRadius: 'var(--radius-xs)',
+                  border: 'none',
+                  cursor: 'pointer',
+                  background: viewMode === 'list' ? 'var(--primary-light)' : 'transparent',
+                  color: viewMode === 'list' ? 'var(--primary)' : 'var(--text-muted)',
+                  display: 'flex'
+                }}
+                title="Vista de lista"
+              >
+                <List size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('grid')}
+                style={{
+                  padding: '6px',
+                  borderRadius: 'var(--radius-xs)',
+                  border: 'none',
+                  cursor: 'pointer',
+                  background: viewMode === 'grid' ? 'var(--primary-light)' : 'transparent',
+                  color: viewMode === 'grid' ? 'var(--primary)' : 'var(--text-muted)',
+                  display: 'flex'
+                }}
+                title="Vista de cuadrícula"
+              >
+                <LayoutGrid size={16} />
+              </button>
+            </div>
+
+            {/* Search Input */}
             <div style={{ position: 'relative' }}>
               <input
                 type="text"
@@ -323,7 +410,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
                   background: 'var(--bg-body)',
                   fontSize: '0.85rem',
                   outline: 'none',
-                  width: '200px'
+                  width: '180px'
                 }}
               />
               <Search size={16} color="var(--text-light)" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
@@ -356,7 +443,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
           </div>
         </div>
 
-        {/* Files Table / List */}
+        {/* Files Container (Table / Grid) */}
         <div
           style={{
             background: 'var(--bg-card)',
@@ -367,17 +454,18 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
           }}
         >
           {isLoadingFiles ? (
-            <div style={{ padding: '3rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+            <div style={{ padding: '3.5rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
               <Loader2 size={36} style={{ margin: '0 auto 12px auto', animation: 'spin 1s linear infinite' }} />
               <p style={{ fontWeight: 600, fontSize: '0.95rem' }}>Cargando archivos desde Supabase...</p>
             </div>
           ) : filteredFiles.length === 0 ? (
-            <div style={{ padding: '3rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-              <Cloud size={40} style={{ margin: '0 auto 12px auto', opacity: 0.4 }} />
-              <p style={{ fontWeight: 600, fontSize: '0.95rem' }}>No se encontraron archivos</p>
-              <p style={{ fontSize: '0.825rem' }}>Sube tu primer archivo para comenzar a respaldar en la nube.</p>
+            <div style={{ padding: '3.5rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+              <Cloud size={44} style={{ margin: '0 auto 12px auto', opacity: 0.35 }} />
+              <h4 style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-main)', marginBottom: '4px' }}>No se encontraron archivos</h4>
+              <p style={{ fontSize: '0.85rem', margin: 0 }}>Sube tu primer archivo o ajusta tus filtros para comenzar.</p>
             </div>
-          ) : (
+          ) : viewMode === 'list' ? (
+            /* LIST VIEW TABLE */
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead>
                 <tr style={{ background: 'var(--bg-subtle)', borderBottom: '1px solid var(--border-color)', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em' }}>
@@ -394,8 +482,10 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
                     key={file.id}
                     style={{
                       borderBottom: '1px solid var(--border-color)',
-                      transition: 'background 0.15s'
+                      transition: 'background 0.15s',
+                      cursor: 'pointer'
                     }}
+                    onClick={() => handleOpenPreview(file)}
                     onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-subtle)')}
                     onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--bg-card)')}
                   >
@@ -408,14 +498,20 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
                           background: 'var(--bg-hover)',
                           display: 'flex',
                           alignItems: 'center',
-                          justifyContent: 'center'
+                          justifyContent: 'center',
+                          flexShrink: 0
                         }}
                       >
-                        {getFileIcon(file.type)}
+                        {getFileIcon(file.type, file.ext)}
                       </div>
-                      <span style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-main)' }}>
-                        {file.name}
-                      </span>
+                      <div style={{ minWidth: 0 }}>
+                        <span style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-main)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {file.name}
+                        </span>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--primary)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                          <Eye size={11} /> Clic para vista previa
+                        </span>
+                      </div>
                     </td>
 
                     <td style={{ padding: '14px 16px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
@@ -429,7 +525,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
                     <td style={{ padding: '14px 16px' }}>
                       <button
                         type="button"
-                        onClick={() => handleToggleShare(file.id, file.shared)}
+                        onClick={(e) => handleToggleShare(file.id, file.shared, e)}
                         style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 0 }}
                       >
                         {file.shared ? (
@@ -445,32 +541,102 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
                     </td>
 
                     <td style={{ padding: '14px 20px', textAlign: 'right' }}>
-                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
+                        {/* Botón Vista Previa con Ojo */}
                         <button
                           type="button"
-                          onClick={() => onNotification && onNotification(`Descargando copia cifrada de "${file.name}"...`, 'info')}
+                          onClick={() => handleOpenPreview(file)}
                           style={{
-                            padding: '6px',
-                            borderRadius: 'var(--radius-xs)',
+                            padding: '7px 10px',
+                            borderRadius: 'var(--radius-sm)',
+                            color: 'var(--primary)',
+                            background: 'var(--primary-light)',
+                            border: '1px solid rgba(99, 102, 241, 0.3)',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            fontSize: '0.8rem',
+                            fontWeight: 700,
+                            transition: 'all 0.15s ease'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = 'var(--primary)';
+                            e.currentTarget.style.color = '#ffffff';
+                            e.currentTarget.style.transform = 'scale(1.05)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'var(--primary-light)';
+                            e.currentTarget.style.color = 'var(--primary)';
+                            e.currentTarget.style.transform = 'scale(1)';
+                          }}
+                          title="Vista previa del archivo"
+                          aria-label="Vista previa"
+                        >
+                          <Eye size={16} />
+                          <span>Ver</span>
+                        </button>
+
+                        {/* Botón Descargar */}
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadFile(file)}
+                          style={{
+                            padding: '7px 9px',
+                            borderRadius: 'var(--radius-sm)',
                             color: 'var(--text-muted)',
-                            background: 'transparent',
-                            cursor: 'pointer'
+                            background: 'var(--bg-subtle)',
+                            border: '1px solid var(--border-color)',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.15s ease'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.color = 'var(--primary)';
+                            e.currentTarget.style.borderColor = 'var(--primary)';
+                            e.currentTarget.style.transform = 'scale(1.05)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.color = 'var(--text-muted)';
+                            e.currentTarget.style.borderColor = 'var(--border-color)';
+                            e.currentTarget.style.transform = 'scale(1)';
                           }}
                           title="Descargar archivo"
+                          aria-label="Descargar"
                         >
                           <Download size={16} />
                         </button>
+
+                        {/* Botón Eliminar */}
                         <button
                           type="button"
-                          onClick={() => handleDeleteFile(file.id, file.name, file.file_path)}
+                          onClick={(e) => handleDeleteFile(file.id, file.name, file.file_path, e)}
                           style={{
-                            padding: '6px',
-                            borderRadius: 'var(--radius-xs)',
+                            padding: '7px 9px',
+                            borderRadius: 'var(--radius-sm)',
                             color: 'var(--danger)',
-                            background: 'transparent',
-                            cursor: 'pointer'
+                            background: 'rgba(239, 68, 68, 0.08)',
+                            border: '1px solid rgba(239, 68, 68, 0.2)',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.15s ease'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = 'var(--danger)';
+                            e.currentTarget.style.color = '#ffffff';
+                            e.currentTarget.style.transform = 'scale(1.05)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.08)';
+                            e.currentTarget.style.color = 'var(--danger)';
+                            e.currentTarget.style.transform = 'scale(1)';
                           }}
                           title="Eliminar archivo"
+                          aria-label="Eliminar"
                         >
                           <Trash2 size={16} />
                         </button>
@@ -480,9 +646,157 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
                 ))}
               </tbody>
             </table>
+          ) : (
+            /* GRID VIEW CARDS */
+            <div
+              style={{
+                padding: '1.5rem',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+                gap: '16px'
+              }}
+            >
+              {filteredFiles.map((file) => (
+                <div
+                  key={file.id}
+                  onClick={() => handleOpenPreview(file)}
+                  style={{
+                    background: 'var(--bg-subtle)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '1.25rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    position: 'relative'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--primary)';
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = 'var(--shadow-md)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--border-color)';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                >
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
+                      <div
+                        style={{
+                          width: '42px',
+                          height: '42px',
+                          borderRadius: 'var(--radius-sm)',
+                          background: 'var(--bg-card)',
+                          border: '1px solid var(--border-color)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                      >
+                        {getFileIcon(file.type, file.ext)}
+                      </div>
+                      <span
+                        style={{
+                          fontSize: '0.68rem',
+                          fontWeight: 700,
+                          textTransform: 'uppercase',
+                          background: 'var(--primary-light)',
+                          color: 'var(--primary)',
+                          padding: '2px 6px',
+                          borderRadius: 'var(--radius-xs)'
+                        }}
+                      >
+                        {file.ext || file.type}
+                      </span>
+                    </div>
+
+                    <h4
+                      style={{
+                        fontSize: '0.9rem',
+                        fontWeight: 700,
+                        color: 'var(--text-main)',
+                        margin: '0 0 4px 0',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}
+                      title={file.name}
+                    >
+                      {file.name}
+                    </h4>
+
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>
+                      {file.size} · {file.updated}
+                    </p>
+                  </div>
+
+                  <div
+                    style={{
+                      marginTop: '1.25rem',
+                      paddingTop: '0.75rem',
+                      borderTop: '1px solid var(--border-color)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between'
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleOpenPreview(file)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--primary)',
+                        fontSize: '0.78rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        padding: 0
+                      }}
+                    >
+                      <Eye size={13} /> Vista previa
+                    </button>
+
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadFile(file)}
+                        style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px' }}
+                        title="Descargar"
+                      >
+                        <Download size={15} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => handleDeleteFile(file.id, file.name, file.file_path, e)}
+                        style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '2px' }}
+                        title="Eliminar"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       </main>
+
+      {/* MODAL DE VISTA PREVIA INTERACTIVA */}
+      <FilePreviewModal
+        file={selectedPreviewFile}
+        isOpen={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+        onNotification={onNotification}
+      />
     </div>
   );
 };

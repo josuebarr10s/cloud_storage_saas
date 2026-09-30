@@ -11,19 +11,25 @@ function formatBytes(bytes, decimals = 1) {
 
 function detectCategoryAndType(filename) {
   const ext = filename.split('.').pop()?.toLowerCase() || '';
-  if (['png', 'jpg', 'jpeg', 'svg', 'gif', 'webp'].includes(ext)) {
-    return { type: 'image', category: 'images' };
+  if (['png', 'jpg', 'jpeg', 'svg', 'gif', 'webp', 'bmp', 'ico'].includes(ext)) {
+    return { type: 'image', category: 'images', mimeCategory: 'image', ext };
   }
-  if (['mp4', 'webm', 'mov', 'avi', 'mkv'].includes(ext)) {
-    return { type: 'video', category: 'media' };
+  if (['mp4', 'webm', 'mov', 'avi', 'mkv', 'm4v'].includes(ext)) {
+    return { type: 'video', category: 'media', mimeCategory: 'video', ext };
+  }
+  if (['mp3', 'wav', 'ogg', 'aac', 'flac', 'm4a'].includes(ext)) {
+    return { type: 'audio', category: 'media', mimeCategory: 'audio', ext };
   }
   if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) {
-    return { type: 'zip', category: 'docs' };
+    return { type: 'zip', category: 'docs', mimeCategory: 'archive', ext };
   }
   if (['pdf'].includes(ext)) {
-    return { type: 'pdf', category: 'docs' };
+    return { type: 'pdf', category: 'docs', mimeCategory: 'pdf', ext };
   }
-  return { type: 'doc', category: 'docs' };
+  if (['js', 'jsx', 'ts', 'tsx', 'html', 'css', 'json', 'txt', 'md', 'csv', 'sql', 'py', 'java', 'c', 'cpp', 'xml', 'yaml', 'yml'].includes(ext)) {
+    return { type: 'code', category: 'docs', mimeCategory: 'text', ext };
+  }
+  return { type: 'doc', category: 'docs', mimeCategory: 'other', ext };
 }
 
 export const filesService = {
@@ -39,7 +45,6 @@ export const filesService = {
     }
 
     if (!activeUserId) {
-      // Intentar obtener usuario guardado en localStorage
       try {
         const saved = localStorage.getItem('nimbox_current_user');
         if (saved) activeUserId = JSON.parse(saved).id;
@@ -61,11 +66,13 @@ export const filesService = {
       }
 
       return (data || []).map(f => {
-        const { category } = detectCategoryAndType(f.nombre);
+        const { category, type, ext, mimeCategory } = detectCategoryAndType(f.nombre);
         return {
           id: f.id_archivo,
           name: f.nombre,
-          type: f.tipo || 'doc',
+          type: f.tipo || type,
+          mimeCategory: mimeCategory,
+          ext: ext,
           size_bytes: parseInt(f.tamano || 0, 10),
           size: formatBytes(parseInt(f.tamano || 0, 10)),
           updated: new Date(f.fecha_subida || f.fecha_modificacion).toLocaleDateString('es-ES', {
@@ -119,7 +126,7 @@ export const filesService = {
       }
     } catch (e) {}
 
-    const { type, category } = detectCategoryAndType(file.name);
+    const { type, category, ext, mimeCategory } = detectCategoryAndType(file.name);
     const timestamp = Date.now();
     const cleanFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
     const storagePath = `${activeUserId}/${timestamp}_${cleanFileName}`;
@@ -188,6 +195,8 @@ export const filesService = {
       id: savedRecord?.id_archivo || `f-${timestamp}`,
       name: file.name,
       type: type,
+      mimeCategory: mimeCategory,
+      ext: ext,
       size_bytes: file.size,
       size: formatBytes(file.size),
       updated: 'Ahora mismo',
@@ -195,6 +204,95 @@ export const filesService = {
       shared: false,
       file_path: uploadedPath
     };
+  },
+
+  /**
+   * Obtener URL de vista previa o Blob para un archivo
+   */
+  async getFilePreviewUrl(filePath) {
+    if (!filePath) return null;
+
+    try {
+      // 1. Intentar descargar directamente como Blob (funciona con sesión activa)
+      const { data: blobData, error: dlErr } = await supabase.storage
+        .from('nimbox-files')
+        .download(filePath);
+
+      if (!dlErr && blobData) {
+        return {
+          url: URL.createObjectURL(blobData),
+          blob: blobData,
+          isBlob: true
+        };
+      }
+
+      // 2. Intentar crear Signed URL con 1 hora de validez
+      const { data: signedData, error: signedErr } = await supabase.storage
+        .from('nimbox-files')
+        .createSignedUrl(filePath, 3600);
+
+      if (!signedErr && signedData?.signedUrl) {
+        return {
+          url: signedData.signedUrl,
+          isBlob: false
+        };
+      }
+
+      // 3. Fallback a Public URL
+      const { data: publicData } = supabase.storage
+        .from('nimbox-files')
+        .getPublicUrl(filePath);
+
+      if (publicData?.publicUrl) {
+        return {
+          url: publicData.publicUrl,
+          isBlob: false
+        };
+      }
+    } catch (err) {
+      console.warn('No se pudo obtener URL de vista previa:', err);
+    }
+    return null;
+  },
+
+  /**
+   * Descargar archivo real desde Supabase Storage
+   */
+  async downloadFile(filePath, fileName) {
+    try {
+      const { data, error } = await supabase.storage
+        .from('nimbox-files')
+        .download(filePath);
+
+      if (error || !data) {
+        const { data: signed } = await supabase.storage.from('nimbox-files').createSignedUrl(filePath, 3600);
+        const url = signed?.signedUrl || supabase.storage.from('nimbox-files').getPublicUrl(filePath).data?.publicUrl;
+        if (url) {
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = fileName || 'archivo';
+          a.target = '_blank';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          return true;
+        }
+        throw error || new Error('No se pudo descargar el archivo.');
+      }
+
+      const blobUrl = URL.createObjectURL(data);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = fileName || 'archivo';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+      return true;
+    } catch (err) {
+      console.error('Error al descargar archivo:', err);
+      throw err;
+    }
   },
 
   /**
@@ -240,7 +338,6 @@ export const filesService = {
   },
 
   async toggleShareFile(fileId, currentSharedState) {
-    // Si la tabla no tiene columna 'compartido', mantenemos la simulación en el frontend
     return true;
   }
 };
