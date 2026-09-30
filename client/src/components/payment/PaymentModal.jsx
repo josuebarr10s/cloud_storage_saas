@@ -101,7 +101,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
       try {
         const dbPlans = await plansService.getPlans();
         if (dbPlans && dbPlans.length > 0) {
-          setAvailablePlans(dbPlans);
+          setAvailablePlans(dbPlans.slice().sort((a, b) => a.precio - b.precio));
         }
       } catch (e) {
         console.warn('Usando planes locales en PaymentModal');

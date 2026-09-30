@@ -9,7 +9,9 @@ export const PricingSection = ({ onChoosePlan }) => {
   useEffect(() => {
     async function loadPlans() {
       const dbPlans = await plansService.getPlans();
-      setPlans(dbPlans);
+      if (dbPlans && dbPlans.length > 0) {
+        setPlans(dbPlans.slice().sort((a, b) => a.precio - b.precio));
+      }
     }
     loadPlans();
   }, []);

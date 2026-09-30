@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Sliders,
   Sparkles,
@@ -8,9 +8,90 @@ import {
   TrendingDown,
   ArrowRight
 } from 'lucide-react';
+import { plansService } from '../../services/plansService.js';
+
+const FALLBACK_PLANS = [
+  {
+    id_plan: '11111111-1111-1111-1111-111111111111',
+    nombre: 'Básico',
+    name: 'Básico',
+    descripcion: 'Para uso personal y organización esencial. 10 GB de almacenamiento y acceso desde 2 dispositivos.',
+    desc: 'Para uso personal y organización esencial. 10 GB de almacenamiento y acceso desde 2 dispositivos.',
+    precio: 5,
+    price: 5,
+    precioAnual: 4.0,
+    storageQuota: '10 GB',
+    period: 'USD / mes',
+    badge: 'Uso Personal',
+    features: [
+      '10 GB de almacenamiento seguro',
+      'Acceso desde 2 dispositivos',
+      'Compartir por enlace',
+      'Soporte por email',
+      'Historial de versiones (7 días)'
+    ]
+  },
+  {
+    id_plan: '22222222-2222-2222-2222-222222222222',
+    nombre: 'Pro',
+    name: 'Pro',
+    descripcion: 'Para profesionales y pequeños equipos. 500 GB de almacenamiento, dispositivos ilimitados y soporte 24/7.',
+    desc: 'Para profesionales y pequeños equipos. 500 GB de almacenamiento, dispositivos ilimitados y soporte 24/7.',
+    precio: 12,
+    price: 12,
+    precioAnual: 9.6,
+    storageQuota: '500 GB',
+    popular: true,
+    period: 'USD / mes',
+    badge: 'Recomendado',
+    features: [
+      '500 GB de almacenamiento en la nube',
+      'Dispositivos ilimitados',
+      'Compartir con permisos avanzados',
+      'Soporte prioritario 24/7',
+      'Historial de versiones 30 días'
+    ]
+  },
+  {
+    id_plan: '33333333-3333-3333-3333-333333333333',
+    nombre: 'Empresarial',
+    name: 'Empresarial',
+    descripcion: 'Para organizaciones exigentes. Almacenamiento masivo, SSO, SLA 99.99% y soporte dedicado.',
+    desc: 'Para organizaciones exigentes. Almacenamiento masivo, SSO, SLA 99.99% y soporte dedicado.',
+    precio: 49,
+    price: 49,
+    precioAnual: 39.2,
+    storageQuota: 'Ilimitado',
+    period: 'USD / mes',
+    badge: 'Ilimitado / 2 TB+',
+    features: [
+      'Almacenamiento Ilimitado',
+      'SSO y control de acceso',
+      'SLA garantizado 99.99%',
+      'Soporte dedicado 24/7',
+      'Historial de versiones ilimitado'
+    ]
+  }
+];
 
 export const StorageCalculator = ({ onSelectPlan }) => {
   const [storageGB, setStorageGB] = useState(250);
+  const [plans, setPlans] = useState(FALLBACK_PLANS);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const dbPlans = await plansService.getPlans();
+        if (dbPlans && dbPlans.length > 0) {
+          const sorted = dbPlans.slice().sort((a, b) => a.precio - b.precio);
+          setPlans(sorted);
+        }
+      } catch (e) {
+        console.warn('Usando planes fallback en calculadora');
+      }
+    }
+    load();
+  }, []);
 
   // Estimaciones basadas en peso promedio
   const photosCount = Math.round(storageGB * 200); // 5MB por foto
@@ -18,33 +99,12 @@ export const StorageCalculator = ({ onSelectPlan }) => {
   const docsCount = Math.round(storageGB * 500); // 2MB por documento
 
   // Determinación de plan recomendado
-  let recommendedPlan = {
-    name: 'Básico',
-    price: 5,
-    period: 'USD / mes',
-    badge: 'Uso Personal',
-    desc: 'Para uso personal y organización esencial. 10 GB de almacenamiento y acceso desde 2 dispositivos.',
-    planId: 1
-  };
+  let recommendedPlan = plans[0] || FALLBACK_PLANS[0];
 
   if (storageGB > 10 && storageGB <= 500) {
-    recommendedPlan = {
-      name: 'Pro',
-      price: 12,
-      period: 'USD / mes',
-      badge: 'Recomendado',
-      desc: 'Para profesionales y pequeños equipos. 500 GB de almacenamiento, dispositivos ilimitados y soporte 24/7.',
-      planId: 2
-    };
+    recommendedPlan = plans[1] || FALLBACK_PLANS[1];
   } else if (storageGB > 500) {
-    recommendedPlan = {
-      name: 'Empresarial',
-      price: 49,
-      period: 'USD / mes',
-      badge: 'Ilimitado / 2 TB',
-      desc: 'Para organizaciones exigentes. Almacenamiento masivo, SSO, SLA 99.99% y soporte dedicado.',
-      planId: 3
-    };
+    recommendedPlan = plans[2] || FALLBACK_PLANS[2];
   }
 
   const presets = [
@@ -53,6 +113,12 @@ export const StorageCalculator = ({ onSelectPlan }) => {
     { label: 'Pro Team (500 GB)', value: 500 },
     { label: 'Empresas (2 TB)', value: 2000 },
   ];
+
+  const handleChoosePlan = () => {
+    if (onSelectPlan) {
+      onSelectPlan(recommendedPlan, 'monthly');
+    }
+  };
 
   return (
     <section
@@ -81,7 +147,7 @@ export const StorageCalculator = ({ onSelectPlan }) => {
             Calcula el espacio que tu equipo necesita
           </h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '1.05rem' }}>
-            Ajusta la capacidad deseada para conocer la equivalencia en archivos y el plan recomendado de Nimbox.
+            Ajusta la capacidad deseada para conocer la equivalencia en archivos y seleccionar el plan ideal de Nimbox.
           </p>
         </div>
 
@@ -121,6 +187,8 @@ export const StorageCalculator = ({ onSelectPlan }) => {
                       background: storageGB === p.value ? 'var(--primary)' : 'var(--bg-card)',
                       color: storageGB === p.value ? 'var(--text-white)' : 'var(--text-secondary)',
                       border: storageGB === p.value ? '1px solid var(--primary)' : '1px solid var(--border-hover)',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s'
                     }}
                   >
                     {p.label}
@@ -230,29 +298,29 @@ export const StorageCalculator = ({ onSelectPlan }) => {
                     borderRadius: 'var(--radius-full)',
                   }}
                 >
-                  {recommendedPlan.badge}
+                  {recommendedPlan.badge || (recommendedPlan.nombre === 'Pro' ? 'Recomendado' : recommendedPlan.nombre === 'Básico' ? 'Económico' : 'Máximo Poder')}
                 </span>
               </div>
 
               <h3 style={{ fontSize: '1.8rem', fontWeight: 800, marginBottom: '0.5rem' }}>
-                Plan {recommendedPlan.name}
+                Plan {recommendedPlan.nombre || recommendedPlan.name}
               </h3>
               <p style={{ fontSize: '0.9rem', color: 'var(--accent-indigo-bg)', marginBottom: '1.75rem', lineHeight: 1.5 }}>
-                {recommendedPlan.desc}
+                {recommendedPlan.descripcion || recommendedPlan.desc || 'Almacenamiento seguro en la nube con sincronización instantánea.'}
               </p>
 
               <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginBottom: '2rem' }}>
                 <span style={{ fontSize: '3.25rem', fontWeight: 800, letterSpacing: '-0.03em' }}>
-                  ${recommendedPlan.price}
+                  ${recommendedPlan.precio || recommendedPlan.price}
                 </span>
                 <span style={{ fontSize: '0.95rem', color: 'var(--accent-indigo-border)' }}>
-                  {recommendedPlan.period}
+                  USD / mes
                 </span>
               </div>
             </div>
 
             <button
-              onClick={() => onSelectPlan && onSelectPlan(recommendedPlan)}
+              onClick={handleChoosePlan}
               style={{
                 width: '100%',
                 padding: '0.9rem',
@@ -266,9 +334,12 @@ export const StorageCalculator = ({ onSelectPlan }) => {
                 justifyContent: 'center',
                 gap: '8px',
                 boxShadow: 'var(--shadow-md)',
+                cursor: 'pointer',
+                border: 'none',
+                transition: 'all 0.2s ease'
               }}
             >
-              Elegir Plan {recommendedPlan.name} <ArrowRight size={16} />
+              Registrarme con Plan {recommendedPlan.nombre || recommendedPlan.name} <ArrowRight size={16} />
             </button>
           </div>
         </div>

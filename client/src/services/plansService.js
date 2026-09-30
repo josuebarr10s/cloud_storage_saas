@@ -69,10 +69,11 @@ export const plansService = {
       const { data, error } = await supabase
         .from('plan')
         .select('*')
-        .eq('activo', true);
+        .eq('activo', true)
+        .order('precio', { ascending: true });
 
       if (error || !data || data.length === 0) {
-        return DEFAULT_PLANS;
+        return DEFAULT_PLANS.slice().sort((a, b) => a.precio - b.precio);
       }
 
       return data.map(p => {
@@ -95,10 +96,10 @@ export const plansService = {
           features: isPro ? DEFAULT_PLANS[1].features : isEmp ? DEFAULT_PLANS[2].features : DEFAULT_PLANS[0].features,
           buttonText: isPro ? 'Elegir Pro' : isEmp ? 'Contactar ventas' : 'Elegir Básico'
         };
-      });
+      }).sort((a, b) => a.precio - b.precio);
     } catch (err) {
       console.warn('Uso de planes por defecto (error Supabase):', err);
-      return DEFAULT_PLANS;
+      return DEFAULT_PLANS.slice().sort((a, b) => a.precio - b.precio);
     }
   },
 
