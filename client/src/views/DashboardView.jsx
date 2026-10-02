@@ -3,28 +3,43 @@ import {
   Cloud, HardDrive, Upload, FolderPlus, Share2, LogOut, Search, 
   FileText, Image as ImageIcon, Video, FileCode, Archive, Trash2, Download, 
   CheckCircle, Shield, MoreVertical, Plus, Clock, ExternalLink, Loader2,
-  Eye, LayoutGrid, List, Music, Sparkles
+  Eye, LayoutGrid, List, Music, Sparkles, RotateCcw
 } from 'lucide-react';
-import { filesService } from '../services/filesService.js';
+import { filesService, getRetentionDays } from '../services/filesService.js';
 import { FilePreviewModal } from '../components/files/FilePreviewModal.jsx';
+import { VersionHistoryModal } from '../components/files/VersionHistoryModal.jsx';
 
 export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
-  const [activeTab, setActiveTab] = useState('all'); // 'all' | 'docs' | 'images' | 'media'
+  const [activeTab, setActiveTab] = useState('all'); // 'all' | 'docs' | 'images' | 'media' | 'trash'
   const [searchQuery, setSearchQuery] = useState('');
   const [files, setFiles] = useState([]);
   const [isLoadingFiles, setIsLoadingFiles] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [viewMode, setViewMode] = useState('list'); // 'list' | 'grid'
 
+  // Papelera
+  const [trashFiles, setTrashFiles] = useState([]);
+  const [isLoadingTrash, setIsLoadingTrash] = useState(false);
+
   // Modal de vista previa
   const [selectedPreviewFile, setSelectedPreviewFile] = useState(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
-  // Cargar archivos del usuario desde Supabase
+  // Modal de historial de versiones
+  const [selectedVersionFile, setSelectedVersionFile] = useState(null);
+  const [isVersionsOpen, setIsVersionsOpen] = useState(false);
+
+  const planName = currentUser?.plan || 'Pro';
+  const storageQuota = currentUser?.storageQuota || '500 GB';
+  const retentionDays = getRetentionDays(planName);
+  const isTrash = activeTab === 'trash';
+
+  // Cargar archivos del usuario desde Supabase (y purgar la papelera vencida)
   useEffect(() => {
     async function loadFiles() {
       setIsLoadingFiles(true);
       try {
+        await filesService.purgeExpiredTrash(currentUser?.id, retentionDays);
         const userFiles = await filesService.getUserFiles(currentUser?.id);
         setFiles(userFiles);
       } catch (err) {
@@ -36,8 +51,22 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
     loadFiles();
   }, [currentUser?.id]);
 
-  const planName = currentUser?.plan || 'Pro';
-  const storageQuota = currentUser?.storageQuota || '500 GB';
+  // Cargar la papelera cuando se abre la pestaña
+  useEffect(() => {
+    if (!isTrash) return;
+    async function loadTrash() {
+      setIsLoadingTrash(true);
+      try {
+        const data = await filesService.getTrashFiles(currentUser?.id, retentionDays);
+        setTrashFiles(data);
+      } catch (err) {
+        console.error('Error al cargar la papelera:', err);
+      } finally {
+        setIsLoadingTrash(false);
+      }
+    }
+    loadTrash();
+  }, [isTrash, currentUser?.id]);
 
   // Calcular almacenamiento usado dinámicamente
   const totalBytes = files.reduce((acc, file) => acc + (file.size_bytes || 0), 0);
@@ -63,8 +92,16 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
 
     try {
       const newFile = await filesService.uploadFile(currentUser?.id, uploadedFile);
-      setFiles(prev => [newFile, ...prev]);
-      onNotification && onNotification(`Archivo "${uploadedFile.name}" subido y guardado exitosamente en la nube.`, 'success');
+
+      if (newFile.isNewVersion) {
+        // Ya existía: se reemplaza en la lista y se sube al inicio
+        setFiles(prev => [newFile, ...prev.filter(f => f.id !== newFile.id)]);
+        onNotification && onNotification(`Se guardó una nueva versión de "${uploadedFile.name}". La anterior está en el historial.`, 'success');
+      } else {
+        setFiles(prev => [newFile, ...prev]);
+        onNotification && onNotification(`Archivo "${uploadedFile.name}" subido y guardado exitosamente en la nube.`, 'success');
+      }
+
       // Abrir vista previa automáticamente tras subir el archivo
       setSelectedPreviewFile(newFile);
       setIsPreviewOpen(true);
@@ -82,6 +119,21 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
     setIsPreviewOpen(true);
   };
 
+  // Abrir historial de versiones
+  const handleOpenVersions = (file, e) => {
+    e && e.stopPropagation();
+    setSelectedVersionFile(file);
+    setIsVersionsOpen(true);
+  };
+
+  // Cuando se restaura una versión, actualizar el archivo en la lista
+  const handleVersionRestored = (updatedFile) => {
+    setFiles(prev => prev.map(f => f.id === updatedFile.id ? updatedFile : f));
+    if (selectedPreviewFile?.id === updatedFile.id) {
+      setSelectedPreviewFile(updatedFile);
+    }
+  };
+
   // Descargar archivo real
   const handleDownloadFile = async (file) => {
     try {
@@ -93,18 +145,46 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
     }
   };
 
-  // Eliminación de archivo en Supabase BD y Storage
+  // Mover archivo a la papelera
   const handleDeleteFile = async (id, name, filePath, e) => {
     e && e.stopPropagation();
     try {
+      await filesService.moveToTrash(id);
       setFiles(prev => prev.filter(f => f.id !== id));
       if (selectedPreviewFile?.id === id) {
         setIsPreviewOpen(false);
       }
-      await filesService.deleteFile(currentUser?.id, id, filePath);
-      onNotification && onNotification(`Archivo "${name}" eliminado.`, 'info');
+      const aviso = retentionDays
+        ? `Podrás restaurarlo durante ${retentionDays} días.`
+        : 'Podrás restaurarlo cuando quieras.';
+      onNotification && onNotification(`"${name}" se movió a la papelera. ${aviso}`, 'info');
     } catch (err) {
-      onNotification && onNotification(`Error al eliminar archivo`, 'error');
+      onNotification && onNotification(`Error al mover a la papelera: ${err.message}`, 'error');
+    }
+  };
+
+  // Restaurar archivo desde la papelera
+  const handleRestoreFromTrash = async (file) => {
+    try {
+      await filesService.restoreFromTrash(file.id);
+      setTrashFiles(prev => prev.filter(f => f.id !== file.id));
+      const { deleted, daysLeft, ...restoredFile } = file;
+      setFiles(prev => [{ ...restoredFile, deleted_at: null }, ...prev]);
+      onNotification && onNotification(`"${file.name}" fue restaurado.`, 'success');
+    } catch (err) {
+      onNotification && onNotification(`Error al restaurar: ${err.message}`, 'error');
+    }
+  };
+
+  // Eliminar definitivamente desde la papelera
+  const handlePermanentDelete = async (file) => {
+    if (!window.confirm(`¿Eliminar "${file.name}" definitivamente? Esta acción no se puede deshacer y también se borrarán sus versiones anteriores.`)) return;
+    try {
+      await filesService.deletePermanently(currentUser?.id, file.id, file.file_path);
+      setTrashFiles(prev => prev.filter(f => f.id !== file.id));
+      onNotification && onNotification(`"${file.name}" se eliminó definitivamente.`, 'info');
+    } catch (err) {
+      onNotification && onNotification(`Error al eliminar: ${err.message}`, 'error');
     }
   };
 
@@ -139,6 +219,10 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
     const matchesTab = activeTab === 'all' ? true : f.category === activeTab;
     return matchesSearch && matchesTab;
   });
+
+  const filteredTrash = trashFiles.filter(f =>
+    f.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-subtle)', display: 'flex', flexDirection: 'column' }}>
@@ -326,7 +410,8 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
               { id: 'all', label: 'Todos los archivos' },
               { id: 'docs', label: 'Documentos' },
               { id: 'images', label: 'Imágenes' },
-              { id: 'media', label: 'Multimedia' }
+              { id: 'media', label: 'Multimedia' },
+              { id: 'trash', label: 'Papelera', icon: <Trash2 size={14} /> }
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -339,11 +424,17 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
                   fontWeight: 600,
                   border: 'none',
                   cursor: 'pointer',
-                  background: activeTab === tab.id ? 'var(--primary)' : 'transparent',
+                  background: activeTab === tab.id
+                    ? (tab.id === 'trash' ? 'var(--danger)' : 'var(--primary)')
+                    : 'transparent',
                   color: activeTab === tab.id ? 'var(--text-white)' : 'var(--text-muted)',
-                  transition: 'all 0.2s'
+                  transition: 'all 0.2s',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px'
                 }}
               >
+                {tab.icon}
                 {tab.label}
               </button>
             ))}
@@ -351,56 +442,58 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
 
           {/* Search, View Mode & Upload */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            {/* View Mode Toggle */}
-            <div
-              style={{
-                display: 'flex',
-                background: 'var(--bg-card)',
-                padding: '3px',
-                borderRadius: 'var(--radius-sm)',
-                border: '1px solid var(--border-color)',
-                gap: '2px'
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => setViewMode('list')}
+            {/* View Mode Toggle (la papelera siempre se muestra en lista) */}
+            {!isTrash && (
+              <div
                 style={{
-                  padding: '6px',
-                  borderRadius: 'var(--radius-xs)',
-                  border: 'none',
-                  cursor: 'pointer',
-                  background: viewMode === 'list' ? 'var(--primary-light)' : 'transparent',
-                  color: viewMode === 'list' ? 'var(--primary)' : 'var(--text-muted)',
-                  display: 'flex'
+                  display: 'flex',
+                  background: 'var(--bg-card)',
+                  padding: '3px',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--border-color)',
+                  gap: '2px'
                 }}
-                title="Vista de lista"
               >
-                <List size={16} />
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode('grid')}
-                style={{
-                  padding: '6px',
-                  borderRadius: 'var(--radius-xs)',
-                  border: 'none',
-                  cursor: 'pointer',
-                  background: viewMode === 'grid' ? 'var(--primary-light)' : 'transparent',
-                  color: viewMode === 'grid' ? 'var(--primary)' : 'var(--text-muted)',
-                  display: 'flex'
-                }}
-                title="Vista de cuadrícula"
-              >
-                <LayoutGrid size={16} />
-              </button>
-            </div>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('list')}
+                  style={{
+                    padding: '6px',
+                    borderRadius: 'var(--radius-xs)',
+                    border: 'none',
+                    cursor: 'pointer',
+                    background: viewMode === 'list' ? 'var(--primary-light)' : 'transparent',
+                    color: viewMode === 'list' ? 'var(--primary)' : 'var(--text-muted)',
+                    display: 'flex'
+                  }}
+                  title="Vista de lista"
+                >
+                  <List size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('grid')}
+                  style={{
+                    padding: '6px',
+                    borderRadius: 'var(--radius-xs)',
+                    border: 'none',
+                    cursor: 'pointer',
+                    background: viewMode === 'grid' ? 'var(--primary-light)' : 'transparent',
+                    color: viewMode === 'grid' ? 'var(--primary)' : 'var(--text-muted)',
+                    display: 'flex'
+                  }}
+                  title="Vista de cuadrícula"
+                >
+                  <LayoutGrid size={16} />
+                </button>
+              </div>
+            )}
 
             {/* Search Input */}
             <div style={{ position: 'relative' }}>
               <input
                 type="text"
-                placeholder="Buscar archivos..."
+                placeholder={isTrash ? 'Buscar en la papelera...' : 'Buscar archivos...'}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={{
@@ -417,31 +510,58 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
             </div>
 
             {/* Real File Input for Supabase Storage Upload */}
-            <label
-              className="btn-primary"
-              style={{
-                padding: '8px 16px',
-                fontSize: '0.85rem',
-                borderRadius: 'var(--radius-sm)',
-                cursor: isUploading ? 'not-allowed' : 'pointer',
-                opacity: isUploading ? 0.7 : 1,
-                margin: 0,
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}
-            >
-              {isUploading ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Upload size={16} />}
-              {isUploading ? 'Subiendo...' : 'Subir Archivo'}
-              <input
-                type="file"
-                onChange={handleFileUpload}
-                disabled={isUploading}
-                style={{ display: 'none' }}
-              />
-            </label>
+            {!isTrash && (
+              <label
+                className="btn-primary"
+                style={{
+                  padding: '8px 16px',
+                  fontSize: '0.85rem',
+                  borderRadius: 'var(--radius-sm)',
+                  cursor: isUploading ? 'not-allowed' : 'pointer',
+                  opacity: isUploading ? 0.7 : 1,
+                  margin: 0,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                {isUploading ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Upload size={16} />}
+                {isUploading ? 'Subiendo...' : 'Subir Archivo'}
+                <input
+                  type="file"
+                  onChange={handleFileUpload}
+                  disabled={isUploading}
+                  style={{ display: 'none' }}
+                />
+              </label>
+            )}
           </div>
         </div>
+
+        {/* Aviso de retención de la papelera */}
+        {isTrash && (
+          <div
+            style={{
+              background: 'var(--danger-bg)',
+              border: '1px solid rgba(239, 68, 68, 0.2)',
+              color: 'var(--text-main)',
+              borderRadius: 'var(--radius-md)',
+              padding: '0.85rem 1.25rem',
+              marginBottom: '1rem',
+              fontSize: '0.85rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px'
+            }}
+          >
+            <Clock size={18} color="var(--danger)" />
+            <span>
+              {retentionDays
+                ? <>Los archivos en la papelera se eliminan definitivamente después de <strong>{retentionDays} días</strong> (Plan {planName}).</>
+                : <>Tu Plan {planName} conserva los archivos de la papelera <strong>sin límite de tiempo</strong>.</>}
+            </span>
+          </div>
+        )}
 
         {/* Files Container (Table / Grid) */}
         <div
@@ -453,7 +573,136 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
             boxShadow: 'var(--shadow-sm)'
           }}
         >
-          {isLoadingFiles ? (
+          {isTrash ? (
+            /* TRASH VIEW */
+            isLoadingTrash ? (
+              <div style={{ padding: '3.5rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                <Loader2 size={36} style={{ margin: '0 auto 12px auto', animation: 'spin 1s linear infinite' }} />
+                <p style={{ fontWeight: 600, fontSize: '0.95rem' }}>Cargando papelera...</p>
+              </div>
+            ) : filteredTrash.length === 0 ? (
+              <div style={{ padding: '3.5rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                <Trash2 size={44} style={{ margin: '0 auto 12px auto', opacity: 0.35 }} />
+                <h4 style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-main)', marginBottom: '4px' }}>La papelera está vacía</h4>
+                <p style={{ fontSize: '0.85rem', margin: 0 }}>Los archivos que elimines aparecerán aquí y podrás restaurarlos.</p>
+              </div>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ background: 'var(--bg-subtle)', borderBottom: '1px solid var(--border-color)', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em' }}>
+                    <th style={{ padding: '12px 20px', fontWeight: 600 }}>Nombre del archivo</th>
+                    <th style={{ padding: '12px 16px', fontWeight: 600 }}>Tamaño</th>
+                    <th style={{ padding: '12px 16px', fontWeight: 600 }}>Eliminado</th>
+                    <th style={{ padding: '12px 16px', fontWeight: 600 }}>Se borra en</th>
+                    <th style={{ padding: '12px 20px', fontWeight: 600, textAlign: 'right' }}>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredTrash.map((file) => (
+                    <tr key={file.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                      <td style={{ padding: '14px 20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div
+                          style={{
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: 'var(--radius-sm)',
+                            background: 'var(--bg-hover)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                            opacity: 0.6
+                          }}
+                        >
+                          {getFileIcon(file.type, file.ext)}
+                        </div>
+                        <span style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {file.name}
+                        </span>
+                      </td>
+
+                      <td style={{ padding: '14px 16px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                        {file.size}
+                      </td>
+
+                      <td style={{ padding: '14px 16px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                        {file.deleted}
+                      </td>
+
+                      <td style={{ padding: '14px 16px' }}>
+                        <span
+                          style={{
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            padding: '2px 8px',
+                            borderRadius: 'var(--radius-full)',
+                            color: file.daysLeft !== null && file.daysLeft <= 3 ? 'var(--danger)' : 'var(--text-muted)',
+                            background: file.daysLeft !== null && file.daysLeft <= 3 ? 'var(--danger-bg)' : 'var(--bg-hover)'
+                          }}
+                        >
+                          {file.daysLeft === null
+                            ? 'Sin límite'
+                            : file.daysLeft === 0
+                              ? 'Hoy'
+                              : `${file.daysLeft} ${file.daysLeft === 1 ? 'día' : 'días'}`}
+                        </span>
+                      </td>
+
+                      <td style={{ padding: '14px 20px', textAlign: 'right' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                          {/* Botón Restaurar */}
+                          <button
+                            type="button"
+                            onClick={() => handleRestoreFromTrash(file)}
+                            style={{
+                              padding: '7px 10px',
+                              borderRadius: 'var(--radius-sm)',
+                              color: 'var(--primary)',
+                              background: 'var(--primary-light)',
+                              border: '1px solid rgba(99, 102, 241, 0.3)',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              fontSize: '0.8rem',
+                              fontWeight: 700
+                            }}
+                            title="Restaurar archivo"
+                          >
+                            <RotateCcw size={16} />
+                            <span>Restaurar</span>
+                          </button>
+
+                          {/* Botón Eliminar definitivamente */}
+                          <button
+                            type="button"
+                            onClick={() => handlePermanentDelete(file)}
+                            style={{
+                              padding: '7px 10px',
+                              borderRadius: 'var(--radius-sm)',
+                              color: 'var(--danger)',
+                              background: 'rgba(239, 68, 68, 0.08)',
+                              border: '1px solid rgba(239, 68, 68, 0.2)',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              fontSize: '0.8rem',
+                              fontWeight: 700
+                            }}
+                            title="Eliminar definitivamente"
+                          >
+                            <Trash2 size={16} />
+                            <span>Eliminar</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )
+          ) : isLoadingFiles ? (
             <div style={{ padding: '3.5rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
               <Loader2 size={36} style={{ margin: '0 auto 12px auto', animation: 'spin 1s linear infinite' }} />
               <p style={{ fontWeight: 600, fontSize: '0.95rem' }}>Cargando archivos desde Supabase...</p>
@@ -577,6 +826,38 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
                           <span>Ver</span>
                         </button>
 
+                        {/* Botón Historial de versiones */}
+                        <button
+                          type="button"
+                          onClick={(e) => handleOpenVersions(file, e)}
+                          style={{
+                            padding: '7px 9px',
+                            borderRadius: 'var(--radius-sm)',
+                            color: 'var(--text-muted)',
+                            background: 'var(--bg-subtle)',
+                            border: '1px solid var(--border-color)',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.15s ease'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.color = 'var(--primary)';
+                            e.currentTarget.style.borderColor = 'var(--primary)';
+                            e.currentTarget.style.transform = 'scale(1.05)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.color = 'var(--text-muted)';
+                            e.currentTarget.style.borderColor = 'var(--border-color)';
+                            e.currentTarget.style.transform = 'scale(1)';
+                          }}
+                          title="Historial de versiones"
+                          aria-label="Historial de versiones"
+                        >
+                          <Clock size={16} />
+                        </button>
+
                         {/* Botón Descargar */}
                         <button
                           type="button"
@@ -609,7 +890,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
                           <Download size={16} />
                         </button>
 
-                        {/* Botón Eliminar */}
+                        {/* Botón Eliminar (mover a papelera) */}
                         <button
                           type="button"
                           onClick={(e) => handleDeleteFile(file.id, file.name, file.file_path, e)}
@@ -635,7 +916,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
                             e.currentTarget.style.color = 'var(--danger)';
                             e.currentTarget.style.transform = 'scale(1)';
                           }}
-                          title="Eliminar archivo"
+                          title="Mover a la papelera"
                           aria-label="Eliminar"
                         >
                           <Trash2 size={16} />
@@ -767,6 +1048,14 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
                     <div style={{ display: 'flex', gap: '6px' }}>
                       <button
                         type="button"
+                        onClick={(e) => handleOpenVersions(file, e)}
+                        style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px' }}
+                        title="Historial de versiones"
+                      >
+                        <Clock size={15} />
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => handleDownloadFile(file)}
                         style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px' }}
                         title="Descargar"
@@ -777,7 +1066,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
                         type="button"
                         onClick={(e) => handleDeleteFile(file.id, file.name, file.file_path, e)}
                         style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '2px' }}
-                        title="Eliminar"
+                        title="Mover a la papelera"
                       >
                         <Trash2 size={15} />
                       </button>
@@ -796,6 +1085,16 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
         isOpen={isPreviewOpen}
         onClose={() => setIsPreviewOpen(false)}
         onNotification={onNotification}
+      />
+
+      {/* MODAL DE HISTORIAL DE VERSIONES */}
+      <VersionHistoryModal
+        file={selectedVersionFile}
+        isOpen={isVersionsOpen}
+        onClose={() => setIsVersionsOpen(false)}
+        currentUser={currentUser}
+        onNotification={onNotification}
+        onRestored={handleVersionRestored}
       />
     </div>
   );

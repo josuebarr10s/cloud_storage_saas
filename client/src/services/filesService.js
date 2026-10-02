@@ -1,5 +1,8 @@
 import supabase from '../lib/supabase.js';
 
+const BUCKET = 'nimbox-files';
+const DIA_MS = 24 * 60 * 60 * 1000;
+
 function formatBytes(bytes, decimals = 1) {
   if (!bytes || bytes === 0) return '0 Bytes';
   const k = 1024;
@@ -7,6 +10,12 @@ function formatBytes(bytes, decimals = 1) {
   const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
+
+function formatDate(fecha) {
+  return new Date(fecha).toLocaleDateString('es-ES', {
+    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+  });
 }
 
 function detectCategoryAndType(filename) {
@@ -32,17 +41,75 @@ function detectCategoryAndType(filename) {
   return { type: 'doc', category: 'docs', mimeCategory: 'other', ext };
 }
 
+/**
+ * Convierte una fila de public.archivo al formato que usa el Dashboard
+ */
+function mapArchivo(f) {
+  const { category, type, ext, mimeCategory } = detectCategoryAndType(f.nombre);
+  const bytes = parseInt(f.tamano || 0, 10);
+  return {
+    id: f.id_archivo,
+    name: f.nombre,
+    type: f.tipo || type,
+    mimeCategory: mimeCategory,
+    ext: ext,
+    size_bytes: bytes,
+    size: formatBytes(bytes),
+    updated: formatDate(f.fecha_modificacion || f.fecha_subida),
+    category: category,
+    shared: false,
+    file_path: f.ruta_storage,
+    deleted_at: f.fecha_eliminacion || null
+  };
+}
+
+/**
+ * Obtiene el ID del usuario activo (parámetro o sesión de Supabase)
+ */
+async function resolveUserId(userId) {
+  if (userId) return userId;
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.user?.id || null;
+}
+
+/**
+ * Recalcula el espacio usado: archivos (incluye papelera) + versiones antiguas
+ */
+async function recalcularAlmacenamiento(userId) {
+  if (!userId) return;
+  try {
+    const { data: archivos } = await supabase.from('archivo').select('tamano').eq('id_usuario', userId);
+    const { data: versiones } = await supabase.from('archivo_version').select('tamano').eq('id_usuario', userId);
+    const totalBytes = [...(archivos || []), ...(versiones || [])]
+      .reduce((acc, curr) => acc + parseInt(curr.tamano || 0, 10), 0);
+
+    await supabase.from('almacenamiento').upsert({
+      id_usuario: userId,
+      espacio_usado_bytes: totalBytes,
+      ultima_actualizacion: new Date().toISOString()
+    }, { onConflict: 'id_usuario' });
+  } catch (e) {
+    console.warn('No se pudo actualizar espacio_usado_bytes:', e);
+  }
+}
+
+/**
+ * Días que un archivo permanece en la papelera según el plan.
+ * Devuelve null cuando la retención es ilimitada.
+ */
+export function getRetentionDays(planName = '') {
+  const p = planName.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  if (p.includes('basico')) return 7;
+  if (p.includes('empresa')) return null;
+  return 30;
+}
+
 export const filesService = {
   /**
-   * Obtener todos los archivos del usuario desde la tabla public.archivo
+   * Obtener los archivos activos del usuario (sin los de la papelera)
    */
   async getUserFiles(userId) {
-    let activeUserId = userId;
-
-    if (!activeUserId) {
-      const { data: { session } } = await supabase.auth.getSession();
-      activeUserId = session?.user?.id;
-    }
+    let activeUserId = await resolveUserId(userId);
 
     if (!activeUserId) {
       try {
@@ -58,6 +125,7 @@ export const filesService = {
         .from('archivo')
         .select('*')
         .eq('id_usuario', activeUserId)
+        .eq('eliminado', false)
         .order('fecha_subida', { ascending: false });
 
       if (error) {
@@ -65,24 +133,7 @@ export const filesService = {
         return [];
       }
 
-      return (data || []).map(f => {
-        const { category, type, ext, mimeCategory } = detectCategoryAndType(f.nombre);
-        return {
-          id: f.id_archivo,
-          name: f.nombre,
-          type: f.tipo || type,
-          mimeCategory: mimeCategory,
-          ext: ext,
-          size_bytes: parseInt(f.tamano || 0, 10),
-          size: formatBytes(parseInt(f.tamano || 0, 10)),
-          updated: new Date(f.fecha_subida || f.fecha_modificacion).toLocaleDateString('es-ES', {
-            month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
-          }),
-          category: category,
-          shared: false,
-          file_path: f.ruta_storage
-        };
-      });
+      return (data || []).map(mapArchivo);
     } catch (err) {
       console.error('Excepción al obtener archivos:', err);
       return [];
@@ -90,15 +141,11 @@ export const filesService = {
   },
 
   /**
-   * Subir archivo al bucket `nimbox-files` en Supabase Storage e insertar en la tabla public.archivo
+   * Subir archivo al bucket `nimbox-files` e insertarlo en public.archivo.
+   * Si ya existe un archivo con el mismo nombre, el anterior pasa al historial de versiones.
    */
   async uploadFile(userId, file) {
-    let activeUserId = userId;
-
-    if (!activeUserId) {
-      const { data: { session } } = await supabase.auth.getSession();
-      activeUserId = session?.user?.id;
-    }
+    const activeUserId = await resolveUserId(userId);
 
     if (!activeUserId) {
       throw new Error('Debes iniciar sesión para subir archivos a la nube.');
@@ -126,20 +173,20 @@ export const filesService = {
       }
     } catch (e) {}
 
-    const { type, category, ext, mimeCategory } = detectCategoryAndType(file.name);
+    const { type } = detectCategoryAndType(file.name);
     const timestamp = Date.now();
     const cleanFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
     const storagePath = `${activeUserId}/${timestamp}_${cleanFileName}`;
 
     let uploadedPath = storagePath;
 
-    // 2. Subir binario a Supabase Storage (bucket nimbox-files)
-    console.log(`Subiendo archivo a Supabase Storage (nimbox-files)... Ruta: ${storagePath}`);
+    // 2. Subir binario a Supabase Storage (el timestamp en la ruta evita sobrescribir versiones anteriores)
+    console.log(`Subiendo archivo a Supabase Storage (${BUCKET})... Ruta: ${storagePath}`);
     const { data: storageData, error: storageError } = await supabase.storage
-      .from('nimbox-files')
+      .from(BUCKET)
       .upload(storagePath, file, {
         cacheControl: '3600',
-        upsert: true
+        upsert: false
       });
 
     if (storageError) {
@@ -149,60 +196,79 @@ export const filesService = {
 
     if (storageData?.path) {
       uploadedPath = storageData.path;
-      console.log('Archivo subido con éxito a Storage:', uploadedPath);
     }
 
-    // 3. Insertar registro en la tabla public.archivo
-    const newArchivo = {
-      id_usuario: activeUserId,
-      id_carpeta: null,
-      nombre: file.name,
-      tipo: type,
-      tamano: file.size,
-      ruta_storage: uploadedPath,
-      fecha_subida: new Date().toISOString(),
-      fecha_modificacion: new Date().toISOString()
-    };
+    const ahora = new Date().toISOString();
 
-    console.log('Guardando metadatos en tabla public.archivo:', newArchivo);
-    const { data: dbData, error: dbError } = await supabase
+    // 3. ¿Ya existe un archivo activo con el mismo nombre? -> nueva versión
+    const { data: existente } = await supabase
       .from('archivo')
-      .insert([newArchivo])
-      .select();
+      .select('*')
+      .eq('id_usuario', activeUserId)
+      .eq('nombre', file.name)
+      .eq('eliminado', false)
+      .maybeSingle();
 
-    if (dbError) {
-      console.error('Error al insertar registro en public.archivo:', dbError.message, dbError);
-      throw new Error(`Guardado en base de datos falló: ${dbError.message}`);
-    }
+    let savedRecord = null;
+    let isNewVersion = false;
 
-    const savedRecord = dbData?.[0];
-
-    // 4. Actualizar espacio usado en la tabla public.almacenamiento
-    try {
-      const { data: userFiles } = await supabase.from('archivo').select('tamano').eq('id_usuario', activeUserId);
-      const totalBytes = (userFiles || []).reduce((acc, curr) => acc + parseInt(curr.tamano || 0, 10), 0);
-
-      await supabase.from('almacenamiento').upsert({
+    if (existente) {
+      // 3a. La versión actual pasa al historial
+      const { error: versionError } = await supabase.from('archivo_version').insert([{
+        id_archivo: existente.id_archivo,
         id_usuario: activeUserId,
-        espacio_usado_bytes: totalBytes,
-        ultima_actualizacion: new Date().toISOString()
-      }, { onConflict: 'id_usuario' });
-    } catch (e) {
-      console.warn('No se pudo actualizar espacio_usado_bytes:', e);
+        tamano: existente.tamano,
+        ruta_storage: existente.ruta_storage
+      }]);
+
+      if (versionError) {
+        throw new Error(`No se pudo guardar la versión anterior: ${versionError.message}`);
+      }
+
+      // 3b. El registro principal apunta al archivo nuevo
+      const { data: updated, error: updateError } = await supabase
+        .from('archivo')
+        .update({ ruta_storage: uploadedPath, tamano: file.size, tipo: type, fecha_modificacion: ahora })
+        .eq('id_archivo', existente.id_archivo)
+        .select();
+
+      if (updateError) {
+        throw new Error(`No se pudo actualizar el archivo: ${updateError.message}`);
+      }
+
+      savedRecord = updated?.[0];
+      isNewVersion = true;
+    } else {
+      // 3c. Archivo nuevo: insertar registro en public.archivo
+      const { data: dbData, error: dbError } = await supabase
+        .from('archivo')
+        .insert([{
+          id_usuario: activeUserId,
+          id_carpeta: null,
+          nombre: file.name,
+          tipo: type,
+          tamano: file.size,
+          ruta_storage: uploadedPath,
+          fecha_subida: ahora,
+          fecha_modificacion: ahora
+        }])
+        .select();
+
+      if (dbError) {
+        console.error('Error al insertar registro en public.archivo:', dbError.message, dbError);
+        throw new Error(`Guardado en base de datos falló: ${dbError.message}`);
+      }
+
+      savedRecord = dbData?.[0];
     }
+
+    // 4. Actualizar espacio usado
+    await recalcularAlmacenamiento(activeUserId);
 
     return {
-      id: savedRecord?.id_archivo || `f-${timestamp}`,
-      name: file.name,
-      type: type,
-      mimeCategory: mimeCategory,
-      ext: ext,
-      size_bytes: file.size,
-      size: formatBytes(file.size),
+      ...mapArchivo(savedRecord),
       updated: 'Ahora mismo',
-      category: category,
-      shared: false,
-      file_path: uploadedPath
+      isNewVersion
     };
   },
 
@@ -215,7 +281,7 @@ export const filesService = {
     try {
       // 1. Intentar descargar directamente como Blob (funciona con sesión activa)
       const { data: blobData, error: dlErr } = await supabase.storage
-        .from('nimbox-files')
+        .from(BUCKET)
         .download(filePath);
 
       if (!dlErr && blobData) {
@@ -228,7 +294,7 @@ export const filesService = {
 
       // 2. Intentar crear Signed URL con 1 hora de validez
       const { data: signedData, error: signedErr } = await supabase.storage
-        .from('nimbox-files')
+        .from(BUCKET)
         .createSignedUrl(filePath, 3600);
 
       if (!signedErr && signedData?.signedUrl) {
@@ -240,7 +306,7 @@ export const filesService = {
 
       // 3. Fallback a Public URL
       const { data: publicData } = supabase.storage
-        .from('nimbox-files')
+        .from(BUCKET)
         .getPublicUrl(filePath);
 
       if (publicData?.publicUrl) {
@@ -256,17 +322,17 @@ export const filesService = {
   },
 
   /**
-   * Descargar archivo real desde Supabase Storage
+   * Descargar archivo real desde Supabase Storage (sirve también para versiones antiguas)
    */
   async downloadFile(filePath, fileName) {
     try {
       const { data, error } = await supabase.storage
-        .from('nimbox-files')
+        .from(BUCKET)
         .download(filePath);
 
       if (error || !data) {
-        const { data: signed } = await supabase.storage.from('nimbox-files').createSignedUrl(filePath, 3600);
-        const url = signed?.signedUrl || supabase.storage.from('nimbox-files').getPublicUrl(filePath).data?.publicUrl;
+        const { data: signed } = await supabase.storage.from(BUCKET).createSignedUrl(filePath, 3600);
+        const url = signed?.signedUrl || supabase.storage.from(BUCKET).getPublicUrl(filePath).data?.publicUrl;
         if (url) {
           const a = document.createElement('a');
           a.href = url;
@@ -295,46 +361,211 @@ export const filesService = {
     }
   },
 
+  // ===========================================================================
+  // PAPELERA
+  // ===========================================================================
+
   /**
-   * Eliminar archivo de public.archivo y del bucket nimbox-files
+   * Mover archivo a la papelera (borrado lógico: no se elimina de Storage)
+   */
+  async moveToTrash(fileId) {
+    const { error } = await supabase
+      .from('archivo')
+      .update({ eliminado: true, fecha_eliminacion: new Date().toISOString() })
+      .eq('id_archivo', fileId);
+
+    if (error) {
+      console.error('Error al mover a la papelera:', error.message);
+      throw new Error(`No se pudo mover a la papelera: ${error.message}`);
+    }
+    return true;
+  },
+
+  /**
+   * Compatibilidad con el Dashboard actual: "eliminar" ahora manda a la papelera
    */
   async deleteFile(userId, fileId, filePath) {
-    let activeUserId = userId;
+    return this.moveToTrash(fileId);
+  },
 
-    if (!activeUserId) {
-      const { data: { session } } = await supabase.auth.getSession();
-      activeUserId = session?.user?.id;
+  /**
+   * Obtener archivos en la papelera con los días que les quedan
+   */
+  async getTrashFiles(userId, retentionDays = 30) {
+    const activeUserId = await resolveUserId(userId);
+    if (!activeUserId) return [];
+
+    const { data, error } = await supabase
+      .from('archivo')
+      .select('*')
+      .eq('id_usuario', activeUserId)
+      .eq('eliminado', true)
+      .order('fecha_eliminacion', { ascending: false });
+
+    if (error) {
+      console.error('Error al consultar la papelera:', error.message);
+      return [];
     }
 
-    // 1. Eliminar registro en la tabla public.archivo
-    try {
-      const { error } = await supabase.from('archivo').delete().eq('id_archivo', fileId);
-      if (error) console.error('Error al eliminar de public.archivo:', error.message);
-    } catch (e) {}
+    return (data || []).map(f => {
+      const archivo = mapArchivo(f);
+      let daysLeft = null;
+      if (retentionDays && f.fecha_eliminacion) {
+        const expira = new Date(f.fecha_eliminacion).getTime() + retentionDays * DIA_MS;
+        daysLeft = Math.max(0, Math.ceil((expira - Date.now()) / DIA_MS));
+      }
+      return {
+        ...archivo,
+        deleted: f.fecha_eliminacion ? formatDate(f.fecha_eliminacion) : '',
+        daysLeft
+      };
+    });
+  },
 
-    // 2. Eliminar de Supabase Storage (nimbox-files)
-    if (filePath) {
-      try {
-        const { error: stErr } = await supabase.storage.from('nimbox-files').remove([filePath]);
-        if (stErr) console.error('Error al eliminar de Storage:', stErr.message);
-      } catch (e) {}
+  /**
+   * Restaurar archivo desde la papelera
+   */
+  async restoreFromTrash(fileId) {
+    const { error } = await supabase
+      .from('archivo')
+      .update({ eliminado: false, fecha_eliminacion: null })
+      .eq('id_archivo', fileId);
+
+    if (error) {
+      console.error('Error al restaurar archivo:', error.message);
+      throw new Error(`No se pudo restaurar: ${error.message}`);
     }
-
-    // 3. Recalcular almacenamiento usado
-    if (activeUserId) {
-      try {
-        const { data: userFiles } = await supabase.from('archivo').select('tamano').eq('id_usuario', activeUserId);
-        const totalBytes = (userFiles || []).reduce((acc, curr) => acc + parseInt(curr.tamano || 0, 10), 0);
-
-        await supabase.from('almacenamiento').upsert({
-          id_usuario: activeUserId,
-          espacio_usado_bytes: totalBytes,
-          ultima_actualizacion: new Date().toISOString()
-        }, { onConflict: 'id_usuario' });
-      } catch (e) {}
-    }
-
     return true;
+  },
+
+  /**
+   * Eliminar definitivamente: borra de Storage (archivo + versiones) y de la BD
+   */
+  async deletePermanently(userId, fileId, filePath) {
+    const activeUserId = await resolveUserId(userId);
+
+    // 1. Rutas de todas las versiones antiguas
+    const { data: versiones } = await supabase
+      .from('archivo_version')
+      .select('ruta_storage')
+      .eq('id_archivo', fileId);
+
+    const rutas = [filePath, ...(versiones || []).map(v => v.ruta_storage)].filter(Boolean);
+
+    // 2. Eliminar binarios de Storage
+    if (rutas.length > 0) {
+      const { error: stErr } = await supabase.storage.from(BUCKET).remove(rutas);
+      if (stErr) console.error('Error al eliminar de Storage:', stErr.message);
+    }
+
+    // 3. Eliminar registro (las versiones se borran por ON DELETE CASCADE)
+    const { error } = await supabase.from('archivo').delete().eq('id_archivo', fileId);
+    if (error) {
+      console.error('Error al eliminar de public.archivo:', error.message);
+      throw new Error(`No se pudo eliminar definitivamente: ${error.message}`);
+    }
+
+    // 4. Recalcular almacenamiento usado
+    await recalcularAlmacenamiento(activeUserId);
+    return true;
+  },
+
+  /**
+   * Eliminar definitivamente los archivos que superaron los días de retención
+   */
+  async purgeExpiredTrash(userId, retentionDays) {
+    if (!retentionDays) return 0; // retención ilimitada
+
+    const activeUserId = await resolveUserId(userId);
+    if (!activeUserId) return 0;
+
+    const limite = new Date(Date.now() - retentionDays * DIA_MS).toISOString();
+
+    const { data, error } = await supabase
+      .from('archivo')
+      .select('id_archivo, ruta_storage')
+      .eq('id_usuario', activeUserId)
+      .eq('eliminado', true)
+      .lt('fecha_eliminacion', limite);
+
+    if (error || !data) return 0;
+
+    for (const f of data) {
+      try {
+        await this.deletePermanently(activeUserId, f.id_archivo, f.ruta_storage);
+      } catch (e) {
+        console.warn('No se pudo purgar archivo:', f.id_archivo, e);
+      }
+    }
+    return data.length;
+  },
+
+  // ===========================================================================
+  // HISTORIAL DE VERSIONES
+  // ===========================================================================
+
+  /**
+   * Obtener versiones antiguas de un archivo (de la más reciente a la más vieja)
+   */
+  async getVersions(fileId) {
+    const { data, error } = await supabase
+      .from('archivo_version')
+      .select('*')
+      .eq('id_archivo', fileId)
+      .order('fecha_creacion', { ascending: false });
+
+    if (error) {
+      console.error('Error al consultar versiones:', error.message);
+      return [];
+    }
+
+    return (data || []).map(v => ({
+      id: v.id_version,
+      size_bytes: parseInt(v.tamano || 0, 10),
+      size: formatBytes(parseInt(v.tamano || 0, 10)),
+      date: formatDate(v.fecha_creacion),
+      file_path: v.ruta_storage
+    }));
+  },
+
+  /**
+   * Restaurar una versión antigua: la actual pasa al historial y la elegida pasa a ser la actual.
+   * Devuelve el archivo actualizado para refrescar la lista del Dashboard.
+   */
+  async restoreVersion(userId, file, version) {
+    const activeUserId = await resolveUserId(userId);
+
+    // 1. Guardar la versión actual en el historial
+    const { error: insertError } = await supabase.from('archivo_version').insert([{
+      id_archivo: file.id,
+      id_usuario: activeUserId,
+      tamano: file.size_bytes,
+      ruta_storage: file.file_path
+    }]);
+
+    if (insertError) {
+      throw new Error(`No se pudo guardar la versión actual: ${insertError.message}`);
+    }
+
+    // 2. La versión elegida pasa a ser la actual
+    const { data: updated, error: updateError } = await supabase
+      .from('archivo')
+      .update({
+        ruta_storage: version.file_path,
+        tamano: version.size_bytes,
+        fecha_modificacion: new Date().toISOString()
+      })
+      .eq('id_archivo', file.id)
+      .select();
+
+    if (updateError) {
+      throw new Error(`No se pudo restaurar la versión: ${updateError.message}`);
+    }
+
+    // 3. Quitarla del historial (ya es la actual)
+    await supabase.from('archivo_version').delete().eq('id_version', version.id);
+
+    return mapArchivo(updated[0]);
   },
 
   async toggleShareFile(fileId, currentSharedState) {
