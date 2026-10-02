@@ -4,6 +4,20 @@ import supabase from '../lib/supabase.js';
 const ROLES = { 1: 'Administrador', 2: 'Cliente' };
 const getRolNombre = (idRol) => ROLES[idRol] || 'Cliente';
 
+// Mensaje que se muestra cuando un administrador suspendió la cuenta
+const MENSAJE_SUSPENDIDO = 'Tu cuenta está suspendida. Contacta al administrador de Nimbox.';
+const estaSuspendido = (dbUser) => dbUser?.estado === 'suspendido';
+
+/**
+ * Cierra la sesión de Supabase y limpia el usuario guardado localmente
+ */
+async function cerrarSesionLocal() {
+  try {
+    await supabase.auth.signOut();
+  } catch (e) {}
+  localStorage.removeItem('nimbox_current_user');
+}
+
 export const authService = {
   /**
    * Registrar nuevo usuario en Supabase Auth y en las tablas del esquema usuario / almacenamiento / suscripcion / pago
@@ -153,29 +167,39 @@ export const authService = {
 
     if (!authError && authData?.user) {
       let userProfile = null;
+      let dbUser = null;
+
       try {
-        const { data: dbUser } = await supabase
+        const { data } = await supabase
           .from('usuario')
           .select('*, suscripcion(*, plan(*))')
           .eq('id_usuario', authData.user.id)
           .single();
-
-        if (dbUser) {
-          const fullName = [dbUser.nombre, dbUser.apellido].filter(Boolean).join(' ') || formattedEmail.split('@')[0];
-          const activeSub = dbUser.suscripcion?.find?.(s => s.estado === 'activa') || dbUser.suscripcion?.[0];
-          const planName = activeSub?.plan?.nombre || 'Pro';
-
-          userProfile = {
-            id: authData.user.id,
-            name: fullName,
-            email: formattedEmail,
-            rol: getRolNombre(dbUser.id_rol),
-            plan: planName,
-            planId: activeSub?.id_plan || 2,
-            storageQuota: planName.toLowerCase().includes('básico') ? '10 GB' : '500 GB'
-          };
-        }
+        dbUser = data;
       } catch (err) {}
+
+      // Bloquear cuentas suspendidas por un administrador
+      if (estaSuspendido(dbUser)) {
+        await cerrarSesionLocal();
+        return { user: null, error: new Error(MENSAJE_SUSPENDIDO) };
+      }
+
+      if (dbUser) {
+        const fullName = [dbUser.nombre, dbUser.apellido].filter(Boolean).join(' ') || formattedEmail.split('@')[0];
+        const activeSub = dbUser.suscripcion?.find?.(s => s.estado === 'activa') || dbUser.suscripcion?.[0];
+        const planName = activeSub?.plan?.nombre || 'Pro';
+
+        userProfile = {
+          id: authData.user.id,
+          name: fullName,
+          email: formattedEmail,
+          rol: getRolNombre(dbUser.id_rol),
+          estado: dbUser.estado,
+          plan: planName,
+          planId: activeSub?.id_plan || 2,
+          storageQuota: planName.toLowerCase().includes('básico') ? '10 GB' : '500 GB'
+        };
+      }
 
       if (!userProfile) {
         userProfile = {
@@ -214,10 +238,7 @@ export const authService = {
    * Cerrar sesión
    */
   async signOut() {
-    try {
-      await supabase.auth.signOut();
-    } catch (e) {}
-    localStorage.removeItem('nimbox_current_user');
+    await cerrarSesionLocal();
   },
 
   /**
@@ -229,9 +250,15 @@ export const authService = {
       if (session?.user) {
         const { data: dbUser } = await supabase
           .from('usuario')
-          .select('nombre, apellido, id_rol')
+          .select('nombre, apellido, id_rol, estado')
           .eq('id_usuario', session.user.id)
           .single();
+
+        // Si la cuenta fue suspendida mientras tenía la sesión abierta, se cierra
+        if (estaSuspendido(dbUser)) {
+          await cerrarSesionLocal();
+          return null;
+        }
 
         const fullName = dbUser ? [dbUser.nombre, dbUser.apellido].filter(Boolean).join(' ') : (session.user.user_metadata?.full_name || session.user.email.split('@')[0]);
 
@@ -240,6 +267,7 @@ export const authService = {
           name: fullName,
           email: session.user.email,
           rol: getRolNombre(dbUser?.id_rol),
+          estado: dbUser?.estado || 'activo',
           plan: session.user.user_metadata?.plan_name || 'Pro',
           storageQuota: '500 GB'
         };

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { LandingPage } from './views/LandingPage.jsx';
 import { DashboardView } from './views/DashboardView.jsx';
+import { AdminDashboardView } from './views/AdminDashboardView.jsx';
 import { PaymentModal } from './components/payment/PaymentModal.jsx';
 import { LoginModal } from './components/auth/LoginModal.jsx';
 import { ForgotPasswordModal } from './components/auth/ForgotPasswordModal.jsx';
@@ -17,18 +18,19 @@ export default function App() {
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [billingCycle, setBillingCycle] = useState('monthly');
 
-    // Login Modal State
+  // Login Modal State
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
 
   // Global Toast Notification
-
   const [toast, setToast] = useState(null);
 
   const showNotification = (message, type = 'info') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 4000);
   };
+
+  const isAdmin = currentUser?.rol === 'Administrador';
 
   // Check existing session in Supabase & localStorage on mount
   useEffect(() => {
@@ -63,7 +65,7 @@ export default function App() {
     setIsPaymentOpen(true);
   };
 
-    // Open Login Flow
+  // Open Login Flow
   const handleOpenLogin = () => {
     setIsLoginOpen(true);
     setIsForgotPasswordOpen(false);
@@ -73,7 +75,6 @@ export default function App() {
     setIsLoginOpen(false);
     setIsForgotPasswordOpen(true);
   };
-
 
   // Handle successful payment & registration
   const handlePaymentSuccess = (user) => {
@@ -86,8 +87,11 @@ export default function App() {
   const handleLoginSuccess = (user) => {
     setCurrentUser(user);
     setCurrentView('dashboard');
-    showNotification(`¡Hola de nuevo, ${user.name}! Sesión iniciada correctamente.`, 'success');
-    console.log('Usuario logueado:', user); // solo para observar en consola
+    if (user.rol === 'Administrador') {
+      showNotification(`¡Hola, ${user.name}! Entraste al panel de administración.`, 'success');
+    } else {
+      showNotification(`¡Hola de nuevo, ${user.name}! Sesión iniciada correctamente.`, 'success');
+    }
   };
 
   // Handle logout
@@ -100,13 +104,21 @@ export default function App() {
 
   return (
     <div>
-      {/* Active View: Landing or Dashboard */}
+      {/* Active View: Landing, Dashboard de Cliente o Panel de Administración */}
       {currentView === 'dashboard' && currentUser ? (
-        <DashboardView
-          currentUser={currentUser}
-          onLogout={handleLogout}
-          onNotification={showNotification}
-        />
+        isAdmin ? (
+          <AdminDashboardView
+            currentUser={currentUser}
+            onLogout={handleLogout}
+            onNotification={showNotification}
+          />
+        ) : (
+          <DashboardView
+            currentUser={currentUser}
+            onLogout={handleLogout}
+            onNotification={showNotification}
+          />
+        )
       ) : (
         <LandingPage
           onOpenCheckout={handleOpenCheckout}
@@ -123,7 +135,7 @@ export default function App() {
         onPaymentSuccess={handlePaymentSuccess}
       />
 
-            {/* Login Modal */}
+      {/* Login Modal */}
       <LoginModal
         isOpen={isLoginOpen}
         onClose={() => setIsLoginOpen(false)}
@@ -141,7 +153,6 @@ export default function App() {
         onClose={() => setIsForgotPasswordOpen(false)}
         onBackToLogin={handleOpenLogin}
       />
-
 
       {/* Global Toast */}
       <Toast toast={toast} onClose={() => setToast(null)} />
