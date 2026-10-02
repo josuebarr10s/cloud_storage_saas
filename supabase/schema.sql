@@ -222,3 +222,25 @@ CREATE POLICY "Permitir eliminacion en nimbox-files"
 CREATE POLICY "Permitir actualizacion en nimbox-files"
   ON storage.objects FOR UPDATE
   USING (bucket_id = 'nimbox-files');
+
+-- Papelera: marcar en vez de borrar
+ALTER TABLE public.archivo
+  ADD COLUMN IF NOT EXISTS eliminado BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS fecha_eliminacion TIMESTAMP WITH TIME ZONE;
+
+-- Historial de versiones
+CREATE TABLE IF NOT EXISTS public.archivo_version (
+  id_version UUID NOT NULL DEFAULT gen_random_uuid(),
+  id_archivo UUID NOT NULL,
+  id_usuario UUID NOT NULL,
+  tamano BIGINT NOT NULL DEFAULT 0,
+  ruta_storage CHARACTER VARYING NOT NULL,
+  fecha_creacion TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  CONSTRAINT archivo_version_pkey PRIMARY KEY (id_version),
+  CONSTRAINT archivo_version_id_archivo_fkey FOREIGN KEY (id_archivo)
+    REFERENCES public.archivo(id_archivo) ON DELETE CASCADE
+);
+
+ALTER TABLE public.archivo_version ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Usuario gestiona sus versiones"
+  ON public.archivo_version FOR ALL USING (auth.uid() = id_usuario);
