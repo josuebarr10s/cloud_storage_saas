@@ -157,11 +157,14 @@ CREATE TABLE IF NOT EXISTS public.carpeta (
   id_usuario UUID NOT NULL,
   id_carpeta_padre UUID,
   nombre CHARACTER VARYING NOT NULL,
+  color CHARACTER VARYING DEFAULT 'purple',
   fecha_creacion TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   CONSTRAINT carpeta_pkey PRIMARY KEY (id_carpeta),
   CONSTRAINT carpeta_id_usuario_fkey FOREIGN KEY (id_usuario) REFERENCES public.usuario(id_usuario) ON DELETE CASCADE,
   CONSTRAINT carpeta_id_carpeta_padre_fkey FOREIGN KEY (id_carpeta_padre) REFERENCES public.carpeta(id_carpeta) ON DELETE CASCADE
 );
+
+ALTER TABLE public.carpeta ADD COLUMN IF NOT EXISTS color CHARACTER VARYING DEFAULT 'purple';
 
 ALTER TABLE public.carpeta ENABLE ROW LEVEL SECURITY;
 

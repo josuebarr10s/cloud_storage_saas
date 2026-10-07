@@ -42,6 +42,21 @@ function detectCategoryAndType(filename) {
 }
 
 /**
+ * Convierte una fila de public.carpeta al formato que usa la UI
+ */
+function mapCarpeta(c) {
+  return {
+    id: c.id_carpeta,
+    name: c.nombre,
+    color: c.color || 'purple',
+    parentId: c.id_carpeta_padre || null,
+    updated: formatDate(c.fecha_creacion),
+    created_at: c.fecha_creacion,
+    isFolder: true
+  };
+}
+
+/**
  * Convierte una fila de public.archivo al formato que usa el Dashboard
  */
 function mapArchivo(f) {
@@ -56,10 +71,13 @@ function mapArchivo(f) {
     size_bytes: bytes,
     size: formatBytes(bytes),
     updated: formatDate(f.fecha_modificacion || f.fecha_subida),
+    updated_at: f.fecha_modificacion || f.fecha_subida,
     category: category,
     shared: false,
     file_path: f.ruta_storage,
-    deleted_at: f.fecha_eliminacion || null
+    folder_id: f.id_carpeta || null,
+    deleted_at: f.fecha_eliminacion || null,
+    isFolder: false
   };
 }
 
@@ -108,6 +126,9 @@ export const filesService = {
   /**
    * Obtener los archivos activos del usuario (sin los de la papelera)
    */
+  /**
+   * Obtener los archivos activos del usuario (sin los de la papelera)
+   */
   async getUserFiles(userId) {
     let activeUserId = await resolveUserId(userId);
 
@@ -141,10 +162,221 @@ export const filesService = {
   },
 
   /**
-   * Subir archivo al bucket `nimbox-files` e insertarlo en public.archivo.
-   * Si ya existe un archivo con el mismo nombre, el anterior pasa al historial de versiones.
+   * Obtener las carpetas del usuario según el nivel padre (null para raíz)
    */
-  async uploadFile(userId, file) {
+  async getUserFolders(userId, parentFolderId = null) {
+    const activeUserId = await resolveUserId(userId);
+    if (!activeUserId) return [];
+
+    try {
+      let query = supabase.from('carpeta').select('*').eq('id_usuario', activeUserId);
+      if (parentFolderId) {
+        query = query.eq('id_carpeta_padre', parentFolderId);
+      } else {
+        query = query.is('id_carpeta_padre', null);
+      }
+
+      const { data, error } = await query.order('nombre', { ascending: true });
+
+      if (error) {
+        console.error('Error al consultar tabla public.carpeta:', error.message);
+        return [];
+      }
+
+      return (data || []).map(mapCarpeta);
+    } catch (err) {
+      console.error('Excepción al obtener carpetas:', err);
+      return [];
+    }
+  },
+
+  /**
+   * Obtener absolutamente todas las carpetas del usuario (para selectores/módulos de mover)
+   */
+  async getAllUserFolders(userId) {
+    const activeUserId = await resolveUserId(userId);
+    if (!activeUserId) return [];
+
+    try {
+      const { data, error } = await supabase
+        .from('carpeta')
+        .select('*')
+        .eq('id_usuario', activeUserId)
+        .order('nombre', { ascending: true });
+
+      if (error) return [];
+      return (data || []).map(mapCarpeta);
+    } catch (err) {
+      return [];
+    }
+  },
+
+  /**
+   * Crear una nueva carpeta personalizada (con fallback si la columna color no existe en la BD)
+   */
+  async createFolder(userId, name, color = 'purple', parentFolderId = null) {
+    const activeUserId = await resolveUserId(userId);
+    if (!activeUserId) throw new Error('Debes iniciar sesión para crear carpetas.');
+
+    const baseRecord = {
+      id_usuario: activeUserId,
+      id_carpeta_padre: parentFolderId || null,
+      nombre: name.trim(),
+      fecha_creacion: new Date().toISOString()
+    };
+
+    // 1. Intentar insertar con el campo 'color'
+    let { data, error } = await supabase
+      .from('carpeta')
+      .insert([{ ...baseRecord, color: color || 'purple' }])
+      .select();
+
+    // 2. Si la columna 'color' no existe en la BD de Supabase, reintentar sin 'color'
+    if (error && (error.message?.includes('color') || error.code === 'PGRST204')) {
+      console.warn('La columna color no está creada en Supabase. Reintentando sin color...');
+      const fallback = await supabase
+        .from('carpeta')
+        .insert([baseRecord])
+        .select();
+
+      data = fallback.data;
+      error = fallback.error;
+    }
+
+    if (error) {
+      console.error('Error al crear carpeta:', error.message);
+      throw new Error(`No se pudo crear la carpeta: ${error.message}`);
+    }
+
+    const createdRecord = data?.[0] || {};
+    return mapCarpeta({
+      ...createdRecord,
+      color: createdRecord.color || color || 'purple'
+    });
+  },
+
+  /**
+   * Editar nombre o color de una carpeta (con fallback si color no existe)
+   */
+  async updateFolder(folderId, { name, color }) {
+    const updates = {};
+    if (name !== undefined) updates.nombre = name.trim();
+    if (color !== undefined) updates.color = color;
+
+    let { data, error } = await supabase
+      .from('carpeta')
+      .update(updates)
+      .eq('id_carpeta', folderId)
+      .select();
+
+    if (error && (error.message?.includes('color') || error.code === 'PGRST204')) {
+      delete updates.color;
+      const fallback = await supabase
+        .from('carpeta')
+        .update(updates)
+        .eq('id_carpeta', folderId)
+        .select();
+
+      data = fallback.data;
+      error = fallback.error;
+    }
+
+    if (error) {
+      console.error('Error al actualizar carpeta:', error.message);
+      throw new Error(`No se pudo actualizar la carpeta: ${error.message}`);
+    }
+
+    const updatedRecord = data?.[0] || {};
+    return mapCarpeta({
+      ...updatedRecord,
+      color: updatedRecord.color || color || 'purple'
+    });
+  },
+
+  /**
+   * Eliminar una carpeta (y sus subcarpetas/archivos contenidos)
+   */
+  async deleteFolder(folderId) {
+    const { error } = await supabase
+      .from('carpeta')
+      .delete()
+      .eq('id_carpeta', folderId);
+
+    if (error) {
+      console.error('Error al eliminar carpeta:', error.message);
+      throw new Error(`No se pudo eliminar la carpeta: ${error.message}`);
+    }
+    return true;
+  },
+
+  /**
+   * Mover un archivo a una carpeta específica (o raíz si folderId es null)
+   */
+  async moveFileToFolder(fileId, folderId) {
+    const { data, error } = await supabase
+      .from('archivo')
+      .update({ id_carpeta: folderId || null })
+      .eq('id_archivo', fileId)
+      .select();
+
+    if (error) {
+      console.error('Error al mover archivo a la carpeta:', error.message);
+      throw new Error(`No se pudo mover el archivo: ${error.message}`);
+    }
+
+    return mapArchivo(data[0]);
+  },
+
+  /**
+   * Mover una carpeta a otra carpeta (o raíz si targetParentId es null)
+   */
+  async moveFolderToFolder(folderId, targetParentId) {
+    if (folderId === targetParentId) {
+      throw new Error('No puedes mover una carpeta dentro de sí misma.');
+    }
+
+    const { data, error } = await supabase
+      .from('carpeta')
+      .update({ id_carpeta_padre: targetParentId || null })
+      .eq('id_carpeta', folderId)
+      .select();
+
+    if (error) {
+      console.error('Error al mover la carpeta:', error.message);
+      throw new Error(`No se pudo mover la carpeta: ${error.message}`);
+    }
+
+    return mapCarpeta(data[0]);
+  },
+
+  /**
+   * Obtener la ruta de carpetas (Breadcrumbs) desde la raíz hasta la carpeta actual
+   */
+  async getFolderPath(folderId) {
+    if (!folderId) return [];
+    const path = [];
+    let currentId = folderId;
+
+    while (currentId) {
+      const { data, error } = await supabase
+        .from('carpeta')
+        .select('id_carpeta, nombre, id_carpeta_padre')
+        .eq('id_carpeta', currentId)
+        .maybeSingle();
+
+      if (error || !data) break;
+      path.unshift({ id: data.id_carpeta, name: data.nombre });
+      currentId = data.id_carpeta_padre;
+    }
+
+    return path;
+  },
+
+  /**
+   * Subir archivo al bucket `nimbox-files` e insertarlo en public.archivo.
+   * Si ya existe un archivo con el mismo nombre en el mismo lugar, el anterior pasa al historial de versiones.
+   */
+  async uploadFile(userId, file, currentFolderId = null) {
     const activeUserId = await resolveUserId(userId);
 
     if (!activeUserId) {
@@ -228,7 +460,13 @@ export const filesService = {
       // 3b. El registro principal apunta al archivo nuevo
       const { data: updated, error: updateError } = await supabase
         .from('archivo')
-        .update({ ruta_storage: uploadedPath, tamano: file.size, tipo: type, fecha_modificacion: ahora })
+        .update({
+          ruta_storage: uploadedPath,
+          tamano: file.size,
+          tipo: type,
+          fecha_modificacion: ahora,
+          id_carpeta: currentFolderId || existente.id_carpeta || null
+        })
         .eq('id_archivo', existente.id_archivo)
         .select();
 
@@ -244,7 +482,7 @@ export const filesService = {
         .from('archivo')
         .insert([{
           id_usuario: activeUserId,
-          id_carpeta: null,
+          id_carpeta: currentFolderId || null,
           nombre: file.name,
           tipo: type,
           tamano: file.size,
