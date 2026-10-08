@@ -383,22 +383,21 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           {/* Logo */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div
+          <div
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+            onClick={() => { setCurrentFolderId(null); setActiveCategory('all'); }}
+            title="Ir al inicio de Nimbox"
+          >
+            <img
+              src="/logo.png"
+              alt="Nimbox Logo"
               style={{
                 width: '34px',
                 height: '34px',
-                borderRadius: 'var(--radius-sm)',
-                background: 'var(--primary-gradient)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--text-white)',
-                boxShadow: 'var(--shadow-glow-primary)'
+                objectFit: 'contain',
+                filter: 'drop-shadow(0 2px 6px rgba(99, 102, 241, 0.25))'
               }}
-            >
-              <Cloud size={20} />
-            </div>
+            />
             <span style={{ fontSize: '1.25rem', fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--text-main)' }}>
               Nimbox<span style={{ color: 'var(--primary)' }}>.</span>
             </span>

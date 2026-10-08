@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Cloud, Menu, X, ArrowRight } from 'lucide-react';
+import { Menu, X, ArrowRight } from 'lucide-react';
 
 export const LandingNavbar = ({ onLoginClick, onRegisterClick }) => {
   const [scrolled, setScrolled] = useState(false);
@@ -48,21 +48,16 @@ export const LandingNavbar = ({ onLoginClick, onRegisterClick }) => {
       >
         {/* Brand Logo */}
         <a href="#" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
-          <div
+          <img
+            src="/logo.png"
+            alt="Nimbox Logo"
             style={{
-              width: '36px',
-              height: '36px',
-              borderRadius: 'var(--radius-sm)',
-              background: 'var(--primary)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--text-white)',
-              boxShadow: 'var(--shadow-glow-primary)',
+              width: '38px',
+              height: '38px',
+              objectFit: 'contain',
+              filter: 'drop-shadow(0 2px 8px rgba(99, 102, 241, 0.25))'
             }}
-          >
-            <Cloud size={22} />
-          </div>
+          />
           <span
             style={{
               fontSize: '1.35rem',
