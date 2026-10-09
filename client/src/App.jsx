@@ -32,7 +32,6 @@ export default function App() {
       const user = await authService.getCurrentUser();
       if (user) {
         setCurrentUser(user);
-        // Regla de oro: Si el plan es 'Ninguno', se queda en la Landing
         setCurrentView(user.plan === 'Ninguno' ? 'landing' : 'dashboard');
       }
     }
@@ -68,8 +67,8 @@ export default function App() {
 
   const handleRegisterSuccess = (user) => {
     setCurrentUser(user);
-    setCurrentView('landing'); // Te deja clavado en la Landing
-    setIsRegisterOpen(false); // Cierra el modal de registro automáticamente
+    setCurrentView('landing'); 
+    setIsRegisterOpen(false); 
     showNotification(`¡Cuenta creada! Elige un plan abajo para continuar.`, 'success');
   };
 
@@ -85,7 +84,7 @@ export default function App() {
   const handlePaymentSuccess = (planData) => {
     const updatedUser = { ...currentUser, plan: planData.plan, storageQuota: planData.storageQuota };
     setCurrentUser(updatedUser);
-    setCurrentView('dashboard'); // Entras al fin al dashboard
+    setCurrentView('dashboard'); 
     showNotification(`¡Pago exitoso! Plan ${planData.plan} activado.`, 'success');
   };
 
@@ -98,7 +97,6 @@ export default function App() {
 
   return (
     <div>
-      {/* Muestra Dashboard SOLO si la vista está en 'dashboard' */}
       {currentView === 'dashboard' && currentUser ? (
         <DashboardView currentUser={currentUser} onLogout={handleLogout} onNotification={showNotification} />
       ) : (

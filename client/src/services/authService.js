@@ -10,7 +10,6 @@ export const authService = {
     const nombre = nameParts[0] || 'Usuario';
     const apellido = nameParts.slice(1).join(' ') || '';
     
-    // 1. Registrar en Supabase Auth
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: formattedEmail,
       password: password,
@@ -25,9 +24,7 @@ export const authService = {
       id: userId, name: name, email: formattedEmail, rol: 'Cliente', plan: 'Ninguno', storageQuota: '0 GB'
     };
 
-    // 2. FORZAR GUARDADO EN LA BASE DE DATOS
     try {
-      // Primero intentamos actualizar (por si Supabase ya creó la fila con un Trigger)
       const { error: updateError } = await supabase
         .from('usuario')
         .update({ 
@@ -38,7 +35,6 @@ export const authService = {
         })
         .eq('id_usuario', userId);
 
-      // Si falla o la fila no existe, forzamos un insert limpio
       if (updateError || updateError === null) {
          await supabase.from('usuario').insert({ 
            id_usuario: userId, 
@@ -52,13 +48,11 @@ export const authService = {
          });
       }
       
-      // Asegurar que exista almacenamiento
       await supabase.from('almacenamiento').upsert({ id_usuario: userId, capacidad_total_bytes: 0, espacio_usado_bytes: 0 });
     } catch (err) {
       console.error("Error al forzar guardado en BD:", err);
     }
 
-    // 3. TU LÓGICA ORIGINAL RESTAURADA (Intacta)
     localStorage.setItem('nimbox_current_user', JSON.stringify(userObj));
     try {
       const existingUsers = JSON.parse(localStorage.getItem('nimbox_registered_users') || '[]');

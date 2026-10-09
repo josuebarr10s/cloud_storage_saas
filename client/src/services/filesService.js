@@ -1,5 +1,8 @@
 import supabase from '../lib/supabase.js';
 
+const BUCKET = 'nimbox-files';
+const DIA_MS = 24 * 60 * 60 * 1000;
+
 function formatBytes(bytes, decimals = 1) {
   if (!bytes || bytes === 0) return '0 Bytes';
   const k = 1024;
@@ -9,37 +12,147 @@ function formatBytes(bytes, decimals = 1) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }
 
+function formatDate(fecha) {
+  return new Date(fecha).toLocaleDateString('es-ES', {
+    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+  });
+}
+
 function detectCategoryAndType(filename) {
   const ext = filename.split('.').pop()?.toLowerCase() || '';
-  if (['png', 'jpg', 'jpeg', 'svg', 'gif', 'webp'].includes(ext)) {
-    return { type: 'image', category: 'images' };
+  if (['png', 'jpg', 'jpeg', 'svg', 'gif', 'webp', 'bmp', 'ico'].includes(ext)) {
+    return { type: 'image', category: 'images', mimeCategory: 'image', ext };
   }
-  if (['mp4', 'webm', 'mov', 'avi', 'mkv'].includes(ext)) {
-    return { type: 'video', category: 'media' };
+  if (['mp4', 'webm', 'mov', 'avi', 'mkv', 'm4v'].includes(ext)) {
+    return { type: 'video', category: 'media', mimeCategory: 'video', ext };
+  }
+  if (['mp3', 'wav', 'ogg', 'aac', 'flac', 'm4a'].includes(ext)) {
+    return { type: 'audio', category: 'media', mimeCategory: 'audio', ext };
   }
   if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) {
-    return { type: 'zip', category: 'docs' };
+    return { type: 'zip', category: 'docs', mimeCategory: 'archive', ext };
   }
   if (['pdf'].includes(ext)) {
-    return { type: 'pdf', category: 'docs' };
+    return { type: 'pdf', category: 'docs', mimeCategory: 'pdf', ext };
   }
-  return { type: 'doc', category: 'docs' };
+  if (['js', 'jsx', 'ts', 'tsx', 'html', 'css', 'json', 'txt', 'md', 'csv', 'sql', 'py', 'java', 'c', 'cpp', 'xml', 'yaml', 'yml'].includes(ext)) {
+    return { type: 'code', category: 'docs', mimeCategory: 'text', ext };
+  }
+  return { type: 'doc', category: 'docs', mimeCategory: 'other', ext };
+}
+
+/**
+ * Convierte una fila de public.carpeta al formato que usa la UI
+ */
+function mapCarpeta(c) {
+  return {
+    id: c.id_carpeta,
+    name: c.nombre,
+    color: c.color || 'purple',
+    parentId: c.id_carpeta_padre || null,
+    updated: formatDate(c.fecha_creacion),
+    created_at: c.fecha_creacion,
+    isFolder: true
+  };
+}
+
+/**
+ * Convierte una fila de public.archivo al formato que usa el Dashboard
+ */
+function mapArchivo(f) {
+  const { category, type, ext, mimeCategory } = detectCategoryAndType(f.nombre);
+  const bytes = parseInt(f.tamano || 0, 10);
+  return {
+    id: f.id_archivo,
+    name: f.nombre,
+    type: f.tipo || type,
+    mimeCategory: mimeCategory,
+    ext: ext,
+    size_bytes: bytes,
+    size: formatBytes(bytes),
+    updated: formatDate(f.fecha_modificacion || f.fecha_subida),
+    updated_at: f.fecha_modificacion || f.fecha_subida,
+    category: category,
+    shared: false,
+    file_path: f.ruta_storage,
+    folder_id: f.id_carpeta || null,
+    deleted_at: f.fecha_eliminacion || null,
+    isFolder: false
+  };
+}
+
+/**
+ * Obtiene el ID del usuario activo (parámetro o sesión de Supabase)
+ */
+async function resolveUserId(userId) {
+  if (userId) return userId;
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.user?.id || null;
+}
+
+/**
+ * Recalcula el espacio usado: archivos (incluye papelera) + versiones antiguas
+ */
+async function recalcularAlmacenamiento(userId) {
+  if (!userId) return;
+  try {
+    const { data: archivos } = await supabase.from('archivo').select('tamano').eq('id_usuario', userId);
+    const { data: versiones } = await supabase.from('archivo_version').select('tamano').eq('id_usuario', userId);
+    const totalBytes = [...(archivos || []), ...(versiones || [])]
+      .reduce((acc, curr) => acc + parseInt(curr.tamano || 0, 10), 0);
+
+    await supabase.from('almacenamiento').upsert({
+      id_usuario: userId,
+      espacio_usado_bytes: totalBytes,
+      ultima_actualizacion: new Date().toISOString()
+    }, { onConflict: 'id_usuario' });
+  } catch (e) {
+    console.warn('No se pudo actualizar espacio_usado_bytes:', e);
+  }
+}
+
+/**
+ * Días que un archivo permanece en la papelera según el plan.
+ * Devuelve null cuando la retención es ilimitada.
+ */
+export function getRetentionDays(planName = '') {
+  const p = planName.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  if (p.includes('basico')) return 7;
+  if (p.includes('empresa')) return null;
+  return 30;
+}
+
+/**
+ * Devuelve los IDs de todas las subcarpetas (hijas, nietas, etc.) de una carpeta.
+ * Recibe la lista de carpetas ya mapeadas (con parentId).
+ */
+export function getDescendantFolderIds(folders, folderId) {
+  const ids = [];
+  const pendientes = [folderId];
+
+  while (pendientes.length > 0) {
+    const actual = pendientes.pop();
+    folders.forEach(f => {
+      if (f.parentId === actual && f.id !== folderId && !ids.includes(f.id)) {
+        ids.push(f.id);
+        pendientes.push(f.id);
+      }
+    });
+  }
+  return ids;
 }
 
 export const filesService = {
   /**
-   * Obtener todos los archivos del usuario desde la tabla public.archivo
+   * Obtener los archivos activos del usuario (sin los de la papelera)
+   */
+  /**
+   * Obtener los archivos activos del usuario (sin los de la papelera)
    */
   async getUserFiles(userId) {
-    let activeUserId = userId;
+    let activeUserId = await resolveUserId(userId);
 
     if (!activeUserId) {
-      const { data: { session } } = await supabase.auth.getSession();
-      activeUserId = session?.user?.id;
-    }
-
-    if (!activeUserId) {
-      // Intentar obtener usuario guardado en localStorage
       try {
         const saved = localStorage.getItem('nimbox_current_user');
         if (saved) activeUserId = JSON.parse(saved).id;
@@ -53,6 +166,7 @@ export const filesService = {
         .from('archivo')
         .select('*')
         .eq('id_usuario', activeUserId)
+        .eq('eliminado', false)
         .order('fecha_subida', { ascending: false });
 
       if (error) {
@@ -60,22 +174,7 @@ export const filesService = {
         return [];
       }
 
-      return (data || []).map(f => {
-        const { category } = detectCategoryAndType(f.nombre);
-        return {
-          id: f.id_archivo,
-          name: f.nombre,
-          type: f.tipo || 'doc',
-          size_bytes: parseInt(f.tamano || 0, 10),
-          size: formatBytes(parseInt(f.tamano || 0, 10)),
-          updated: new Date(f.fecha_subida || f.fecha_modificacion).toLocaleDateString('es-ES', {
-            month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
-          }),
-          category: category,
-          shared: false,
-          file_path: f.ruta_storage
-        };
-      });
+      return (data || []).map(mapArchivo);
     } catch (err) {
       console.error('Excepción al obtener archivos:', err);
       return [];
@@ -83,15 +182,273 @@ export const filesService = {
   },
 
   /**
-   * Subir archivo al bucket `nimbox-files` en Supabase Storage e insertar en la tabla public.archivo
+   * Obtener las carpetas del usuario según el nivel padre (null para raíz)
    */
-  async uploadFile(userId, file) {
-    let activeUserId = userId;
+  async getUserFolders(userId, parentFolderId = null) {
+    const activeUserId = await resolveUserId(userId);
+    if (!activeUserId) return [];
 
-    if (!activeUserId) {
-      const { data: { session } } = await supabase.auth.getSession();
-      activeUserId = session?.user?.id;
+    try {
+      let query = supabase.from('carpeta').select('*').eq('id_usuario', activeUserId);
+      if (parentFolderId) {
+        query = query.eq('id_carpeta_padre', parentFolderId);
+      } else {
+        query = query.is('id_carpeta_padre', null);
+      }
+
+      const { data, error } = await query.order('nombre', { ascending: true });
+
+      if (error) {
+        console.error('Error al consultar tabla public.carpeta:', error.message);
+        return [];
+      }
+
+      return (data || []).map(mapCarpeta);
+    } catch (err) {
+      console.error('Excepción al obtener carpetas:', err);
+      return [];
     }
+  },
+
+  /**
+   * Obtener absolutamente todas las carpetas del usuario (para selectores/módulos de mover)
+   */
+  async getAllUserFolders(userId) {
+    const activeUserId = await resolveUserId(userId);
+    if (!activeUserId) return [];
+
+    try {
+      const { data, error } = await supabase
+        .from('carpeta')
+        .select('*')
+        .eq('id_usuario', activeUserId)
+        .order('nombre', { ascending: true });
+
+      if (error) return [];
+      return (data || []).map(mapCarpeta);
+    } catch (err) {
+      return [];
+    }
+  },
+
+  /**
+   * Crear una nueva carpeta personalizada (con fallback si la columna color no existe en la BD)
+   */
+  async createFolder(userId, name, color = 'purple', parentFolderId = null) {
+    const activeUserId = await resolveUserId(userId);
+    if (!activeUserId) throw new Error('Debes iniciar sesión para crear carpetas.');
+
+    const baseRecord = {
+      id_usuario: activeUserId,
+      id_carpeta_padre: parentFolderId || null,
+      nombre: name.trim(),
+      fecha_creacion: new Date().toISOString()
+    };
+
+    // 1. Intentar insertar con el campo 'color'
+    let { data, error } = await supabase
+      .from('carpeta')
+      .insert([{ ...baseRecord, color: color || 'purple' }])
+      .select();
+
+    // 2. Si la columna 'color' no existe en la BD de Supabase, reintentar sin 'color'
+    if (error && (error.message?.includes('color') || error.code === 'PGRST204')) {
+      console.warn('La columna color no está creada en Supabase. Reintentando sin color...');
+      const fallback = await supabase
+        .from('carpeta')
+        .insert([baseRecord])
+        .select();
+
+      data = fallback.data;
+      error = fallback.error;
+    }
+
+    if (error) {
+      console.error('Error al crear carpeta:', error.message);
+      throw new Error(`No se pudo crear la carpeta: ${error.message}`);
+    }
+
+    const createdRecord = data?.[0] || {};
+    return mapCarpeta({
+      ...createdRecord,
+      color: createdRecord.color || color || 'purple'
+    });
+  },
+
+  /**
+   * Editar nombre o color de una carpeta (con fallback si color no existe)
+   */
+  async updateFolder(folderId, { name, color }) {
+    const updates = {};
+    if (name !== undefined) updates.nombre = name.trim();
+    if (color !== undefined) updates.color = color;
+
+    let { data, error } = await supabase
+      .from('carpeta')
+      .update(updates)
+      .eq('id_carpeta', folderId)
+      .select();
+
+    if (error && (error.message?.includes('color') || error.code === 'PGRST204')) {
+      delete updates.color;
+      const fallback = await supabase
+        .from('carpeta')
+        .update(updates)
+        .eq('id_carpeta', folderId)
+        .select();
+
+      data = fallback.data;
+      error = fallback.error;
+    }
+
+    if (error) {
+      console.error('Error al actualizar carpeta:', error.message);
+      throw new Error(`No se pudo actualizar la carpeta: ${error.message}`);
+    }
+
+    const updatedRecord = data?.[0] || {};
+    return mapCarpeta({
+      ...updatedRecord,
+      color: updatedRecord.color || color || 'purple'
+    });
+  },
+
+  /**
+   * Eliminar una carpeta y sus subcarpetas.
+   * Los archivos que contenían se mandan a la papelera (en la raíz) en vez de borrarse.
+   */
+  async deleteFolder(folderId, userId) {
+    const activeUserId = await resolveUserId(userId);
+    const todas = await this.getAllUserFolders(activeUserId);
+    const ids = [folderId, ...getDescendantFolderIds(todas, folderId)];
+
+    // 1. Archivos activos dentro de la carpeta o sus subcarpetas -> papelera
+    const { data: enviados, error: trashError } = await supabase
+      .from('archivo')
+      .update({ eliminado: true, fecha_eliminacion: new Date().toISOString() })
+      .in('id_carpeta', ids)
+      .eq('eliminado', false)
+      .select('id_archivo');
+
+    if (trashError) {
+      throw new Error(`No se pudieron mover los archivos a la papelera: ${trashError.message}`);
+    }
+
+    // 2. Sacar todos los archivos de esas carpetas (incluidos los que ya estaban en la papelera)
+    //    para que el ON DELETE CASCADE no los borre junto con la carpeta
+    const { error: detachError } = await supabase
+      .from('archivo')
+      .update({ id_carpeta: null })
+      .in('id_carpeta', ids);
+
+    if (detachError) {
+      throw new Error(`No se pudieron sacar los archivos de la carpeta: ${detachError.message}`);
+    }
+
+    // 3. Eliminar la carpeta (las subcarpetas se borran por ON DELETE CASCADE)
+    const { error } = await supabase
+      .from('carpeta')
+      .delete()
+      .eq('id_carpeta', folderId);
+
+    if (error) {
+      console.error('Error al eliminar carpeta:', error.message);
+      throw new Error(`No se pudo eliminar la carpeta: ${error.message}`);
+    }
+
+    return (enviados || []).length;
+  },
+
+  /**
+   * Mover un archivo a una carpeta específica (o raíz si folderId es null)
+   */
+  async moveFileToFolder(fileId, folderId) {
+    const { data, error } = await supabase
+      .from('archivo')
+      .update({ id_carpeta: folderId || null })
+      .eq('id_archivo', fileId)
+      .select();
+
+    if (error) {
+      console.error('Error al mover archivo a la carpeta:', error.message);
+      throw new Error(`No se pudo mover el archivo: ${error.message}`);
+    }
+
+    return mapArchivo(data[0]);
+  },
+
+  /**
+   * Mover una carpeta a otra carpeta (o raíz si targetParentId es null)
+   */
+  async moveFolderToFolder(folderId, targetParentId) {
+    if (folderId === targetParentId) {
+      throw new Error('No puedes mover una carpeta dentro de sí misma.');
+    }
+
+    // Evitar ciclos: el destino no puede ser una subcarpeta de la carpeta que se mueve.
+    // Se sube desde el destino hasta la raíz; si en el camino aparece la carpeta, es inválido.
+    let currentId = targetParentId;
+    const visitados = new Set();
+    while (currentId && !visitados.has(currentId)) {
+      if (currentId === folderId) {
+        throw new Error('No puedes mover una carpeta dentro de una de sus subcarpetas.');
+      }
+      visitados.add(currentId);
+      const { data: padre } = await supabase
+        .from('carpeta')
+        .select('id_carpeta_padre')
+        .eq('id_carpeta', currentId)
+        .maybeSingle();
+      currentId = padre?.id_carpeta_padre || null;
+    }
+
+    const { data, error } = await supabase
+      .from('carpeta')
+      .update({ id_carpeta_padre: targetParentId || null })
+      .eq('id_carpeta', folderId)
+      .select();
+
+    if (error) {
+      console.error('Error al mover la carpeta:', error.message);
+      throw new Error(`No se pudo mover la carpeta: ${error.message}`);
+    }
+
+    return mapCarpeta(data[0]);
+  },
+
+  /**
+   * Obtener la ruta de carpetas (Breadcrumbs) desde la raíz hasta la carpeta actual
+   */
+  async getFolderPath(folderId) {
+    if (!folderId) return [];
+    const path = [];
+    const visitados = new Set();
+    let currentId = folderId;
+
+    // "visitados" evita un ciclo infinito si alguna carpeta quedó dentro de su propia subcarpeta
+    while (currentId && !visitados.has(currentId)) {
+      visitados.add(currentId);
+
+      const { data, error } = await supabase
+        .from('carpeta')
+        .select('id_carpeta, nombre, id_carpeta_padre')
+        .eq('id_carpeta', currentId)
+        .maybeSingle();
+
+      if (error || !data) break;
+      path.unshift({ id: data.id_carpeta, name: data.nombre });
+      currentId = data.id_carpeta_padre;
+    }
+
+    return path;
+  },
+
+  /**
+   * Subir archivo al bucket `nimbox-files` e insertarlo en public.archivo.
+   * Si ya existe un archivo con el mismo nombre en el mismo lugar, el anterior pasa al historial de versiones.
+   */
+  async uploadFile(userId, file, currentFolderId = null) {
+    const activeUserId = await resolveUserId(userId);
 
     if (!activeUserId) {
       throw new Error('Debes iniciar sesión para subir archivos a la nube.');
@@ -119,20 +476,20 @@ export const filesService = {
       }
     } catch (e) {}
 
-    const { type, category } = detectCategoryAndType(file.name);
+    const { type } = detectCategoryAndType(file.name);
     const timestamp = Date.now();
     const cleanFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
     const storagePath = `${activeUserId}/${timestamp}_${cleanFileName}`;
 
     let uploadedPath = storagePath;
 
-    // 2. Subir binario a Supabase Storage (bucket nimbox-files)
-    console.log(`Subiendo archivo a Supabase Storage (nimbox-files)... Ruta: ${storagePath}`);
+    // 2. Subir binario a Supabase Storage (el timestamp en la ruta evita sobrescribir versiones anteriores)
+    console.log(`Subiendo archivo a Supabase Storage (${BUCKET})... Ruta: ${storagePath}`);
     const { data: storageData, error: storageError } = await supabase.storage
-      .from('nimbox-files')
+      .from(BUCKET)
       .upload(storagePath, file, {
         cacheControl: '3600',
-        upsert: true
+        upsert: false
       });
 
     if (storageError) {
@@ -142,105 +499,393 @@ export const filesService = {
 
     if (storageData?.path) {
       uploadedPath = storageData.path;
-      console.log('Archivo subido con éxito a Storage:', uploadedPath);
     }
 
-    // 3. Insertar registro en la tabla public.archivo
-    const newArchivo = {
-      id_usuario: activeUserId,
-      id_carpeta: null,
-      nombre: file.name,
-      tipo: type,
-      tamano: file.size,
-      ruta_storage: uploadedPath,
-      fecha_subida: new Date().toISOString(),
-      fecha_modificacion: new Date().toISOString()
-    };
+    const ahora = new Date().toISOString();
 
-    console.log('Guardando metadatos en tabla public.archivo:', newArchivo);
-    const { data: dbData, error: dbError } = await supabase
+    // 3. ¿Ya existe un archivo activo con el mismo nombre EN ESTA MISMA CARPETA? -> nueva versión
+    let busqueda = supabase
       .from('archivo')
-      .insert([newArchivo])
-      .select();
+      .select('*')
+      .eq('id_usuario', activeUserId)
+      .eq('nombre', file.name)
+      .eq('eliminado', false);
 
-    if (dbError) {
-      console.error('Error al insertar registro en public.archivo:', dbError.message, dbError);
-      throw new Error(`Guardado en base de datos falló: ${dbError.message}`);
-    }
+    busqueda = currentFolderId
+      ? busqueda.eq('id_carpeta', currentFolderId)
+      : busqueda.is('id_carpeta', null);
 
-    const savedRecord = dbData?.[0];
+    const { data: coincidencias } = await busqueda
+      .order('fecha_modificacion', { ascending: false })
+      .limit(1);
 
-    // 4. Actualizar espacio usado en la tabla public.almacenamiento
-    try {
-      const { data: userFiles } = await supabase.from('archivo').select('tamano').eq('id_usuario', activeUserId);
-      const totalBytes = (userFiles || []).reduce((acc, curr) => acc + parseInt(curr.tamano || 0, 10), 0);
+    const existente = coincidencias?.[0] || null;
 
-      await supabase.from('almacenamiento').upsert({
+    let savedRecord = null;
+    let isNewVersion = false;
+
+    if (existente) {
+      // 3a. La versión actual pasa al historial
+      const { error: versionError } = await supabase.from('archivo_version').insert([{
+        id_archivo: existente.id_archivo,
         id_usuario: activeUserId,
-        espacio_usado_bytes: totalBytes,
-        ultima_actualizacion: new Date().toISOString()
-      }, { onConflict: 'id_usuario' });
-    } catch (e) {
-      console.warn('No se pudo actualizar espacio_usado_bytes:', e);
+        tamano: existente.tamano,
+        ruta_storage: existente.ruta_storage
+      }]);
+
+      if (versionError) {
+        throw new Error(`No se pudo guardar la versión anterior: ${versionError.message}`);
+      }
+
+      // 3b. El registro principal apunta al archivo nuevo
+      const { data: updated, error: updateError } = await supabase
+        .from('archivo')
+        .update({
+          ruta_storage: uploadedPath,
+          tamano: file.size,
+          tipo: type,
+          fecha_modificacion: ahora
+        })
+        .eq('id_archivo', existente.id_archivo)
+        .select();
+
+      if (updateError) {
+        throw new Error(`No se pudo actualizar el archivo: ${updateError.message}`);
+      }
+
+      savedRecord = updated?.[0];
+      isNewVersion = true;
+    } else {
+      // 3c. Archivo nuevo: insertar registro en public.archivo
+      const { data: dbData, error: dbError } = await supabase
+        .from('archivo')
+        .insert([{
+          id_usuario: activeUserId,
+          id_carpeta: currentFolderId || null,
+          nombre: file.name,
+          tipo: type,
+          tamano: file.size,
+          ruta_storage: uploadedPath,
+          fecha_subida: ahora,
+          fecha_modificacion: ahora
+        }])
+        .select();
+
+      if (dbError) {
+        console.error('Error al insertar registro en public.archivo:', dbError.message, dbError);
+        throw new Error(`Guardado en base de datos falló: ${dbError.message}`);
+      }
+
+      savedRecord = dbData?.[0];
     }
+
+    // 4. Actualizar espacio usado
+    await recalcularAlmacenamiento(activeUserId);
 
     return {
-      id: savedRecord?.id_archivo || `f-${timestamp}`,
-      name: file.name,
-      type: type,
-      size_bytes: file.size,
-      size: formatBytes(file.size),
+      ...mapArchivo(savedRecord),
       updated: 'Ahora mismo',
-      category: category,
-      shared: false,
-      file_path: uploadedPath
+      isNewVersion
     };
   },
 
   /**
-   * Eliminar archivo de public.archivo y del bucket nimbox-files
+   * Obtener URL de vista previa o Blob para un archivo
    */
-  async deleteFile(userId, fileId, filePath) {
-    let activeUserId = userId;
+  async getFilePreviewUrl(filePath) {
+    if (!filePath) return null;
 
-    if (!activeUserId) {
-      const { data: { session } } = await supabase.auth.getSession();
-      activeUserId = session?.user?.id;
-    }
-
-    // 1. Eliminar registro en la tabla public.archivo
     try {
-      const { error } = await supabase.from('archivo').delete().eq('id_archivo', fileId);
-      if (error) console.error('Error al eliminar de public.archivo:', error.message);
-    } catch (e) {}
+      // 1. Intentar descargar directamente como Blob (funciona con sesión activa)
+      const { data: blobData, error: dlErr } = await supabase.storage
+        .from(BUCKET)
+        .download(filePath);
 
-    // 2. Eliminar de Supabase Storage (nimbox-files)
-    if (filePath) {
-      try {
-        const { error: stErr } = await supabase.storage.from('nimbox-files').remove([filePath]);
-        if (stErr) console.error('Error al eliminar de Storage:', stErr.message);
-      } catch (e) {}
+      if (!dlErr && blobData) {
+        return {
+          url: URL.createObjectURL(blobData),
+          blob: blobData,
+          isBlob: true
+        };
+      }
+
+      // 2. Intentar crear Signed URL con 1 hora de validez
+      const { data: signedData, error: signedErr } = await supabase.storage
+        .from(BUCKET)
+        .createSignedUrl(filePath, 3600);
+
+      if (!signedErr && signedData?.signedUrl) {
+        return {
+          url: signedData.signedUrl,
+          isBlob: false
+        };
+      }
+
+      // 3. Fallback a Public URL
+      const { data: publicData } = supabase.storage
+        .from(BUCKET)
+        .getPublicUrl(filePath);
+
+      if (publicData?.publicUrl) {
+        return {
+          url: publicData.publicUrl,
+          isBlob: false
+        };
+      }
+    } catch (err) {
+      console.warn('No se pudo obtener URL de vista previa:', err);
     }
+    return null;
+  },
 
-    // 3. Recalcular almacenamiento usado
-    if (activeUserId) {
-      try {
-        const { data: userFiles } = await supabase.from('archivo').select('tamano').eq('id_usuario', activeUserId);
-        const totalBytes = (userFiles || []).reduce((acc, curr) => acc + parseInt(curr.tamano || 0, 10), 0);
+  /**
+   * Descargar archivo real desde Supabase Storage (sirve también para versiones antiguas)
+   */
+  async downloadFile(filePath, fileName) {
+    try {
+      const { data, error } = await supabase.storage
+        .from(BUCKET)
+        .download(filePath);
 
-        await supabase.from('almacenamiento').upsert({
-          id_usuario: activeUserId,
-          espacio_usado_bytes: totalBytes,
-          ultima_actualizacion: new Date().toISOString()
-        }, { onConflict: 'id_usuario' });
-      } catch (e) {}
+      if (error || !data) {
+        const { data: signed } = await supabase.storage.from(BUCKET).createSignedUrl(filePath, 3600);
+        const url = signed?.signedUrl || supabase.storage.from(BUCKET).getPublicUrl(filePath).data?.publicUrl;
+        if (url) {
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = fileName || 'archivo';
+          a.target = '_blank';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          return true;
+        }
+        throw error || new Error('No se pudo descargar el archivo.');
+      }
+
+      const blobUrl = URL.createObjectURL(data);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = fileName || 'archivo';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+      return true;
+    } catch (err) {
+      console.error('Error al descargar archivo:', err);
+      throw err;
     }
+  },
 
+  // ===========================================================================
+  // PAPELERA
+  // ===========================================================================
+
+  /**
+   * Mover archivo a la papelera (borrado lógico: no se elimina de Storage)
+   */
+  async moveToTrash(fileId) {
+    const { error } = await supabase
+      .from('archivo')
+      .update({ eliminado: true, fecha_eliminacion: new Date().toISOString() })
+      .eq('id_archivo', fileId);
+
+    if (error) {
+      console.error('Error al mover a la papelera:', error.message);
+      throw new Error(`No se pudo mover a la papelera: ${error.message}`);
+    }
     return true;
   },
 
+  /**
+   * Compatibilidad con el Dashboard actual: "eliminar" ahora manda a la papelera
+   */
+  async deleteFile(userId, fileId, filePath) {
+    return this.moveToTrash(fileId);
+  },
+
+  /**
+   * Obtener archivos en la papelera con los días que les quedan
+   */
+  async getTrashFiles(userId, retentionDays = 30) {
+    const activeUserId = await resolveUserId(userId);
+    if (!activeUserId) return [];
+
+    const { data, error } = await supabase
+      .from('archivo')
+      .select('*')
+      .eq('id_usuario', activeUserId)
+      .eq('eliminado', true)
+      .order('fecha_eliminacion', { ascending: false });
+
+    if (error) {
+      console.error('Error al consultar la papelera:', error.message);
+      return [];
+    }
+
+    return (data || []).map(f => {
+      const archivo = mapArchivo(f);
+      let daysLeft = null;
+      if (retentionDays && f.fecha_eliminacion) {
+        const expira = new Date(f.fecha_eliminacion).getTime() + retentionDays * DIA_MS;
+        daysLeft = Math.max(0, Math.ceil((expira - Date.now()) / DIA_MS));
+      }
+      return {
+        ...archivo,
+        deleted: f.fecha_eliminacion ? formatDate(f.fecha_eliminacion) : '',
+        daysLeft
+      };
+    });
+  },
+
+  /**
+   * Restaurar archivo desde la papelera
+   */
+  async restoreFromTrash(fileId) {
+    const { error } = await supabase
+      .from('archivo')
+      .update({ eliminado: false, fecha_eliminacion: null })
+      .eq('id_archivo', fileId);
+
+    if (error) {
+      console.error('Error al restaurar archivo:', error.message);
+      throw new Error(`No se pudo restaurar: ${error.message}`);
+    }
+    return true;
+  },
+
+  /**
+   * Eliminar definitivamente: borra de Storage (archivo + versiones) y de la BD
+   */
+  async deletePermanently(userId, fileId, filePath) {
+    const activeUserId = await resolveUserId(userId);
+
+    // 1. Rutas de todas las versiones antiguas
+    const { data: versiones } = await supabase
+      .from('archivo_version')
+      .select('ruta_storage')
+      .eq('id_archivo', fileId);
+
+    const rutas = [filePath, ...(versiones || []).map(v => v.ruta_storage)].filter(Boolean);
+
+    // 2. Eliminar binarios de Storage
+    if (rutas.length > 0) {
+      const { error: stErr } = await supabase.storage.from(BUCKET).remove(rutas);
+      if (stErr) console.error('Error al eliminar de Storage:', stErr.message);
+    }
+
+    // 3. Eliminar registro (las versiones se borran por ON DELETE CASCADE)
+    const { error } = await supabase.from('archivo').delete().eq('id_archivo', fileId);
+    if (error) {
+      console.error('Error al eliminar de public.archivo:', error.message);
+      throw new Error(`No se pudo eliminar definitivamente: ${error.message}`);
+    }
+
+    // 4. Recalcular almacenamiento usado
+    await recalcularAlmacenamiento(activeUserId);
+    return true;
+  },
+
+  /**
+   * Eliminar definitivamente los archivos que superaron los días de retención
+   */
+  async purgeExpiredTrash(userId, retentionDays) {
+    if (!retentionDays) return 0; // retención ilimitada
+
+    const activeUserId = await resolveUserId(userId);
+    if (!activeUserId) return 0;
+
+    const limite = new Date(Date.now() - retentionDays * DIA_MS).toISOString();
+
+    const { data, error } = await supabase
+      .from('archivo')
+      .select('id_archivo, ruta_storage')
+      .eq('id_usuario', activeUserId)
+      .eq('eliminado', true)
+      .lt('fecha_eliminacion', limite);
+
+    if (error || !data) return 0;
+
+    for (const f of data) {
+      try {
+        await this.deletePermanently(activeUserId, f.id_archivo, f.ruta_storage);
+      } catch (e) {
+        console.warn('No se pudo purgar archivo:', f.id_archivo, e);
+      }
+    }
+    return data.length;
+  },
+
+  // ===========================================================================
+  // HISTORIAL DE VERSIONES
+  // ===========================================================================
+
+  /**
+   * Obtener versiones antiguas de un archivo (de la más reciente a la más vieja)
+   */
+  async getVersions(fileId) {
+    const { data, error } = await supabase
+      .from('archivo_version')
+      .select('*')
+      .eq('id_archivo', fileId)
+      .order('fecha_creacion', { ascending: false });
+
+    if (error) {
+      console.error('Error al consultar versiones:', error.message);
+      return [];
+    }
+
+    return (data || []).map(v => ({
+      id: v.id_version,
+      size_bytes: parseInt(v.tamano || 0, 10),
+      size: formatBytes(parseInt(v.tamano || 0, 10)),
+      date: formatDate(v.fecha_creacion),
+      file_path: v.ruta_storage
+    }));
+  },
+
+  /**
+   * Restaurar una versión antigua: la actual pasa al historial y la elegida pasa a ser la actual.
+   * Devuelve el archivo actualizado para refrescar la lista del Dashboard.
+   */
+  async restoreVersion(userId, file, version) {
+    const activeUserId = await resolveUserId(userId);
+
+    // 1. Guardar la versión actual en el historial
+    const { error: insertError } = await supabase.from('archivo_version').insert([{
+      id_archivo: file.id,
+      id_usuario: activeUserId,
+      tamano: file.size_bytes,
+      ruta_storage: file.file_path
+    }]);
+
+    if (insertError) {
+      throw new Error(`No se pudo guardar la versión actual: ${insertError.message}`);
+    }
+
+    // 2. La versión elegida pasa a ser la actual
+    const { data: updated, error: updateError } = await supabase
+      .from('archivo')
+      .update({
+        ruta_storage: version.file_path,
+        tamano: version.size_bytes,
+        fecha_modificacion: new Date().toISOString()
+      })
+      .eq('id_archivo', file.id)
+      .select();
+
+    if (updateError) {
+      throw new Error(`No se pudo restaurar la versión: ${updateError.message}`);
+    }
+
+    // 3. Quitarla del historial (ya es la actual)
+    await supabase.from('archivo_version').delete().eq('id_version', version.id);
+
+    return mapArchivo(updated[0]);
+  },
+
   async toggleShareFile(fileId, currentSharedState) {
-    // Si la tabla no tiene columna 'compartido', mantenemos la simulación en el frontend
     return true;
   }
 };

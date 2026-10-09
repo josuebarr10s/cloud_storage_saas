@@ -41,7 +41,6 @@ export const RegisterModal = ({ isOpen, onClose, onRegisterSuccess }) => {
     setErrors({});
   };
 
-  // Función para evaluar la fortaleza de la contraseña
   const getPasswordStrength = (pass) => {
     if (!pass) return { score: 0, label: 'Vacía', color: 'var(--border-color)' };
     let score = 0;
@@ -109,7 +108,6 @@ export const RegisterModal = ({ isOpen, onClose, onRegisterSuccess }) => {
     <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'var(--bg-overlay)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
       <div style={{ background: 'var(--bg-card)', width: '100%', maxWidth: '500px', borderRadius: 'var(--radius-2xl)', boxShadow: 'var(--shadow-modal)', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         
-        {/* Header */}
         <div style={{ padding: '1.25rem 1.75rem', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-subtle)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div style={{ width: '36px', height: '36px', borderRadius: 'var(--radius-sm)', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
@@ -123,7 +121,6 @@ export const RegisterModal = ({ isOpen, onClose, onRegisterSuccess }) => {
           <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={20} /></button>
         </div>
 
-        {/* Body */}
         <div style={{ padding: '1.75rem', overflowY: 'auto', maxHeight: '75vh' }}>
           
           <button type="button" onClick={handleAutofillTestData} style={{ width: '100%', padding: '8px', marginBottom: '15px', background: 'var(--primary-light)', border: '1px dashed var(--primary)', color: 'var(--primary)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', fontSize: '0.85rem' }}>
@@ -165,7 +162,6 @@ export const RegisterModal = ({ isOpen, onClose, onRegisterSuccess }) => {
                 </button>
               </div>
               
-              {/* Barra indicadora visual de contraseña */}
               {password && (
                 <div style={{ display: 'flex', gap: '4px', marginTop: '6px' }}>
                   {[1, 2, 3, 4].map((level) => (

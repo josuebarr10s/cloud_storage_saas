@@ -1,5 +1,5 @@
 import React from 'react';
-import { Cloud, Globe, Shield, Heart } from 'lucide-react';
+import { Globe, Shield, Heart } from 'lucide-react';
 
 export const LandingFooter = () => {
   return (
@@ -23,20 +23,16 @@ export const LandingFooter = () => {
           {/* Col 1: Brand Info */}
           <div style={{ maxWidth: '320px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '1.25rem' }}>
-              <div
+              <img
+                src="/logo.png"
+                alt="Nimbox Logo"
                 style={{
                   width: '36px',
                   height: '36px',
-                  borderRadius: 'var(--radius-sm)',
-                  background: 'var(--primary)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'var(--text-white)',
+                  objectFit: 'contain',
+                  filter: 'drop-shadow(0 2px 8px rgba(99, 102, 241, 0.3))'
                 }}
-              >
-                <Cloud size={20} />
-              </div>
+              />
               <span style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--text-white)', letterSpacing: '-0.02em' }}>
                 Nimbox
               </span>

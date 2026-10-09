@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, ShieldCheck, CreditCard, Lock, Sparkles, CheckCircle2, Layers, Loader2 } from 'lucide-react';
+import { X, ShieldCheck, Lock, Sparkles, CheckCircle2, Loader2 } from 'lucide-react';
 import { plansService } from '../../services/plansService.js';
 
 const DEFAULT_PLANS = [
@@ -9,8 +9,7 @@ const DEFAULT_PLANS = [
 ];
 
 export const PaymentModal = ({ isOpen, onClose, user, selectedPlan, billingCycle = 'monthly', onPaymentSuccess }) => {
-  const [currentStep, setCurrentStep] = useState(1); // 1 = Tarjeta, 2 = Procesando, 3 = Éxito
-  
+  const [currentStep, setCurrentStep] = useState(1);
   const [activePlan, setActivePlan] = useState(selectedPlan || DEFAULT_PLANS[1]);
   const [activeBillingCycle, setActiveBillingCycle] = useState(billingCycle || 'monthly');
 
@@ -18,13 +17,6 @@ export const PaymentModal = ({ isOpen, onClose, user, selectedPlan, billingCycle
   const [cardNumber, setCardNumber] = useState('');
   const [cardExpiry, setCardExpiry] = useState('');
   const [cardCvc, setCardCvc] = useState('');
-  const handleExpiryChange = (e) => {
-    let text = e.target.value.replace(/\D/g, '');
-    if (text.length >= 3) {
-      text = text.slice(0, 2) + '/' + text.slice(2, 4);
-    }
-    setCardExpiry(text);
-  };
   const [errors, setErrors] = useState({});
   const [processingStatus, setProcessingStatus] = useState('');
 
@@ -34,7 +26,7 @@ export const PaymentModal = ({ isOpen, onClose, user, selectedPlan, billingCycle
       setErrors({});
       if (selectedPlan) setActivePlan(selectedPlan);
       if (billingCycle) setActiveBillingCycle(billingCycle);
-      if (user?.name) setCardName(user.name); // Auto-llena el nombre del usuario logueado
+      if (user?.name) setCardName(user.name);
     }
   }, [isOpen, selectedPlan, billingCycle, user]);
 
@@ -52,6 +44,15 @@ export const PaymentModal = ({ isOpen, onClose, user, selectedPlan, billingCycle
     setErrors({});
   };
 
+  // Función para formatear la fecha con barra automática
+  const handleExpiryChange = (e) => {
+    let text = e.target.value.replace(/\D/g, '');
+    if (text.length >= 3) {
+      text = text.slice(0, 2) + '/' + text.slice(2, 4);
+    }
+    setCardExpiry(text);
+  };
+
   const validatePayment = () => {
     const errs = {};
     if (!cardName.trim()) errs.cardName = 'Ingresa el titular';
@@ -64,23 +65,17 @@ export const PaymentModal = ({ isOpen, onClose, user, selectedPlan, billingCycle
 
   const handleProcessPayment = () => {
     if (!validatePayment()) return;
-    
-    if (!user) {
-      alert("Error: No hay usuario autenticado.");
-      return;
-    }
+    if (!user) { alert("Error: No hay usuario autenticado."); return; }
 
     setCurrentStep(2);
     setProcessingStatus('Conectando con el banco...');
 
-    // Simulamos el proceso de pago
     setTimeout(() => setProcessingStatus('Autorizando tarjeta...'), 1000);
     setTimeout(() => setProcessingStatus('¡Pago aprobado!'), 2000);
 
     setTimeout(async () => {
       try {
         const cardLast4 = cardNumber.replace(/\s/g, '').slice(-4) || '4242';
-        // Aquí llamas a tu servicio real si lo tienes
         await plansService.createSubscription({
           userId: user.id,
           planId: activePlan.id_plan,
@@ -91,7 +86,7 @@ export const PaymentModal = ({ isOpen, onClose, user, selectedPlan, billingCycle
         });
         setCurrentStep(3);
       } catch (err) {
-        setCurrentStep(3); // Para la demo, forzamos el éxito
+        setCurrentStep(3);
       }
     }, 2500);
   };
@@ -141,7 +136,7 @@ export const PaymentModal = ({ isOpen, onClose, user, selectedPlan, billingCycle
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
                   <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>MM/AA</label>
-                  <input type="text" value={cardExpiry} onChange={handleExpiryChange} placeholder="MM/AAAA" maxLength={5} style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid var(--border-color)' }}/>
+                  <input type="text" value={cardExpiry} onChange={handleExpiryChange} placeholder="MM/AA" maxLength={5} style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid var(--border-color)' }}/>
                 </div>
                 <div>
                   <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>CVC</label>

@@ -21,7 +21,6 @@ export const LandingNavbar = ({ onLoginClick, onRegisterClick, currentUser }) =>
     { label: 'Preguntas Frecuentes', href: '#faq' },
   ];
 
-  // Extraer solo el primer nombre para el saludo
   const primerNombre = currentUser ? currentUser.name.split(' ')[0] : '';
 
   return (
@@ -49,7 +48,6 @@ export const LandingNavbar = ({ onLoginClick, onRegisterClick, currentUser }) =>
           padding: 0,
         }}
       >
-        {/* Brand Logo */}
         <a href="#" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
           <div
             style={{
@@ -78,7 +76,6 @@ export const LandingNavbar = ({ onLoginClick, onRegisterClick, currentUser }) =>
           </span>
         </a>
 
-        {/* Desktop Navigation Links */}
         <nav
           style={{
             display: 'none',
@@ -94,7 +91,6 @@ export const LandingNavbar = ({ onLoginClick, onRegisterClick, currentUser }) =>
           ))}
         </nav>
 
-        {/* Desktop Actions */}
         <div
           style={{
             display: 'none',
@@ -103,7 +99,6 @@ export const LandingNavbar = ({ onLoginClick, onRegisterClick, currentUser }) =>
           }}
           className="desktop-actions"
         >
-          {/* Lógica para ocultar el botón de login si ya hay usuario */}
           {currentUser ? (
             <span style={{ fontSize: '0.9rem', color: 'var(--text-main)', fontWeight: 600, marginRight: '8px' }}>
               Hola, {primerNombre}
@@ -119,7 +114,7 @@ export const LandingNavbar = ({ onLoginClick, onRegisterClick, currentUser }) =>
           )}
 
           <button
-            onClick={onRegisterClick}
+            onClick={() => onRegisterClick(null)}
             className="btn-primary"
             style={{ padding: '0.65rem 1.35rem', fontSize: '0.9rem', borderRadius: 'var(--radius-sm)' }}
           >
@@ -127,7 +122,6 @@ export const LandingNavbar = ({ onLoginClick, onRegisterClick, currentUser }) =>
           </button>
         </div>
 
-        {/* Mobile Hamburger Button */}
         <button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           className="mobile-toggle"
@@ -147,7 +141,6 @@ export const LandingNavbar = ({ onLoginClick, onRegisterClick, currentUser }) =>
         </button>
       </div>
 
-      {/* Mobile Menu Dropdown */}
       {mobileMenuOpen && (
         <div
           style={{
@@ -169,7 +162,6 @@ export const LandingNavbar = ({ onLoginClick, onRegisterClick, currentUser }) =>
           ))}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '8px' }}>
             
-            {/* Lógica versión móvil */}
             {currentUser ? (
               <div style={{ padding: '8px 0', fontSize: '1rem', fontWeight: 600, color: 'var(--text-main)', textAlign: 'center' }}>
                 Hola, {primerNombre}
@@ -190,7 +182,7 @@ export const LandingNavbar = ({ onLoginClick, onRegisterClick, currentUser }) =>
             <button
               onClick={() => {
                 setMobileMenuOpen(false);
-                onRegisterClick();
+                onRegisterClick(null);
               }}
               className="btn-primary"
               style={{ width: '100%', justifyContent: 'center' }}

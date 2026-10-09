@@ -157,11 +157,14 @@ CREATE TABLE IF NOT EXISTS public.carpeta (
   id_usuario UUID NOT NULL,
   id_carpeta_padre UUID,
   nombre CHARACTER VARYING NOT NULL,
+  color CHARACTER VARYING DEFAULT 'purple',
   fecha_creacion TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   CONSTRAINT carpeta_pkey PRIMARY KEY (id_carpeta),
   CONSTRAINT carpeta_id_usuario_fkey FOREIGN KEY (id_usuario) REFERENCES public.usuario(id_usuario) ON DELETE CASCADE,
   CONSTRAINT carpeta_id_carpeta_padre_fkey FOREIGN KEY (id_carpeta_padre) REFERENCES public.carpeta(id_carpeta) ON DELETE CASCADE
 );
+
+ALTER TABLE public.carpeta ADD COLUMN IF NOT EXISTS color CHARACTER VARYING DEFAULT 'purple';
 
 ALTER TABLE public.carpeta ENABLE ROW LEVEL SECURITY;
 
@@ -222,3 +225,25 @@ CREATE POLICY "Permitir eliminacion en nimbox-files"
 CREATE POLICY "Permitir actualizacion en nimbox-files"
   ON storage.objects FOR UPDATE
   USING (bucket_id = 'nimbox-files');
+
+-- Papelera: marcar en vez de borrar
+ALTER TABLE public.archivo
+  ADD COLUMN IF NOT EXISTS eliminado BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS fecha_eliminacion TIMESTAMP WITH TIME ZONE;
+
+-- Historial de versiones
+CREATE TABLE IF NOT EXISTS public.archivo_version (
+  id_version UUID NOT NULL DEFAULT gen_random_uuid(),
+  id_archivo UUID NOT NULL,
+  id_usuario UUID NOT NULL,
+  tamano BIGINT NOT NULL DEFAULT 0,
+  ruta_storage CHARACTER VARYING NOT NULL,
+  fecha_creacion TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  CONSTRAINT archivo_version_pkey PRIMARY KEY (id_version),
+  CONSTRAINT archivo_version_id_archivo_fkey FOREIGN KEY (id_archivo)
+    REFERENCES public.archivo(id_archivo) ON DELETE CASCADE
+);
+
+ALTER TABLE public.archivo_version ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Usuario gestiona sus versiones"
+  ON public.archivo_version FOR ALL USING (auth.uid() = id_usuario);
