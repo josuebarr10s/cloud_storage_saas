@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Folder, FolderPlus, ArrowRight, X, Check, Home, CornerDownRight } from 'lucide-react';
-import { filesService } from '../../services/filesService.js';
+import { filesService, getDescendantFolderIds } from '../../services/filesService.js';
 
 export const MoveItemModal = ({ isOpen, onClose, item, currentUser, onMoveSuccess, onNotification }) => {
   const [folders, setFolders] = useState([]);
@@ -15,10 +15,11 @@ export const MoveItemModal = ({ isOpen, onClose, item, currentUser, onMoveSucces
       setIsLoading(true);
       try {
         const allFolders = await filesService.getAllUserFolders(currentUser?.id);
-        // Exclude the item itself if it's a folder (cannot move inside itself)
-        const validFolders = item.isFolder 
-          ? allFolders.filter(f => f.id !== item.id) 
-          : allFolders;
+        // Si es carpeta, excluir la carpeta misma y todas sus subcarpetas (no se puede mover dentro de ellas)
+        const excluidas = item.isFolder
+          ? [item.id, ...getDescendantFolderIds(allFolders, item.id)]
+          : [];
+        const validFolders = allFolders.filter(f => !excluidas.includes(f.id));
         setFolders(validFolders);
         // Set initial selected folder to item's current parent folder or null
         setSelectedFolderId(item.isFolder ? item.parentId : item.folder_id);

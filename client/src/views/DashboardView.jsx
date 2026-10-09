@@ -171,14 +171,18 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
     setIsCreateFolderOpen(true);
   };
 
-  // Eliminar carpeta
+  // Eliminar carpeta (sus archivos se mandan a la papelera)
   const handleDeleteFolder = async (folder) => {
-    if (!window.confirm(`¿Eliminar la carpeta "${folder.name}" y todos sus contenidos?`)) return;
+    if (!window.confirm(`¿Eliminar la carpeta "${folder.name}" y sus subcarpetas? Los archivos que contiene se moverán a la papelera.`)) return;
     try {
-      await filesService.deleteFolder(folder.id);
-      setFolders(prev => prev.filter(f => f.id !== folder.id));
-      setAllFolders(prev => prev.filter(f => f.id !== folder.id));
-      onNotification && onNotification(`Carpeta "${folder.name}" eliminada.`, 'info');
+      const enviados = await filesService.deleteFolder(folder.id, currentUser?.id);
+      await loadDashboardData();
+      onNotification && onNotification(
+        enviados > 0
+          ? `Carpeta "${folder.name}" eliminada. ${enviados} ${enviados === 1 ? 'archivo se movió' : 'archivos se movieron'} a la papelera.`
+          : `Carpeta "${folder.name}" eliminada.`,
+        'info'
+      );
     } catch (err) {
       onNotification && onNotification(`Error al eliminar carpeta: ${err.message}`, 'error');
     }

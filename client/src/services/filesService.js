@@ -122,6 +122,26 @@ export function getRetentionDays(planName = '') {
   return 30;
 }
 
+/**
+ * Devuelve los IDs de todas las subcarpetas (hijas, nietas, etc.) de una carpeta.
+ * Recibe la lista de carpetas ya mapeadas (con parentId).
+ */
+export function getDescendantFolderIds(folders, folderId) {
+  const ids = [];
+  const pendientes = [folderId];
+
+  while (pendientes.length > 0) {
+    const actual = pendientes.pop();
+    folders.forEach(f => {
+      if (f.parentId === actual && f.id !== folderId && !ids.includes(f.id)) {
+        ids.push(f.id);
+        pendientes.push(f.id);
+      }
+    });
+  }
+  return ids;
+}
+
 export const filesService = {
   /**
    * Obtener los archivos activos del usuario (sin los de la papelera)
@@ -294,9 +314,38 @@ export const filesService = {
   },
 
   /**
-   * Eliminar una carpeta (y sus subcarpetas/archivos contenidos)
+   * Eliminar una carpeta y sus subcarpetas.
+   * Los archivos que contenían se mandan a la papelera (en la raíz) en vez de borrarse.
    */
-  async deleteFolder(folderId) {
+  async deleteFolder(folderId, userId) {
+    const activeUserId = await resolveUserId(userId);
+    const todas = await this.getAllUserFolders(activeUserId);
+    const ids = [folderId, ...getDescendantFolderIds(todas, folderId)];
+
+    // 1. Archivos activos dentro de la carpeta o sus subcarpetas -> papelera
+    const { data: enviados, error: trashError } = await supabase
+      .from('archivo')
+      .update({ eliminado: true, fecha_eliminacion: new Date().toISOString() })
+      .in('id_carpeta', ids)
+      .eq('eliminado', false)
+      .select('id_archivo');
+
+    if (trashError) {
+      throw new Error(`No se pudieron mover los archivos a la papelera: ${trashError.message}`);
+    }
+
+    // 2. Sacar todos los archivos de esas carpetas (incluidos los que ya estaban en la papelera)
+    //    para que el ON DELETE CASCADE no los borre junto con la carpeta
+    const { error: detachError } = await supabase
+      .from('archivo')
+      .update({ id_carpeta: null })
+      .in('id_carpeta', ids);
+
+    if (detachError) {
+      throw new Error(`No se pudieron sacar los archivos de la carpeta: ${detachError.message}`);
+    }
+
+    // 3. Eliminar la carpeta (las subcarpetas se borran por ON DELETE CASCADE)
     const { error } = await supabase
       .from('carpeta')
       .delete()
@@ -306,7 +355,8 @@ export const filesService = {
       console.error('Error al eliminar carpeta:', error.message);
       throw new Error(`No se pudo eliminar la carpeta: ${error.message}`);
     }
-    return true;
+
+    return (enviados || []).length;
   },
 
   /**
@@ -335,6 +385,23 @@ export const filesService = {
       throw new Error('No puedes mover una carpeta dentro de sí misma.');
     }
 
+    // Evitar ciclos: el destino no puede ser una subcarpeta de la carpeta que se mueve.
+    // Se sube desde el destino hasta la raíz; si en el camino aparece la carpeta, es inválido.
+    let currentId = targetParentId;
+    const visitados = new Set();
+    while (currentId && !visitados.has(currentId)) {
+      if (currentId === folderId) {
+        throw new Error('No puedes mover una carpeta dentro de una de sus subcarpetas.');
+      }
+      visitados.add(currentId);
+      const { data: padre } = await supabase
+        .from('carpeta')
+        .select('id_carpeta_padre')
+        .eq('id_carpeta', currentId)
+        .maybeSingle();
+      currentId = padre?.id_carpeta_padre || null;
+    }
+
     const { data, error } = await supabase
       .from('carpeta')
       .update({ id_carpeta_padre: targetParentId || null })
@@ -355,9 +422,13 @@ export const filesService = {
   async getFolderPath(folderId) {
     if (!folderId) return [];
     const path = [];
+    const visitados = new Set();
     let currentId = folderId;
 
-    while (currentId) {
+    // "visitados" evita un ciclo infinito si alguna carpeta quedó dentro de su propia subcarpeta
+    while (currentId && !visitados.has(currentId)) {
+      visitados.add(currentId);
+
       const { data, error } = await supabase
         .from('carpeta')
         .select('id_carpeta, nombre, id_carpeta_padre')
@@ -432,14 +503,23 @@ export const filesService = {
 
     const ahora = new Date().toISOString();
 
-    // 3. ¿Ya existe un archivo activo con el mismo nombre? -> nueva versión
-    const { data: existente } = await supabase
+    // 3. ¿Ya existe un archivo activo con el mismo nombre EN ESTA MISMA CARPETA? -> nueva versión
+    let busqueda = supabase
       .from('archivo')
       .select('*')
       .eq('id_usuario', activeUserId)
       .eq('nombre', file.name)
-      .eq('eliminado', false)
-      .maybeSingle();
+      .eq('eliminado', false);
+
+    busqueda = currentFolderId
+      ? busqueda.eq('id_carpeta', currentFolderId)
+      : busqueda.is('id_carpeta', null);
+
+    const { data: coincidencias } = await busqueda
+      .order('fecha_modificacion', { ascending: false })
+      .limit(1);
+
+    const existente = coincidencias?.[0] || null;
 
     let savedRecord = null;
     let isNewVersion = false;
@@ -464,8 +544,7 @@ export const filesService = {
           ruta_storage: uploadedPath,
           tamano: file.size,
           tipo: type,
-          fecha_modificacion: ahora,
-          id_carpeta: currentFolderId || existente.id_carpeta || null
+          fecha_modificacion: ahora
         })
         .eq('id_archivo', existente.id_archivo)
         .select();
