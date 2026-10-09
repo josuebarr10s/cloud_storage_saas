@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Cloud, Menu, X, ArrowRight } from 'lucide-react';
 
-export const LandingNavbar = ({ onLoginClick, onRegisterClick }) => {
+export const LandingNavbar = ({ onLoginClick, onRegisterClick, currentUser }) => {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -20,6 +20,9 @@ export const LandingNavbar = ({ onLoginClick, onRegisterClick }) => {
     { label: 'Seguridad', href: '#security' },
     { label: 'Preguntas Frecuentes', href: '#faq' },
   ];
+
+  // Extraer solo el primer nombre para el saludo
+  const primerNombre = currentUser ? currentUser.name.split(' ')[0] : '';
 
   return (
     <header
@@ -100,19 +103,27 @@ export const LandingNavbar = ({ onLoginClick, onRegisterClick }) => {
           }}
           className="desktop-actions"
         >
-          <button
-            onClick={onLoginClick}
-            className="btn-ghost"
-            style={{ fontSize: '0.9rem', color: 'var(--text-strong)', fontWeight: 600 }}
-          >
-            Iniciar Sesión
-          </button>
+          {/* Lógica para ocultar el botón de login si ya hay usuario */}
+          {currentUser ? (
+            <span style={{ fontSize: '0.9rem', color: 'var(--text-main)', fontWeight: 600, marginRight: '8px' }}>
+              Hola, {primerNombre}
+            </span>
+          ) : (
+            <button
+              onClick={onLoginClick}
+              className="btn-ghost"
+              style={{ fontSize: '0.9rem', color: 'var(--text-strong)', fontWeight: 600 }}
+            >
+              Iniciar Sesión
+            </button>
+          )}
+
           <button
             onClick={onRegisterClick}
             className="btn-primary"
             style={{ padding: '0.65rem 1.35rem', fontSize: '0.9rem', borderRadius: 'var(--radius-sm)' }}
           >
-            Comenzar ahora <ArrowRight size={16} />
+            {currentUser ? 'Elegir Plan' : 'Comenzar ahora'} <ArrowRight size={16} />
           </button>
         </div>
 
@@ -157,16 +168,25 @@ export const LandingNavbar = ({ onLoginClick, onRegisterClick }) => {
             </a>
           ))}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '8px' }}>
-            <button
-              onClick={() => {
-                setMobileMenuOpen(false);
-                onLoginClick();
-              }}
-              className="btn-secondary"
-              style={{ width: '100%', justifyContent: 'center' }}
-            >
-              Iniciar Sesión
-            </button>
+            
+            {/* Lógica versión móvil */}
+            {currentUser ? (
+              <div style={{ padding: '8px 0', fontSize: '1rem', fontWeight: 600, color: 'var(--text-main)', textAlign: 'center' }}>
+                Hola, {primerNombre}
+              </div>
+            ) : (
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  onLoginClick();
+                }}
+                className="btn-secondary"
+                style={{ width: '100%', justifyContent: 'center' }}
+              >
+                Iniciar Sesión
+              </button>
+            )}
+
             <button
               onClick={() => {
                 setMobileMenuOpen(false);
@@ -175,7 +195,7 @@ export const LandingNavbar = ({ onLoginClick, onRegisterClick }) => {
               className="btn-primary"
               style={{ width: '100%', justifyContent: 'center' }}
             >
-              Comenzar ahora <ArrowRight size={16} />
+              {currentUser ? 'Elegir Plan' : 'Comenzar ahora'} <ArrowRight size={16} />
             </button>
           </div>
         </div>

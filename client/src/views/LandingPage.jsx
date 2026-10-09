@@ -11,7 +11,7 @@ import { FAQSection } from '../components/landing/FAQSection.jsx';
 import { LandingFooter } from '../components/landing/LandingFooter.jsx';
 import { Toast } from '../components/Toast.jsx';
 
-export const LandingPage = ({ onOpenCheckout, onOpenLogin }) => {
+export const LandingPage = ({ onOpenCheckout, onOpenLogin, currentUser }) => {
   const [toast, setToast] = useState(null);
 
   const showNotification = (message, type = 'info') => {
@@ -48,6 +48,7 @@ export const LandingPage = ({ onOpenCheckout, onOpenLogin }) => {
       <LandingNavbar
         onLoginClick={handleLoginClick}
         onRegisterClick={handleRegisterClick}
+        currentUser={currentUser}
       />
 
       {/* 2. Hero Section with Interactive Mockup */}
