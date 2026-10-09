@@ -94,6 +94,7 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
   // Transaction Result Details
   const [transactionId, setTransactionId] = useState('');
   const [transactionDate, setTransactionDate] = useState('');
+  const [nuevoUsuario, setNuevoUsuario] = useState(null);
 
   // Load plans from Supabase if available
   useEffect(() => {
@@ -312,22 +313,16 @@ export const PaymentModal = ({ isOpen, onClose, selectedPlan, billingCycle = 'mo
         cardLast4: cardLast4
       });
 
+      // 3. Leer el perfil real (con id y plan desde la BD) para entrar al dashboard
+      const perfil = await authService.getCurrentUser();
+      setNuevoUsuario(perfil || registeredUser);
+
       setCurrentStep(4);
     }, 3200);
   };
 
   const handleFinishAndGoToDashboard = () => {
-    const user = {
-      name: fullName,
-      email: email.toLowerCase().trim(),
-      password: password,
-      plan: plan.nombre,
-      planId: plan.id_plan,
-      storageQuota: quotaDisplay,
-      billingCycle: activeBillingCycle,
-      transactionId: transactionId
-    };
-    onPaymentSuccess && onPaymentSuccess(user);
+    onPaymentSuccess && onPaymentSuccess(nuevoUsuario);
     onClose();
   };
 

@@ -60,7 +60,9 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
     setIsLoadingFolders(true);
 
     try {
-      await filesService.purgeExpiredTrash(currentUser?.id, retentionDays);
+      // Se limpia la papelera en segundo plano para no retrasar la carga del dashboard
+      filesService.purgeExpiredTrash(currentUser?.id, retentionDays)
+        .catch(err => console.warn('No se pudo purgar la papelera:', err));
       
       const [userFiles, userFolders, userAllFolders, path] = await Promise.all([
         filesService.getUserFiles(currentUser?.id),
@@ -110,9 +112,9 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
         : `${(totalBytes / (1024 * 1024)).toFixed(1)} MB`)
     : '0 MB';
 
-  const quotaBytes = planName.toLowerCase().includes('básico') 
-    ? 10 * 1024 * 1024 * 1024 
-    : 500 * 1024 * 1024 * 1024;
+  // Límite real del plan (viene de authService); si no está, se estima por el nombre del plan
+  const quotaBytes = currentUser?.storageQuotaBytes
+    || (planName.toLowerCase().includes('básico') ? 10 * 1024 ** 3 : 500 * 1024 ** 3);
   const percentUsed = Math.min(100, Math.max(0.1, ((totalBytes / quotaBytes) * 100).toFixed(1)));
 
   // Subida de archivos (en la carpeta actual)
@@ -389,7 +391,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
           {/* Logo */}
           <div
             style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
-            onClick={() => { setCurrentFolderId(null); setActiveCategory('all'); }}
+            onClick={() => { setCurrentFolderId(null); setActiveTab('all'); }}
             title="Ir al inicio de Nimbox"
           >
             <img

@@ -8,6 +8,33 @@ const getRolNombre = (idRol) => ROLES[idRol] || 'Cliente';
 const MENSAJE_SUSPENDIDO = 'Tu cuenta está suspendida. Contacta al administrador de Nimbox.';
 const estaSuspendido = (dbUser) => dbUser?.estado === 'suspendido';
 
+const UUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+const GB = 1024 ** 3;
+const TB = 1024 ** 4;
+
+const normalizar = (texto = '') => texto.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+/**
+ * Límite aproximado según el nombre del plan.
+ * Solo se usa como respaldo si no se pudo leer el límite real de la tabla public.plan.
+ */
+function cuotaPorNombre(planName) {
+  const p = normalizar(planName);
+  if (p.includes('basico')) return 10 * GB;
+  if (p.includes('empresa')) return 2 * TB;
+  return 500 * GB;
+}
+
+/**
+ * Convierte bytes a texto legible: 10 GB, 500 GB, 2 TB...
+ */
+function formatCuota(bytes) {
+  const n = Number(bytes) || 0;
+  if (n <= 0) return 'Ilimitado';
+  if (n >= TB) return `${parseFloat((n / TB).toFixed(1))} TB`;
+  return `${Math.round(n / GB)} GB`;
+}
+
 /**
  * Cierra la sesión de Supabase y limpia el usuario guardado localmente
  */
@@ -18,24 +45,79 @@ async function cerrarSesionLocal() {
   localStorage.removeItem('nimbox_current_user');
 }
 
+/**
+ * Arma el perfil completo del usuario (nombre, rol, estado y plan real) desde la BD.
+ * Devuelve { suspendido: true } si un administrador suspendió la cuenta.
+ */
+async function obtenerPerfil(authUser) {
+  let dbUser = null;
+  try {
+    const { data } = await supabase
+      .from('usuario')
+      .select('nombre, apellido, id_rol, estado, suscripcion(estado, fecha_inicio, id_plan, limite_bytes_contratado, plan(nombre, limite_almacenamiento_bytes))')
+      .eq('id_usuario', authUser.id)
+      .maybeSingle();
+    dbUser = data;
+  } catch (e) {}
+
+  if (estaSuspendido(dbUser)) {
+    return { suspendido: true };
+  }
+
+  // Suscripción vigente: la activa más reciente (o la más reciente si ninguna está activa)
+  const suscripciones = [...(dbUser?.suscripcion || [])].sort(
+    (a, b) => new Date(b.fecha_inicio) - new Date(a.fecha_inicio)
+  );
+  const activeSub = suscripciones.find(s => s.estado === 'activa') || suscripciones[0];
+
+  const planName = activeSub?.plan?.nombre || 'Pro';
+  const quotaBytes =
+    Number(activeSub?.plan?.limite_almacenamiento_bytes || activeSub?.limite_bytes_contratado || 0) ||
+    cuotaPorNombre(planName);
+
+  const fullName = dbUser
+    ? [dbUser.nombre, dbUser.apellido].filter(Boolean).join(' ')
+    : '';
+
+  return {
+    suspendido: false,
+    perfil: {
+      id: authUser.id,
+      name: fullName || authUser.user_metadata?.full_name || authUser.email.split('@')[0],
+      email: authUser.email,
+      rol: getRolNombre(dbUser?.id_rol),
+      estado: dbUser?.estado || 'activo',
+      plan: planName,
+      planId: activeSub?.id_plan || null,
+      storageQuota: formatCuota(quotaBytes),
+      storageQuotaBytes: quotaBytes
+    }
+  };
+}
+
 export const authService = {
   /**
-   * Registrar nuevo usuario en Supabase Auth y en las tablas del esquema usuario / almacenamiento / suscripcion / pago
+   * Registrar nuevo usuario en Supabase Auth y en las tablas usuario / almacenamiento.
+   * La suscripción y el pago los registra PaymentModal con plansService.createSubscription.
    */
   async signUp({ email, password, name, plan, planId, billingCycle, amountPaid, transactionId, cardLast4 }) {
     const formattedEmail = email.toLowerCase().trim();
     const nameParts = (name || '').trim().split(' ');
     const nombre = nameParts[0] || 'Usuario';
     const apellido = nameParts.slice(1).join(' ') || '';
-    
-    // Determinar límite en bytes según plan
-    let quotaBytes = 536870912000; // 500 GB por defecto (Pro)
-    const cleanPlan = (plan || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-    if (cleanPlan.includes('basico')) {
-      quotaBytes = 10737418240; // 10 GB
-    } else if (cleanPlan.includes('empresa')) {
-      quotaBytes = 10995116277760; // 10 TB
-    }
+
+    // Límite real del plan elegido, leído de la tabla public.plan
+    let quotaBytes = cuotaPorNombre(plan);
+    try {
+      let consulta = supabase.from('plan').select('limite_almacenamiento_bytes');
+      consulta = UUID_REGEX.test(planId || '')
+        ? consulta.eq('id_plan', planId)
+        : consulta.ilike('nombre', `%${plan || 'Pro'}%`);
+      const { data: planDb } = await consulta.limit(1);
+      if (planDb?.[0]?.limite_almacenamiento_bytes) {
+        quotaBytes = Number(planDb[0].limite_almacenamiento_bytes);
+      }
+    } catch (e) {}
 
     // 1. Registrar en Supabase Auth
     const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -65,9 +147,11 @@ export const authService = {
       name: name,
       email: formattedEmail,
       rol: 'Cliente',
+      estado: 'activo',
       plan: plan || 'Pro',
-      planId: planId || '22222222-2222-2222-2222-222222222222',
-      storageQuota: cleanPlan.includes('basico') ? '10 GB' : '500 GB',
+      planId: planId || null,
+      storageQuota: formatCuota(quotaBytes),
+      storageQuotaBytes: quotaBytes,
       billingCycle: billingCycle || 'monthly',
       amountPaid: amountPaid,
       transactionId: transactionId || `NMB-${Math.floor(100000 + Math.random() * 900000)}`,
@@ -87,59 +171,16 @@ export const authService = {
       console.error('Error al insertar en public.usuario:', err);
     }
 
-    // 3. Insertar registro de almacenamiento en public.almacenamiento
+    // 3. Guardar la capacidad del plan en public.almacenamiento
+    //    (onConflict: el trigger de registro ya pudo haber creado la fila con 500 GB)
     try {
       await supabase.from('almacenamiento').upsert({
         id_usuario: userId,
         capacidad_total_bytes: quotaBytes,
         espacio_usado_bytes: 0
-      });
+      }, { onConflict: 'id_usuario' });
     } catch (err) {
       console.error('Error al insertar en public.almacenamiento:', err);
-    }
-
-    // 4. Intentar vincular plan y suscripción en public.suscripcion
-    try {
-      const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
-      let planUuid = planId;
-      
-      if (!uuidRegex.test(planUuid)) {
-        const { data: dbPlans } = await supabase.from('plan').select('id_plan, nombre');
-        if (dbPlans && dbPlans.length > 0) {
-          const matched = dbPlans.find(p => p.nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().includes(cleanPlan));
-          planUuid = matched ? matched.id_plan : dbPlans[0].id_plan;
-        } else {
-          planUuid = cleanPlan.includes('basico') ? '11111111-1111-1111-1111-111111111111' : '22222222-2222-2222-2222-222222222222';
-        }
-      }
-
-      if (planUuid && uuidRegex.test(planUuid)) {
-        const fechaInicio = new Date();
-        const fechaFin = new Date();
-        fechaFin.setDate(fechaFin.getDate() + (billingCycle === 'annual' ? 365 : 30));
-
-        const { data: subData } = await supabase.from('suscripcion').insert({
-          id_usuario: userId,
-          id_plan: planUuid,
-          fecha_inicio: fechaInicio.toISOString(),
-          fecha_fin: fechaFin.toISOString(),
-          estado: 'activa',
-          precio_contratado: parseFloat(amountPaid || 12),
-          limite_bytes_contratado: quotaBytes
-        }).select();
-
-        if (subData && subData.length > 0) {
-          await supabase.from('pago').insert({
-            id_suscripcion: subData[0].id_suscripcion,
-            monto: parseFloat(amountPaid || 12),
-            metodo_pago: 'tarjeta_simulada',
-            referencia_transaccion: transactionId,
-            estado: 'completado'
-          });
-        }
-      }
-    } catch (err) {
-      console.error('Error al registrar suscripcion/pago:', err);
     }
 
     // Persistencia local para respaldo
@@ -155,7 +196,7 @@ export const authService = {
   },
 
   /**
-   * Iniciar sesión en Supabase Auth y consultar la tabla public.usuario
+   * Iniciar sesión en Supabase Auth y consultar el perfil real en la BD
    */
   async signIn({ email, password }) {
     const formattedEmail = email.toLowerCase().trim();
@@ -166,54 +207,16 @@ export const authService = {
     });
 
     if (!authError && authData?.user) {
-      let userProfile = null;
-      let dbUser = null;
-
-      try {
-        const { data } = await supabase
-          .from('usuario')
-          .select('*, suscripcion(*, plan(*))')
-          .eq('id_usuario', authData.user.id)
-          .single();
-        dbUser = data;
-      } catch (err) {}
+      const { suspendido, perfil } = await obtenerPerfil(authData.user);
 
       // Bloquear cuentas suspendidas por un administrador
-      if (estaSuspendido(dbUser)) {
+      if (suspendido) {
         await cerrarSesionLocal();
         return { user: null, error: new Error(MENSAJE_SUSPENDIDO) };
       }
 
-      if (dbUser) {
-        const fullName = [dbUser.nombre, dbUser.apellido].filter(Boolean).join(' ') || formattedEmail.split('@')[0];
-        const activeSub = dbUser.suscripcion?.find?.(s => s.estado === 'activa') || dbUser.suscripcion?.[0];
-        const planName = activeSub?.plan?.nombre || 'Pro';
-
-        userProfile = {
-          id: authData.user.id,
-          name: fullName,
-          email: formattedEmail,
-          rol: getRolNombre(dbUser.id_rol),
-          estado: dbUser.estado,
-          plan: planName,
-          planId: activeSub?.id_plan || 2,
-          storageQuota: planName.toLowerCase().includes('básico') ? '10 GB' : '500 GB'
-        };
-      }
-
-      if (!userProfile) {
-        userProfile = {
-          id: authData.user.id,
-          name: authData.user.user_metadata?.full_name || formattedEmail.split('@')[0],
-          email: formattedEmail,
-          rol: 'Cliente',
-          plan: 'Pro',
-          storageQuota: '500 GB'
-        };
-      }
-
-      localStorage.setItem('nimbox_current_user', JSON.stringify(userProfile));
-      return { user: userProfile, error: null };
+      localStorage.setItem('nimbox_current_user', JSON.stringify(perfil));
+      return { user: perfil, error: null };
     }
 
     // Fallback LocalStorage
@@ -242,35 +245,22 @@ export const authService = {
   },
 
   /**
-   * Obtener usuario actual
+   * Obtener usuario actual (se usa al recargar la página)
    */
   async getCurrentUser() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
-        const { data: dbUser } = await supabase
-          .from('usuario')
-          .select('nombre, apellido, id_rol, estado')
-          .eq('id_usuario', session.user.id)
-          .single();
+        const { suspendido, perfil } = await obtenerPerfil(session.user);
 
         // Si la cuenta fue suspendida mientras tenía la sesión abierta, se cierra
-        if (estaSuspendido(dbUser)) {
+        if (suspendido) {
           await cerrarSesionLocal();
           return null;
         }
 
-        const fullName = dbUser ? [dbUser.nombre, dbUser.apellido].filter(Boolean).join(' ') : (session.user.user_metadata?.full_name || session.user.email.split('@')[0]);
-
-        return {
-          id: session.user.id,
-          name: fullName,
-          email: session.user.email,
-          rol: getRolNombre(dbUser?.id_rol),
-          estado: dbUser?.estado || 'activo',
-          plan: session.user.user_metadata?.plan_name || 'Pro',
-          storageQuota: '500 GB'
-        };
+        localStorage.setItem('nimbox_current_user', JSON.stringify(perfil));
+        return perfil;
       }
     } catch (e) {}
 
