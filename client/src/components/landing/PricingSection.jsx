@@ -1,10 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { Check, ArrowRight } from 'lucide-react';
 import { plansService } from '../../services/plansService.js';
+import { Reveal } from './Reveal.jsx';
 
 export const PricingSection = ({ onChoosePlan }) => {
   const [billingCycle, setBillingCycle] = useState('monthly'); // 'monthly' | 'annual'
   const [plans, setPlans] = useState([]);
+  const monthlyRef = useRef(null);
+  const annualRef = useRef(null);
+  const [indicator, setIndicator] = useState({ x: 0, width: 0 });
+
+  // Posiciona la "píldora" del selector sobre el botón activo
+  useLayoutEffect(() => {
+    const updateIndicator = () => {
+      const btn = billingCycle === 'annual' ? annualRef.current : monthlyRef.current;
+      if (btn) setIndicator({ x: btn.offsetLeft, width: btn.offsetWidth });
+    };
+    updateIndicator();
+    window.addEventListener('resize', updateIndicator);
+    return () => window.removeEventListener('resize', updateIndicator);
+  }, [billingCycle]);
 
   useEffect(() => {
     async function loadPlans() {
@@ -17,65 +32,38 @@ export const PricingSection = ({ onChoosePlan }) => {
   }, []);
 
   return (
-    <section id="pricing" style={{ padding: '5.5rem 0', background: 'var(--bg-subtle)', borderTop: '1px solid var(--border-color)' }}>
+    <section id="pricing" className="landing-section" style={{ background: 'var(--bg-subtle)', borderTop: '1px solid var(--border-color)' }}>
       <div className="landing-container">
         {/* Header */}
-        <div style={{ textAlign: 'center', maxWidth: '750px', margin: '0 auto 3rem auto' }}>
-          <h2
-            style={{
-              fontSize: 'clamp(2rem, 4vw, 2.6rem)',
-              fontWeight: 800,
-              color: 'var(--text-main)',
-              letterSpacing: '-0.03em',
-              marginBottom: '0.75rem',
-            }}
-          >
-            Un plan para cada etapa
-          </h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '1.05rem', marginBottom: '2rem' }}>
+        <Reveal style={{ textAlign: 'center', maxWidth: '750px', margin: '0 auto 3.5rem auto' }}>
+          <h2 className="section-title">Un plan para cada etapa</h2>
+          <p className="section-subtitle" style={{ marginBottom: '2rem' }}>
             Empieza sin tarjeta de crédito. Escala cuando lo necesites.
           </p>
 
           {/* Billing Switch */}
-          <div
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              background: 'var(--bg-card)',
-              border: '1px solid var(--border-color)',
-              padding: '4px',
-              borderRadius: 'var(--radius-full)',
-              boxShadow: 'var(--shadow-sm)',
-              gap: '4px',
-            }}
-          >
+          <div className="billing-toggle" role="group" aria-label="Ciclo de facturación">
+            <span
+              className="billing-indicator"
+              aria-hidden="true"
+              style={{ width: `${indicator.width}px`, transform: `translateX(${indicator.x}px)` }}
+            />
             <button
+              ref={monthlyRef}
               onClick={() => setBillingCycle('monthly')}
+              aria-pressed={billingCycle === 'monthly'}
               style={{
-                padding: '6px 18px',
-                borderRadius: 'var(--radius-full)',
-                fontSize: '0.85rem',
-                fontWeight: 600,
-                background: billingCycle === 'monthly' ? 'var(--primary)' : 'transparent',
                 color: billingCycle === 'monthly' ? 'var(--text-white)' : 'var(--text-muted)',
-                transition: 'all 0.2s',
               }}
             >
               Mensual
             </button>
             <button
+              ref={annualRef}
               onClick={() => setBillingCycle('annual')}
+              aria-pressed={billingCycle === 'annual'}
               style={{
-                padding: '6px 18px',
-                borderRadius: 'var(--radius-full)',
-                fontSize: '0.85rem',
-                fontWeight: 600,
-                background: billingCycle === 'annual' ? 'var(--primary)' : 'transparent',
                 color: billingCycle === 'annual' ? 'var(--text-white)' : 'var(--text-muted)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                transition: 'all 0.2s',
               }}
             >
               <span>Anual</span>
@@ -87,30 +75,26 @@ export const PricingSection = ({ onChoosePlan }) => {
                   color: billingCycle === 'annual' ? 'var(--text-white)' : 'var(--success-hover)',
                   padding: '2px 6px',
                   borderRadius: 'var(--radius-full)',
+                  transition: 'all 0.3s ease',
                 }}
               >
                 -20%
               </span>
             </button>
           </div>
-        </div>
+        </Reveal>
 
         {/* Pricing Cards */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(310px, 1fr))',
-            gap: '24px',
-            alignItems: 'stretch',
-          }}
-        >
-          {plans.map((plan) => {
+        <div className="pricing-grid">
+          {plans.map((plan, index) => {
             const currentPrice = billingCycle === 'annual' ? plan.precioAnual : plan.precio;
 
             return (
+              <Reveal key={plan.id_plan} delay={index * 130} style={{ display: 'flex' }}>
               <div
-                key={plan.id_plan}
+                className={`pricing-card ${plan.popular ? 'is-popular' : ''}`}
                 style={{
+                  flex: 1,
                   background: plan.popular
                     ? 'linear-gradient(180deg, var(--primary) 0%, var(--primary-hover) 100%)'
                     : 'var(--bg-card)',
@@ -125,9 +109,7 @@ export const PricingSection = ({ onChoosePlan }) => {
                   flexDirection: 'column',
                   justifyContent: 'space-between',
                   position: 'relative',
-                  transform: plan.popular ? 'scale(1.03)' : 'none',
                   zIndex: plan.popular ? 2 : 1,
-                  transition: 'transform 0.2s ease',
                 }}
               >
                 {/* Popular Badge */}
@@ -170,7 +152,7 @@ export const PricingSection = ({ onChoosePlan }) => {
                   </p>
 
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginBottom: '1.75rem' }}>
-                    <span style={{ fontSize: '3rem', fontWeight: 800, letterSpacing: '-0.03em' }}>
+                    <span key={billingCycle} className="price-swap stat-value" style={{ fontSize: '3rem', fontWeight: 800, letterSpacing: '-0.03em' }}>
                       ${currentPrice % 1 === 0 ? currentPrice : currentPrice.toFixed(2)}
                     </span>
                     <span style={{ fontSize: '0.9rem', color: plan.popular ? 'var(--accent-indigo-border)' : 'var(--text-muted)' }}>
@@ -213,6 +195,7 @@ export const PricingSection = ({ onChoosePlan }) => {
 
                 <button
                   onClick={() => onChoosePlan && onChoosePlan(plan, billingCycle)}
+                  className={`btn-shine ${plan.popular ? 'white-btn' : ''}`}
                   style={{
                     width: '100%',
                     padding: '0.85rem',
@@ -231,6 +214,7 @@ export const PricingSection = ({ onChoosePlan }) => {
                   {plan.buttonText} <ArrowRight size={16} />
                 </button>
               </div>
+              </Reveal>
             );
           })}
         </div>

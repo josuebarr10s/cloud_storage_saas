@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Check, Minus, ChevronDown, ChevronUp, Layers } from 'lucide-react';
+import { Check, Minus, ChevronDown, Layers } from 'lucide-react';
+import { Reveal } from './Reveal.jsx';
 
 export const FeatureComparison = () => {
   const [expanded, setExpanded] = useState(false);
@@ -64,12 +65,14 @@ export const FeatureComparison = () => {
   };
 
   return (
-    <section style={{ padding: '2rem 0 5rem 0', background: 'var(--bg-subtle)' }}>
+    <section style={{ padding: '0 0 clamp(4rem, 8vw, 6rem) 0', background: 'var(--bg-subtle)' }}>
       <div className="landing-container">
         {/* Toggle Button */}
-        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+        <Reveal style={{ textAlign: 'center', marginBottom: expanded ? '2rem' : 0, transition: 'margin 0.3s ease' }}>
           <button
             onClick={() => setExpanded(!expanded)}
+            aria-expanded={expanded}
+            className="white-btn"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -87,12 +90,13 @@ export const FeatureComparison = () => {
           >
             <Layers size={18} color="var(--primary)" />
             <span>{expanded ? 'Ocultar comparativa detallada' : 'Ver comparativa completa de funciones'}</span>
-            {expanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+            <ChevronDown size={18} className={`chevron-rotate ${expanded ? 'is-open' : ''}`} />
           </button>
-        </div>
+        </Reveal>
 
         {/* Expandable Table */}
-        {expanded && (
+        <div className={`collapse ${expanded ? 'is-open' : ''}`} aria-hidden={!expanded}>
+          <div>
           <div
             style={{
               background: 'var(--bg-card)',
@@ -165,7 +169,8 @@ export const FeatureComparison = () => {
               </table>
             </div>
           </div>
-        )}
+          </div>
+        </div>
       </div>
     </section>
   );

@@ -9,6 +9,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { plansService } from '../../services/plansService.js';
+import { Reveal } from './Reveal.jsx';
 
 const FALLBACK_PLANS = [
   {
@@ -123,50 +124,34 @@ export const StorageCalculator = ({ onSelectPlan }) => {
   return (
     <section
       id="calculator"
+      className="landing-section"
       style={{
-        padding: '5.5rem 0',
         background: 'var(--bg-body)',
         borderTop: '1px solid var(--border-color)',
       }}
     >
       <div className="landing-container">
         {/* Header */}
-        <div style={{ textAlign: 'center', maxWidth: '700px', margin: '0 auto 3.5rem auto' }}>
+        <Reveal style={{ textAlign: 'center', maxWidth: '700px', margin: '0 auto 3.5rem auto' }}>
           <div className="pill-badge" style={{ marginBottom: '1rem' }}>
             <Sliders size={14} /> Simulador de Almacenamiento
           </div>
-          <h2
-            style={{
-              fontSize: 'clamp(2rem, 4vw, 2.6rem)',
-              fontWeight: 800,
-              color: 'var(--text-main)',
-              letterSpacing: '-0.03em',
-              marginBottom: '0.75rem',
-            }}
-          >
-            Calcula el espacio que tu equipo necesita
-          </h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '1.05rem' }}>
+          <h2 className="section-title">Calcula el espacio que tu equipo necesita</h2>
+          <p className="section-subtitle">
             Ajusta la capacidad deseada para conocer la equivalencia en archivos y seleccionar el plan ideal de Nimbox.
           </p>
-        </div>
+        </Reveal>
 
         {/* Main Grid */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-            gap: '28px',
-            alignItems: 'center',
-          }}
-        >
+        <div className="calc-grid">
           {/* Left Panel: Slider & File Equivalencies */}
-          <div
+          <Reveal
+            variant="left"
+            className="calc-panel"
             style={{
               background: 'var(--bg-subtle)',
               border: '1px solid var(--border-color)',
               borderRadius: 'var(--radius-xl)',
-              padding: '2.25rem',
             }}
           >
             {/* Presets */}
@@ -179,6 +164,7 @@ export const StorageCalculator = ({ onSelectPlan }) => {
                   <button
                     key={p.label}
                     onClick={() => setStorageGB(p.value)}
+                    className="preset-btn"
                     style={{
                       padding: '6px 12px',
                       borderRadius: 'var(--radius-sm)',
@@ -188,7 +174,7 @@ export const StorageCalculator = ({ onSelectPlan }) => {
                       color: storageGB === p.value ? 'var(--text-white)' : 'var(--text-secondary)',
                       border: storageGB === p.value ? '1px solid var(--primary)' : '1px solid var(--border-hover)',
                       cursor: 'pointer',
-                      transition: 'all 0.15s'
+                      boxShadow: storageGB === p.value ? 'var(--shadow-button-primary)' : 'none',
                     }}
                   >
                     {p.label}
@@ -199,9 +185,9 @@ export const StorageCalculator = ({ onSelectPlan }) => {
 
             {/* Slider */}
             <div style={{ margin: '2rem 0' }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: '4px 12px', marginBottom: '14px' }}>
                 <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)', fontWeight: 500 }}>Capacidad seleccionada:</span>
-                <span style={{ fontSize: '2.25rem', fontWeight: 800, color: 'var(--text-main)', letterSpacing: '-0.02em' }}>
+                <span className="stat-value" style={{ fontSize: 'clamp(1.9rem, 4vw, 2.5rem)', fontWeight: 800, color: 'var(--text-main)', letterSpacing: '-0.02em' }}>
                   {storageGB >= 1000 ? `${(storageGB / 1000).toFixed(1)} TB` : `${storageGB} GB`}
                 </span>
               </div>
@@ -213,17 +199,13 @@ export const StorageCalculator = ({ onSelectPlan }) => {
                 step="10"
                 value={storageGB}
                 onChange={(e) => setStorageGB(Number(e.target.value))}
+                className="nimbox-range"
+                aria-label="Capacidad de almacenamiento en GB"
                 style={{
-                  width: '100%',
-                  height: '8px',
-                  borderRadius: 'var(--radius-xs)',
-                  background: `linear-gradient(to right, var(--primary) 0%, var(--primary) ${(storageGB / 2500) * 100}%, var(--border-color) ${(storageGB / 2500) * 100}%, var(--border-color) 100%)`,
-                  appearance: 'none',
-                  outline: 'none',
-                  cursor: 'pointer',
+                  background: `linear-gradient(to right, var(--primary) 0%, var(--accent-violet) ${(storageGB / 2500) * 100}%, var(--border-color) ${(storageGB / 2500) * 100}%, var(--border-color) 100%)`,
                 }}
               />
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-light)', marginTop: '6px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', fontSize: '0.72rem', color: 'var(--text-light)', marginTop: '10px' }}>
                 <span>10 GB (Básico - $5)</span>
                 <span>500 GB (Pro - $12)</span>
                 <span>2 TB+ (Empresarial - $49)</span>
@@ -232,10 +214,8 @@ export const StorageCalculator = ({ onSelectPlan }) => {
 
             {/* File breakdown */}
             <div
+              className="calc-breakdown"
               style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(3, 1fr)',
-                gap: '10px',
                 paddingTop: '1.25rem',
                 borderTop: '1px solid var(--border-color)',
               }}
@@ -258,23 +238,26 @@ export const StorageCalculator = ({ onSelectPlan }) => {
                 <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Documentos</p>
               </div>
             </div>
-          </div>
+          </Reveal>
 
           {/* Right Panel: Recommended Plan Banner */}
-          <div
+          <Reveal
+            variant="right"
+            delay={120}
+            className="gradient-card"
             style={{
               background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%)',
               color: 'var(--text-white)',
               borderRadius: 'var(--radius-xl)',
-              padding: '2.5rem',
+              padding: 'clamp(1.75rem, 4vw, 2.5rem)',
               boxShadow: 'var(--shadow-card-primary)',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'space-between',
             }}
           >
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+            <div key={recommendedPlan.nombre || recommendedPlan.name} className="pop-in">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '1rem' }}>
                 <span
                   style={{
                     fontSize: '0.75rem',
@@ -310,7 +293,7 @@ export const StorageCalculator = ({ onSelectPlan }) => {
               </p>
 
               <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginBottom: '2rem' }}>
-                <span style={{ fontSize: '3.25rem', fontWeight: 800, letterSpacing: '-0.03em' }}>
+                <span style={{ fontSize: 'clamp(2.6rem, 6vw, 3.4rem)', fontWeight: 800, letterSpacing: '-0.03em' }}>
                   ${recommendedPlan.precio || recommendedPlan.price}
                 </span>
                 <span style={{ fontSize: '0.95rem', color: 'var(--accent-indigo-border)' }}>
@@ -321,6 +304,7 @@ export const StorageCalculator = ({ onSelectPlan }) => {
 
             <button
               onClick={handleChoosePlan}
+              className="white-btn btn-shine"
               style={{
                 width: '100%',
                 padding: '0.9rem',
@@ -336,12 +320,11 @@ export const StorageCalculator = ({ onSelectPlan }) => {
                 boxShadow: 'var(--shadow-md)',
                 cursor: 'pointer',
                 border: 'none',
-                transition: 'all 0.2s ease'
               }}
             >
               Registrarme con Plan {recommendedPlan.nombre || recommendedPlan.name} <ArrowRight size={16} />
             </button>
-          </div>
+          </Reveal>
         </div>
       </div>
     </section>

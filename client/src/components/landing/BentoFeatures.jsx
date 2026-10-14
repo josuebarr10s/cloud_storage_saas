@@ -8,6 +8,29 @@ import {
   Share2,
   HardDrive
 } from 'lucide-react';
+import { Reveal, trackSpotlight } from './Reveal.jsx';
+
+const IconTile = ({ icon: IconComp, color, bg }) => (
+  <div
+    className="icon-tile"
+    style={{
+      width: '46px',
+      height: '46px',
+      borderRadius: 'var(--radius-md)',
+      background: bg,
+      color,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: '1.25rem',
+    }}
+  >
+    <IconComp size={24} />
+  </div>
+);
+
+const cardTitle = { fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.5rem' };
+const cardText = { color: 'var(--text-muted)', fontSize: '0.875rem', lineHeight: 1.55 };
 
 export const BentoFeatures = () => {
   const [demoProtectedLink, setDemoProtectedLink] = useState(true);
@@ -15,82 +38,58 @@ export const BentoFeatures = () => {
   const [demoSearchTag, setDemoSearchTag] = useState('todos');
 
   return (
-    <section id="features" style={{ padding: '5.5rem 0', background: 'var(--bg-subtle)', borderTop: '1px solid var(--border-color)' }}>
+    <section id="features" className="landing-section" style={{ background: 'var(--bg-subtle)', borderTop: '1px solid var(--border-color)' }}>
       <div className="landing-container">
         {/* Section Header */}
-        <div style={{ textAlign: 'center', maxWidth: '750px', margin: '0 auto 3.5rem auto' }}>
+        <Reveal style={{ textAlign: 'center', maxWidth: '750px', margin: '0 auto 3.5rem auto' }}>
           <div className="pill-badge" style={{ marginBottom: '1rem' }}>
             <Zap size={14} /> Características del Sistema
           </div>
-          <h2
-            style={{
-              fontSize: 'clamp(2rem, 4vw, 2.6rem)',
-              fontWeight: 800,
-              color: 'var(--text-main)',
-              letterSpacing: '-0.03em',
-              marginBottom: '0.75rem',
-            }}
-          >
-            Gestión inteligente de archivos en la nube
-          </h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '1.05rem' }}>
+          <h2 className="section-title">Gestión inteligente de archivos en la nube</h2>
+          <p className="section-subtitle">
             Diseñado bajo estándares de ingeniería de software para brindar alta disponibilidad, velocidad y privacidad total.
           </p>
-        </div>
+        </Reveal>
 
         {/* Bento Grid */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(12, 1fr)',
-            gap: '24px',
-          }}
-        >
-          {/* Card 1: Large Featured Card (8 cols) */}
-          <div
-            className="card-white"
-            style={{
-              gridColumn: 'span 8',
-              padding: '2.5rem',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-            }}
-          >
+        <div className="bento-grid">
+          {/* Card 1: Large Featured Card */}
+          <Reveal className="card-white spotlight bento-card bento-span-8" onMouseMove={trackSpotlight}>
             <div>
-              <div
-                style={{
-                  width: '46px',
-                  height: '46px',
-                  borderRadius: 'var(--radius-md)',
-                  background: 'var(--primary-light)',
-                  color: 'var(--primary)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  marginBottom: '1.25rem',
-                }}
-              >
-                <HardDrive size={24} />
-              </div>
-              <h3 style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: '0.5rem' }}>
+              <IconTile icon={HardDrive} color="var(--primary)" bg="var(--primary-light)" />
+              <h3 style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: '0.5rem' }}>
                 Arquitectura STaaS de Almacenamiento
               </h3>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', maxWidth: '580px', lineHeight: 1.6 }}>
+              <p style={{ ...cardText, fontSize: '0.95rem', maxWidth: '580px', lineHeight: 1.6 }}>
                 Separamos eficientemente los metadatos relacionales (PostgreSQL) del almacenamiento de objetos de alta velocidad para lograr descargas y subidas instantáneas con cero bloqueos.
               </p>
+            </div>
+
+            {/* Subida en paralelo animada */}
+            <div style={{ marginTop: '1.75rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '8px' }}>
+                <span>Subida en paralelo por fragmentos</span>
+                <span style={{ color: 'var(--primary)' }}>8 chunks</span>
+              </div>
+              <div className="chunk-bars" aria-hidden="true">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="chunk-bar">
+                    <span style={{ '--d': `${i * 140}ms` }} />
+                  </div>
+                ))}
+              </div>
             </div>
 
             {/* Visual stats */}
             <div
               style={{
-                marginTop: '2rem',
+                marginTop: '1.25rem',
                 padding: '1.25rem',
                 background: 'var(--bg-subtle)',
                 borderRadius: 'var(--radius-md)',
                 border: '1px solid var(--border-color)',
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(min(130px, 100%), 1fr))',
                 gap: '14px',
                 textAlign: 'center',
               }}
@@ -108,39 +107,14 @@ export const BentoFeatures = () => {
                 <p style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--accent-sky)', marginTop: '2px' }}>99.99%</p>
               </div>
             </div>
-          </div>
+          </Reveal>
 
-          {/* Card 2: Interactive Links & PIN (4 cols) */}
-          <div
-            className="card-white"
-            style={{
-              gridColumn: 'span 4',
-              padding: '2rem',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-            }}
-          >
+          {/* Card 2: Interactive Links & PIN */}
+          <Reveal className="card-white spotlight bento-card bento-span-4" delay={120} onMouseMove={trackSpotlight}>
             <div>
-              <div
-                style={{
-                  width: '46px',
-                  height: '46px',
-                  borderRadius: 'var(--radius-md)',
-                  background: 'var(--accent-sky-bg)',
-                  color: 'var(--accent-sky)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  marginBottom: '1.25rem',
-                }}
-              >
-                <Share2 size={24} />
-              </div>
-              <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.5rem' }}>
-                Enlaces con PIN y Caducidad
-              </h3>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.25rem', lineHeight: 1.5 }}>
+              <IconTile icon={Share2} color="var(--accent-sky)" bg="var(--accent-sky-bg)" />
+              <h3 style={cardTitle}>Enlaces con PIN y Caducidad</h3>
+              <p style={{ ...cardText, marginBottom: '1.25rem' }}>
                 Comparte enlaces públicos o protégelos con contraseña y fecha de expiración para máxima seguridad.
               </p>
             </div>
@@ -152,24 +126,30 @@ export const BentoFeatures = () => {
                 </span>
                 <button
                   onClick={() => setDemoProtectedLink(!demoProtectedLink)}
+                  role="switch"
+                  aria-checked={demoProtectedLink}
+                  aria-label="Proteger con PIN"
                   style={{
-                    width: '34px',
-                    height: '18px',
-                    borderRadius: 'var(--radius-md)',
+                    width: '36px',
+                    height: '20px',
+                    borderRadius: 'var(--radius-full)',
                     background: demoProtectedLink ? 'var(--accent-sky)' : 'var(--border-hover)',
                     position: 'relative',
+                    transition: 'background 0.25s ease',
                   }}
                 >
                   <div
                     style={{
-                      width: '14px',
-                      height: '14px',
+                      width: '16px',
+                      height: '16px',
                       borderRadius: 'var(--radius-full)',
                       background: 'var(--text-white)',
                       position: 'absolute',
                       top: '2px',
-                      left: demoProtectedLink ? '18px' : '2px',
-                      transition: 'all 0.2s',
+                      left: '2px',
+                      transform: demoProtectedLink ? 'translateX(16px)' : 'translateX(0)',
+                      transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                      boxShadow: 'var(--shadow-sm)',
                     }}
                   />
                 </button>
@@ -184,7 +164,7 @@ export const BentoFeatures = () => {
                       onClick={() => setDemoExpiry(time)}
                       style={{
                         flex: 1,
-                        padding: '4px 0',
+                        padding: '5px 0',
                         fontSize: '0.7rem',
                         borderRadius: 'var(--radius-xs)',
                         fontWeight: 600,
@@ -199,135 +179,101 @@ export const BentoFeatures = () => {
                 </div>
               </div>
             </div>
-          </div>
+          </Reveal>
 
-          {/* Card 3: Version Control (4 cols) */}
-          <div
-            className="card-white"
-            style={{
-              gridColumn: 'span 4',
-              padding: '2rem',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-            }}
-          >
+          {/* Card 3: Version Control */}
+          <Reveal className="card-white spotlight bento-card bento-span-4" onMouseMove={trackSpotlight}>
             <div>
-              <div
-                style={{
-                  width: '46px',
-                  height: '46px',
-                  borderRadius: 'var(--radius-md)',
-                  background: 'var(--accent-violet-bg)',
-                  color: 'var(--accent-violet)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  marginBottom: '1.25rem',
-                }}
-              >
-                <RefreshCw size={24} />
-              </div>
-              <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.5rem' }}>
-                Historial de Versiones
-              </h3>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', lineHeight: 1.5 }}>
+              <IconTile icon={RefreshCw} color="var(--accent-violet)" bg="var(--accent-violet-bg)" />
+              <h3 style={cardTitle}>Historial de Versiones</h3>
+              <p style={cardText}>
                 Restaura versiones anteriores de tus documentos y recupera archivos eliminados de la papelera hasta por 30 días.
               </p>
             </div>
 
-            <div style={{ marginTop: '1.25rem', padding: '10px 12px', background: 'var(--accent-violet-bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--accent-indigo-border)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <RefreshCw size={15} color="var(--accent-violet)" />
-              <span style={{ fontSize: '0.75rem', color: 'var(--accent-violet)', fontWeight: 600 }}>Papelera con retención automática de 30 días</span>
+            <div style={{ marginTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {[
+                { v: 'v3', label: 'Versión actual', time: 'Hace 5 min', current: true },
+                { v: 'v2', label: 'Editado por Ana', time: 'Ayer' },
+                { v: 'v1', label: 'Versión original', time: 'Hace 6 días' },
+              ].map((item) => (
+                <div
+                  key={item.v}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '7px 10px',
+                    borderRadius: 'var(--radius-sm)',
+                    background: item.current ? 'var(--accent-violet-bg)' : 'var(--bg-subtle)',
+                    border: `1px solid ${item.current ? 'var(--accent-indigo-border)' : 'var(--border-color)'}`,
+                    fontSize: '0.75rem',
+                  }}
+                >
+                  <span style={{ fontWeight: 700, color: 'var(--accent-violet)', minWidth: '20px' }}>{item.v}</span>
+                  <span style={{ color: 'var(--text-strong)', fontWeight: 500, flex: 1 }}>{item.label}</span>
+                  <span style={{ color: 'var(--text-light)' }}>{item.time}</span>
+                </div>
+              ))}
             </div>
-          </div>
+          </Reveal>
 
-          {/* Card 4: Search & Filters (4 cols) */}
-          <div
-            className="card-white"
-            style={{
-              gridColumn: 'span 4',
-              padding: '2rem',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-            }}
-          >
+          {/* Card 4: Search & Filters */}
+          <Reveal className="card-white spotlight bento-card bento-span-4" delay={120} onMouseMove={trackSpotlight}>
             <div>
-              <div
-                style={{
-                  width: '46px',
-                  height: '46px',
-                  borderRadius: 'var(--radius-md)',
-                  background: 'var(--primary-light)',
-                  color: 'var(--primary)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  marginBottom: '1.25rem',
-                }}
-              >
-                <Search size={24} />
-              </div>
-              <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.5rem' }}>
-                Búsqueda Instantánea
-              </h3>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', lineHeight: 1.5 }}>
+              <IconTile icon={Search} color="var(--primary)" bg="var(--primary-light)" />
+              <h3 style={cardTitle}>Búsqueda Instantánea</h3>
+              <p style={cardText}>
                 Localiza archivos en milisegundos con filtros por extensión, fecha o carpetas específicas.
               </p>
             </div>
 
-            <div style={{ marginTop: '1.25rem', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-              {['todos', 'PDFs', 'Imágenes', 'Videos', 'ZIPs'].map((tag) => (
-                <button
-                  key={tag}
-                  onClick={() => setDemoSearchTag(tag)}
-                  style={{
-                    padding: '4px 10px',
-                    borderRadius: 'var(--radius-xs)',
-                    fontSize: '0.75rem',
-                    fontWeight: 500,
-                    background: demoSearchTag === tag ? 'var(--primary)' : 'var(--bg-hover)',
-                    color: demoSearchTag === tag ? 'var(--text-white)' : 'var(--text-muted)',
-                  }}
-                >
-                  {tag}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Card 5: Preview (4 cols) */}
-          <div
-            className="card-white"
-            style={{
-              gridColumn: 'span 4',
-              padding: '2rem',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-            }}
-          >
-            <div>
+            <div style={{ marginTop: '1.25rem' }}>
               <div
                 style={{
-                  width: '46px',
-                  height: '46px',
-                  borderRadius: 'var(--radius-md)',
-                  background: 'var(--warning-bg)',
-                  color: 'var(--warning-hover)',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  marginBottom: '1.25rem',
+                  gap: '8px',
+                  padding: '8px 12px',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--border-color)',
+                  background: 'var(--bg-subtle)',
+                  fontSize: '0.8rem',
+                  color: 'var(--text-strong)',
+                  marginBottom: '10px',
                 }}
               >
-                <Eye size={24} />
+                <Search size={14} color="var(--text-light)" />
+                <span>{demoSearchTag === 'todos' ? 'reporte' : `reporte · ${demoSearchTag}`}</span>
+                <span className="typing-caret" aria-hidden="true" />
               </div>
-              <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.5rem' }}>
-                Visor Multimedia
-              </h3>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', lineHeight: 1.5 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {['todos', 'PDFs', 'Imágenes', 'Videos', 'ZIPs'].map((tag) => (
+                  <button
+                    key={tag}
+                    onClick={() => setDemoSearchTag(tag)}
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: 'var(--radius-full)',
+                      fontSize: '0.75rem',
+                      fontWeight: 500,
+                      background: demoSearchTag === tag ? 'var(--primary)' : 'var(--bg-hover)',
+                      color: demoSearchTag === tag ? 'var(--text-white)' : 'var(--text-muted)',
+                    }}
+                  >
+                    {tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </Reveal>
+
+          {/* Card 5: Preview */}
+          <Reveal className="card-white spotlight bento-card bento-span-4" delay={240} onMouseMove={trackSpotlight}>
+            <div>
+              <IconTile icon={Eye} color="var(--warning-hover)" bg="var(--warning-bg)" />
+              <h3 style={cardTitle}>Visor Multimedia</h3>
+              <p style={cardText}>
                 Visualiza documentos PDF, fotos en alta resolución y reproduce videos sin descargarlos previamente.
               </p>
             </div>
@@ -336,15 +282,9 @@ export const BentoFeatures = () => {
               <Eye size={15} color="var(--warning-hover)" />
               <span style={{ fontSize: '0.75rem', color: 'var(--warning-text)', fontWeight: 500 }}>Streaming directo con soporte H.264</span>
             </div>
-          </div>
+          </Reveal>
         </div>
       </div>
-
-      <style>{`
-        @media (max-width: 900px) {
-          .card-white { grid-column: span 12 !important; }
-        }
-      `}</style>
     </section>
   );
 };

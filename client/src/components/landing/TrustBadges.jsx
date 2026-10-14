@@ -1,5 +1,19 @@
 import React from 'react';
-import { ShieldCheck, Lock, Activity, Award } from 'lucide-react';
+import { ShieldCheck, Lock, Activity, Award, Database, Globe, KeyRound, Server, Cloud, Zap } from 'lucide-react';
+import { Reveal, trackSpotlight } from './Reveal.jsx';
+
+const techStack = [
+  { icon: Lock, label: 'AES-256' },
+  { icon: ShieldCheck, label: 'TLS 1.3' },
+  { icon: Database, label: 'PostgreSQL' },
+  { icon: Server, label: 'Object Storage' },
+  { icon: KeyRound, label: 'SSO / SAML' },
+  { icon: Globe, label: 'CDN Global' },
+  { icon: Award, label: 'SOC-2 Type II' },
+  { icon: Cloud, label: 'Arquitectura STaaS' },
+  { icon: Activity, label: 'Monitoreo 24/7' },
+  { icon: Zap, label: 'Carga Multi-Chunk' },
+];
 
 export const TrustBadges = () => {
   const securityFeatures = [
@@ -41,14 +55,14 @@ export const TrustBadges = () => {
     <section
       id="security"
       style={{
-        padding: '3.5rem 0 4.5rem 0',
+        padding: 'clamp(3rem, 6vw, 4.5rem) 0 clamp(3.5rem, 7vw, 5.5rem) 0',
         borderTop: '1px solid var(--border-color)',
-        borderBottom: '1px solid var(--border-color)',
         background: 'var(--bg-body)',
       }}
     >
       <div className="landing-container">
-        <p
+        <Reveal
+          as="p"
           style={{
             textAlign: 'center',
             fontSize: '0.8rem',
@@ -56,25 +70,35 @@ export const TrustBadges = () => {
             letterSpacing: '0.1em',
             color: 'var(--text-muted)',
             fontWeight: 700,
-            marginBottom: '2.5rem',
+            marginBottom: '1.75rem',
           }}
         >
           Infraestructura confiable bajo los más altos estándares de ingeniería y seguridad
-        </p>
+        </Reveal>
 
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-            gap: '20px',
-          }}
-        >
+        {/* Cinta infinita de tecnologías */}
+        <Reveal className="marquee" style={{ marginBottom: '3rem' }} delay={100}>
+          <div className="marquee-track">
+            {[...techStack, ...techStack].map((tech, i) => {
+              const TechIcon = tech.icon;
+              return (
+                <span key={i} className="marquee-item" aria-hidden={i >= techStack.length}>
+                  <TechIcon size={15} color="var(--primary)" /> {tech.label}
+                </span>
+              );
+            })}
+          </div>
+        </Reveal>
+
+        <div className="trust-grid">
           {securityFeatures.map((feat, index) => {
             const IconComp = feat.icon;
             return (
-              <div
+              <Reveal
                 key={index}
-                className="card-white"
+                delay={index * 110}
+                className="card-white spotlight"
+                onMouseMove={trackSpotlight}
                 style={{
                   padding: '1.5rem',
                   display: 'flex',
@@ -93,6 +117,7 @@ export const TrustBadges = () => {
                     }}
                   >
                     <div
+                      className="icon-tile"
                       style={{
                         width: '40px',
                         height: '40px',
@@ -127,7 +152,7 @@ export const TrustBadges = () => {
                     {feat.description}
                   </p>
                 </div>
-              </div>
+              </Reveal>
             );
           })}
         </div>

@@ -7,21 +7,14 @@ export const LandingFooter = () => {
       style={{
         background: 'var(--text-main)',
         color: 'var(--text-light)',
-        padding: '5rem 0 2.5rem 0',
+        padding: 'clamp(3.5rem, 8vw, 5rem) 0 2.5rem 0',
       }}
     >
       <div className="landing-container">
         {/* Main Footer Grid */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-            gap: '3rem',
-            marginBottom: '4rem',
-          }}
-        >
+        <div className="footer-grid" style={{ marginBottom: 'clamp(2.5rem, 6vw, 4rem)' }}>
           {/* Col 1: Brand Info */}
-          <div style={{ maxWidth: '320px' }}>
+          <div className="footer-brand" style={{ maxWidth: '340px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '1.25rem' }}>
               <img
                 src="/logo.png"
@@ -57,7 +50,7 @@ export const LandingFooter = () => {
                 fontWeight: 600,
               }}
             >
-              <span style={{ width: '6px', height: '6px', borderRadius: 'var(--radius-full)', background: 'var(--success)', boxShadow: '0 0 6px var(--success)' }} />
+              <span style={{ width: '6px', height: '6px', borderRadius: 'var(--radius-full)', background: 'var(--success)', boxShadow: '0 0 6px var(--success)', animation: 'pulseGlow 2s ease-in-out infinite' }} />
               Sistemas: 100% Operacional
             </div>
           </div>
@@ -68,11 +61,11 @@ export const LandingFooter = () => {
               Producto
             </h4>
             <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.875rem' }}>
-              <li><a href="#features" style={{ color: 'var(--text-light)' }}>Características</a></li>
-              <li><a href="#calculator" style={{ color: 'var(--text-light)' }}>Calculadora de Espacio</a></li>
-              <li><a href="#pricing" style={{ color: 'var(--text-light)' }}>Planes y Precios</a></li>
-              <li><a href="#security" style={{ color: 'var(--text-light)' }}>Seguridad y Cifrado</a></li>
-              <li><a href="#faq" style={{ color: 'var(--text-light)' }}>Preguntas Frecuentes</a></li>
+              <li><a href="#security" className="footer-link">Seguridad y Cifrado</a></li>
+              <li><a href="#features" className="footer-link">Características</a></li>
+              <li><a href="#calculator" className="footer-link">Calculadora de Espacio</a></li>
+              <li><a href="#pricing" className="footer-link">Planes y Precios</a></li>
+              <li><a href="#faq" className="footer-link">Preguntas Frecuentes</a></li>
             </ul>
           </div>
 
@@ -82,10 +75,10 @@ export const LandingFooter = () => {
               Recursos
             </h4>
             <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.875rem' }}>
-              <li><a href="#" style={{ color: 'var(--text-light)' }}>Documentación Técnica</a></li>
-              <li><a href="#" style={{ color: 'var(--text-light)' }}>Guía de Uso</a></li>
-              <li><a href="#" style={{ color: 'var(--text-light)' }}>Políticas de Archivo</a></li>
-              <li><a href="#" style={{ color: 'var(--text-light)' }}>Centro de Asistencia</a></li>
+              <li><a href="#" className="footer-link">Documentación Técnica</a></li>
+              <li><a href="#" className="footer-link">Guía de Uso</a></li>
+              <li><a href="#" className="footer-link">Políticas de Archivo</a></li>
+              <li><a href="#" className="footer-link">Centro de Asistencia</a></li>
             </ul>
           </div>
 
@@ -95,9 +88,9 @@ export const LandingFooter = () => {
               Legal y Proyecto
             </h4>
             <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.875rem' }}>
-              <li><a href="#" style={{ color: 'var(--text-light)' }}>Privacidad y Términos</a></li>
-              <li><a href="#" style={{ color: 'var(--text-light)' }}>Acuerdo de Servicio (SLA)</a></li>
-              <li><a href="#" style={{ color: 'var(--text-light)' }}>Seguridad de Datos</a></li>
+              <li><a href="#" className="footer-link">Privacidad y Términos</a></li>
+              <li><a href="#" className="footer-link">Acuerdo de Servicio (SLA)</a></li>
+              <li><a href="#" className="footer-link">Seguridad de Datos</a></li>
             </ul>
           </div>
         </div>

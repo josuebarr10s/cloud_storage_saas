@@ -10,6 +10,7 @@ import { TestimonialsSection } from '../components/landing/TestimonialsSection.j
 import { FAQSection } from '../components/landing/FAQSection.jsx';
 import { LandingFooter } from '../components/landing/LandingFooter.jsx';
 import { Toast } from '../components/Toast.jsx';
+import '../components/landing/landing.css';
 
 export const LandingPage = ({ onOpenCheckout, onOpenLogin, onLogout, currentUser }) => {
   const [toast, setToast] = useState(null);
@@ -48,7 +49,7 @@ export const LandingPage = ({ onOpenCheckout, onOpenLogin, onLogout, currentUser
   };
 
   return (
-    <div style={{ background: 'var(--bg-body)', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div className="landing-root" style={{ background: 'var(--bg-body)', minHeight: '100vh', display: 'flex', flexDirection: 'column', overflowX: 'clip' }}>
       {/* 1. Header / Navigation */}
       <LandingNavbar
         onLoginClick={handleLoginClick}

@@ -1,5 +1,23 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Star } from 'lucide-react';
+import { Reveal, CountUp, trackSpotlight } from './Reveal.jsx';
+
+// Si la foto no carga, muestra las iniciales del autor
+const Avatar = ({ src, name }) => {
+  const [failed, setFailed] = useState(false);
+  const initials = name.split(' ').map((part) => part[0]).slice(0, 2).join('');
+  const size = { width: '44px', height: '44px', borderRadius: 'var(--radius-full)', border: '2px solid var(--primary-light)', flexShrink: 0 };
+
+  if (failed) {
+    return (
+      <div style={{ ...size, background: 'var(--primary-gradient)', color: 'var(--text-white)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', fontWeight: 700 }}>
+        {initials}
+      </div>
+    );
+  }
+
+  return <img src={src} alt={name} loading="lazy" onError={() => setFailed(true)} style={{ ...size, objectFit: 'cover' }} />;
+};
 
 export const TestimonialsSection = () => {
   const testimonials = [
@@ -27,55 +45,40 @@ export const TestimonialsSection = () => {
   ];
 
   const stats = [
-    { label: 'Archivos Almacenados', value: '+12.4M', subtext: 'En más de 40 países' },
-    { label: 'Tiempo de Actividad', value: '99.99%', subtext: 'SLA verificado' },
-    { label: 'Latencia Promedio', value: '< 180ms', subtext: 'Alta velocidad STaaS' },
+    { label: 'Archivos Almacenados', value: '+12.4M', count: { prefix: '+', end: 12.4, decimals: 1, suffix: 'M' }, subtext: 'En más de 40 países' },
+    { label: 'Tiempo de Actividad', value: '99.99%', count: { end: 99.99, decimals: 2, suffix: '%' }, subtext: 'SLA verificado' },
+    { label: 'Latencia Promedio', value: '< 180ms', count: { prefix: '< ', end: 180, suffix: 'ms' }, subtext: 'Alta velocidad STaaS' },
     { label: 'Cifrado de Datos', value: 'AES-256', subtext: 'En reposo y tránsito' },
   ];
 
   return (
     <section
+      className="landing-section"
       style={{
-        padding: '5.5rem 0',
         background: 'var(--bg-body)',
         borderTop: '1px solid var(--border-color)',
       }}
     >
       <div className="landing-container">
         {/* Header */}
-        <div style={{ textAlign: 'center', maxWidth: '700px', margin: '0 auto 3.5rem auto' }}>
+        <Reveal style={{ textAlign: 'center', maxWidth: '700px', margin: '0 auto 3.5rem auto' }}>
           <div className="pill-badge" style={{ marginBottom: '1rem' }}>
             <Star size={14} fill="var(--primary)" /> Testimonios Reales
           </div>
-          <h2
-            style={{
-              fontSize: 'clamp(2rem, 4vw, 2.6rem)',
-              fontWeight: 800,
-              color: 'var(--text-main)',
-              letterSpacing: '-0.03em',
-              marginBottom: '0.75rem',
-            }}
-          >
-            La confianza de creadores y equipos
-          </h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '1.05rem' }}>
+          <h2 className="section-title">La confianza de creadores y equipos</h2>
+          <p className="section-subtitle">
             Descubre cómo Nimbox ayuda a optimizar el almacenamiento de archivos diario.
           </p>
-        </div>
+        </Reveal>
 
         {/* Testimonials Grid */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-            gap: '24px',
-            marginBottom: '4.5rem',
-          }}
-        >
+        <div className="testimonials-grid" style={{ marginBottom: 'clamp(3rem, 7vw, 4.5rem)' }}>
           {testimonials.map((t, idx) => (
-            <div
+            <Reveal
               key={idx}
-              className="card-white"
+              delay={idx * 120}
+              className="card-white spotlight"
+              onMouseMove={trackSpotlight}
               style={{
                 padding: '2rem',
                 display: 'flex',
@@ -96,11 +99,7 @@ export const TestimonialsSection = () => {
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', paddingTop: '1rem', borderTop: '1px solid var(--bg-hover)' }}>
-                <img
-                  src={t.avatar}
-                  alt={t.author}
-                  style={{ width: '44px', height: '44px', borderRadius: 'var(--radius-full)', objectFit: 'cover', border: '2px solid var(--primary-light)' }}
-                />
+                <Avatar src={t.avatar} name={t.author} />
                 <div>
                   <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main)' }}>
                     {t.author}
@@ -110,20 +109,19 @@ export const TestimonialsSection = () => {
                   </p>
                 </div>
               </div>
-            </div>
+            </Reveal>
           ))}
         </div>
 
         {/* Stats Banner */}
-        <div
+        <Reveal
+          variant="zoom"
+          className="stats-grid"
           style={{
-            background: 'var(--bg-subtle)',
+            background: 'linear-gradient(135deg, var(--bg-tint) 0%, var(--bg-subtle) 100%)',
             border: '1px solid var(--border-color)',
             borderRadius: 'var(--radius-xl)',
-            padding: '2.5rem 2rem',
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-            gap: '24px',
+            padding: 'clamp(1.75rem, 4vw, 2.5rem) clamp(1rem, 3vw, 2rem)',
             textAlign: 'center',
           }}
         >
@@ -131,14 +129,17 @@ export const TestimonialsSection = () => {
             <div key={index} style={{ padding: '0.5rem' }}>
               <p
                 style={{
-                  fontSize: '2.4rem',
+                  fontSize: 'clamp(1.8rem, 4vw, 2.4rem)',
                   fontWeight: 800,
                   letterSpacing: '-0.03em',
-                  color: 'var(--primary)',
+                  background: 'var(--primary-gradient)',
+                  WebkitBackgroundClip: 'text',
+                  backgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
                   marginBottom: '2px',
                 }}
               >
-                {s.value}
+                {s.count ? <CountUp {...s.count} /> : s.value}
               </p>
               <p style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '2px' }}>
                 {s.label}
@@ -148,7 +149,7 @@ export const TestimonialsSection = () => {
               </p>
             </div>
           ))}
-        </div>
+        </Reveal>
       </div>
     </section>
   );
