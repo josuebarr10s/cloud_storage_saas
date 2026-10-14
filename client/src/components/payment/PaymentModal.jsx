@@ -3,9 +3,9 @@ import { X, ShieldCheck, Lock, Sparkles, CheckCircle2, Loader2 } from 'lucide-re
 import { plansService } from '../../services/plansService.js';
 
 const DEFAULT_PLANS = [
-  { id_plan: '1', nombre: 'Básico', precio: 5, precioAnual: 4.0, storageQuota: '10 GB' },
-  { id_plan: '2', nombre: 'Pro', precio: 12, precioAnual: 9.6, storageQuota: '500 GB' },
-  { id_plan: '3', nombre: 'Empresarial', precio: 49, precioAnual: 39.2, storageQuota: 'Ilimitado' }
+  { id_plan: '11111111-1111-1111-1111-111111111111', nombre: 'Básico', precio: 5, precioAnual: 4.0, storageQuota: '10 GB' },
+  { id_plan: '22222222-2222-2222-2222-222222222222', nombre: 'Pro', precio: 12, precioAnual: 9.6, storageQuota: '500 GB' },
+  { id_plan: '33333333-3333-3333-3333-333333333333', nombre: 'Empresarial', precio: 49, precioAnual: 39.2, storageQuota: '2 TB' }
 ];
 
 export const PaymentModal = ({ isOpen, onClose, user, selectedPlan, billingCycle = 'monthly', onPaymentSuccess }) => {
@@ -76,7 +76,7 @@ export const PaymentModal = ({ isOpen, onClose, user, selectedPlan, billingCycle
     setTimeout(async () => {
       try {
         const cardLast4 = cardNumber.replace(/\s/g, '').slice(-4) || '4242';
-        await plansService.createSubscription({
+        const { subscription, error } = await plansService.createSubscription({
           userId: user.id,
           planId: activePlan.id_plan,
           planName: activePlan.nombre,
@@ -84,9 +84,16 @@ export const PaymentModal = ({ isOpen, onClose, user, selectedPlan, billingCycle
           amountPaid: billedTotal,
           cardLast4: cardLast4
         });
+
+        // Si no se pudo guardar la suscripción, no se muestra "Pago exitoso"
+        if (error || !subscription) {
+          throw error || new Error('No se pudo registrar la suscripción.');
+        }
         setCurrentStep(3);
       } catch (err) {
-        setCurrentStep(3);
+        console.error('Error al registrar el pago:', err);
+        setErrors({ general: 'No se pudo completar el pago. Inténtalo de nuevo en unos minutos.' });
+        setCurrentStep(1);
       }
     }, 2500);
   };
@@ -117,6 +124,12 @@ export const PaymentModal = ({ isOpen, onClose, user, selectedPlan, billingCycle
               </div>
               <h2 style={{ margin: 0 }}>${billedTotal}</h2>
             </div>
+
+            {errors.general && (
+              <div style={{ background: 'var(--danger-bg)', border: '1px solid var(--danger)', color: 'var(--danger)', padding: '10px', borderRadius: '4px', fontSize: '0.85rem', marginBottom: '15px' }}>
+                {errors.general}
+              </div>
+            )}
 
             <button type="button" onClick={handleAutofill} style={{ width: '100%', padding: '8px', marginBottom: '15px', background: 'var(--primary-light)', border: '1px dashed var(--primary)', color: 'var(--primary)', cursor: 'pointer', borderRadius: '4px' }}><Sparkles size={15}/> Autocompletar Tarjeta de Prueba</button>
             

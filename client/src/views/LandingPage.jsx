@@ -11,7 +11,7 @@ import { FAQSection } from '../components/landing/FAQSection.jsx';
 import { LandingFooter } from '../components/landing/LandingFooter.jsx';
 import { Toast } from '../components/Toast.jsx';
 
-export const LandingPage = ({ onOpenCheckout, onOpenLogin, currentUser }) => {
+export const LandingPage = ({ onOpenCheckout, onOpenLogin, onLogout, currentUser }) => {
   const [toast, setToast] = useState(null);
 
   const showNotification = (message, type = 'info') => {
@@ -28,7 +28,12 @@ export const LandingPage = ({ onOpenCheckout, onOpenLogin, currentUser }) => {
   };
 
   const handleRegisterClick = () => {
-    // Abre directamente la ventana modal permitiendo al usuario elegir cualquier plan
+    // Si ya inició sesión, "Elegir Plan" lo lleva a la sección de planes para que escoja uno
+    if (currentUser) {
+      document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' });
+      return;
+    }
+    // Sin sesión, abre el flujo de registro
     if (onOpenCheckout) {
       onOpenCheckout(null, 'monthly');
     }
@@ -48,6 +53,7 @@ export const LandingPage = ({ onOpenCheckout, onOpenLogin, currentUser }) => {
       <LandingNavbar
         onLoginClick={handleLoginClick}
         onRegisterClick={handleRegisterClick}
+        onLogoutClick={onLogout}
         currentUser={currentUser}
       />
 

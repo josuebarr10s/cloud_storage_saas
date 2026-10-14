@@ -110,7 +110,7 @@ export default function App() {
           <DashboardView currentUser={currentUser} onLogout={handleLogout} onNotification={showNotification} />
         )
       ) : (
-        <LandingPage onOpenCheckout={handleOpenCheckout} onOpenLogin={handleOpenLogin} currentUser={currentUser} />
+        <LandingPage onOpenCheckout={handleOpenCheckout} onOpenLogin={handleOpenLogin} onLogout={handleLogout} currentUser={currentUser} />
       )}
 
       <RegisterModal isOpen={isRegisterOpen} onClose={() => setIsRegisterOpen(false)} onRegisterSuccess={handleRegisterSuccess} />

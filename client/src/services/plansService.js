@@ -166,6 +166,20 @@ export const plansService = {
 
       const subRecord = subData?.[0];
       if (subRecord) {
+        // Las suscripciones anteriores (p. ej. la Básico gratis que crea el trigger) quedan reemplazadas
+        // por la nueva, así cada usuario tiene una sola suscripción activa
+        await supabase
+          .from('suscripcion')
+          .update({ estado: 'reemplazada' })
+          .eq('id_usuario', userId)
+          .eq('estado', 'activa')
+          .neq('id_suscripcion', subRecord.id_suscripcion);
+
+        // La capacidad de almacenamiento del usuario pasa a ser la del plan contratado
+        await supabase
+          .from('almacenamiento')
+          .upsert({ id_usuario: userId, capacidad_total_bytes: limitBytes }, { onConflict: 'id_usuario' });
+
         // 3. Insertar en public.pago
         await supabase.from('pago').insert([{
           id_suscripcion: subRecord.id_suscripcion,

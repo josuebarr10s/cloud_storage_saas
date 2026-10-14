@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Cloud, Menu, X, ArrowRight } from 'lucide-react';
+import { Cloud, Menu, X, ArrowRight, LogOut } from 'lucide-react';
 
-export const LandingNavbar = ({ onLoginClick, onRegisterClick, currentUser }) => {
+export const LandingNavbar = ({ onLoginClick, onRegisterClick, onLogoutClick, currentUser }) => {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -21,7 +21,7 @@ export const LandingNavbar = ({ onLoginClick, onRegisterClick, currentUser }) =>
     { label: 'Preguntas Frecuentes', href: '#faq' },
   ];
 
-  const primerNombre = currentUser ? currentUser.name.split(' ')[0] : '';
+  const primerNombre = currentUser ? (currentUser.name || currentUser.email || '').split(' ')[0] : '';
 
   return (
     <header
@@ -49,21 +49,16 @@ export const LandingNavbar = ({ onLoginClick, onRegisterClick, currentUser }) =>
         }}
       >
         <a href="#" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
-          <div
+          <img
+            src="/logo.png"
+            alt="Nimbox Logo"
             style={{
               width: '36px',
               height: '36px',
-              borderRadius: 'var(--radius-sm)',
-              background: 'var(--primary)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--text-white)',
-              boxShadow: 'var(--shadow-glow-primary)',
+              objectFit: 'contain',
+              filter: 'drop-shadow(0 2px 6px rgba(99, 102, 241, 0.25))',
             }}
-          >
-            <Cloud size={22} />
-          </div>
+          />
           <span
             style={{
               fontSize: '1.35rem',
@@ -100,9 +95,19 @@ export const LandingNavbar = ({ onLoginClick, onRegisterClick, currentUser }) =>
           className="desktop-actions"
         >
           {currentUser ? (
-            <span style={{ fontSize: '0.9rem', color: 'var(--text-main)', fontWeight: 600, marginRight: '8px' }}>
-              Hola, {primerNombre}
-            </span>
+            <>
+              <span style={{ fontSize: '0.9rem', color: 'var(--text-main)', fontWeight: 600 }}>
+                Hola, {primerNombre}
+              </span>
+              <button
+                onClick={onLogoutClick}
+                className="btn-ghost"
+                style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '5px', marginRight: '8px' }}
+                title="Cerrar sesión"
+              >
+                <LogOut size={15} /> Salir
+              </button>
+            </>
           ) : (
             <button
               onClick={onLoginClick}
@@ -163,9 +168,21 @@ export const LandingNavbar = ({ onLoginClick, onRegisterClick, currentUser }) =>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '8px' }}>
             
             {currentUser ? (
-              <div style={{ padding: '8px 0', fontSize: '1rem', fontWeight: 600, color: 'var(--text-main)', textAlign: 'center' }}>
-                Hola, {primerNombre}
-              </div>
+              <>
+                <div style={{ padding: '8px 0', fontSize: '1rem', fontWeight: 600, color: 'var(--text-main)', textAlign: 'center' }}>
+                  Hola, {primerNombre}
+                </div>
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    onLogoutClick && onLogoutClick();
+                  }}
+                  className="btn-secondary"
+                  style={{ width: '100%', justifyContent: 'center', gap: '6px' }}
+                >
+                  <LogOut size={15} /> Cerrar sesión
+                </button>
+              </>
             ) : (
               <button
                 onClick={() => {
