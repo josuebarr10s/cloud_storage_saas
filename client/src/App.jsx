@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { LandingPage } from './views/LandingPage.jsx';
 import { DashboardView } from './views/DashboardView.jsx';
 import { AdminDashboardView } from './views/AdminDashboardView.jsx';
@@ -7,6 +7,7 @@ import { RegisterModal } from './components/auth/RegisterModal.jsx';
 import { PaymentModal } from './components/payment/PaymentModal.jsx';
 import { LoginModal } from './components/auth/LoginModal.jsx';
 import { ForgotPasswordModal } from './components/auth/ForgotPasswordModal.jsx';
+import { ResetPasswordModal } from './components/auth/ResetPasswordModal.jsx';
 import { Toast } from './components/Toast.jsx';
 
 import { authService } from './services/authService.js';
@@ -25,6 +26,19 @@ export default function App() {
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
+
+  // Bandera persistente para asegurar que NUNCA se entre al dashboard durante la recuperación
+  const isRecoveringRef = useRef(
+    window.location.hash.includes('type=recovery') ||
+    window.location.search.includes('type=recovery') ||
+    sessionStorage.getItem('nimbox_is_recovering') === 'true'
+  );
+
+  if (isRecoveringRef.current) {
+    sessionStorage.setItem('nimbox_is_recovering', 'true');
+  }
+
+  const [isResetPasswordOpen, setIsResetPasswordOpen] = useState(isRecoveringRef.current);
   const [toast, setToast] = useState(null);
 
   const showNotification = (message, type = 'info') => {
@@ -33,7 +47,34 @@ export default function App() {
   };
 
   useEffect(() => {
+    // Si viene desde el enlace de recuperación, forzar vista landing y abrir modal
+    if (isRecoveringRef.current) {
+      setIsResetPasswordOpen(true);
+      setIsLoginOpen(false);
+      setIsForgotPasswordOpen(false);
+      setIsRegisterOpen(false);
+      setCurrentView('landing');
+      setCurrentUser(null);
+    }
+
+    // Detectar si Supabase envió algún error en la URL (ej: enlace expirado o URL no permitida)
+    const rawHash = (window.location.hash || '').replace(/^#/, '');
+    const rawSearch = (window.location.search || '').replace(/^\?/, '');
+    const params = new URLSearchParams(rawHash || rawSearch);
+    const errorDescription = params.get('error_description');
+    if (errorDescription) {
+      const cleanMsg = decodeURIComponent(errorDescription.replace(/\+/g, ' '));
+      showNotification(`Error de recuperación: ${cleanMsg}`, 'error');
+    }
+
     async function loadSession() {
+      // Si está recuperando contraseña, BLOQUEAR la entrada al dashboard
+      if (isRecoveringRef.current || sessionStorage.getItem('nimbox_is_recovering') === 'true') {
+        setCurrentView('landing');
+        setCurrentUser(null);
+        return;
+      }
+
       const user = await authService.getCurrentUser();
       if (user) {
         setCurrentUser(user);
@@ -42,7 +83,23 @@ export default function App() {
     }
     loadSession();
 
-    const { data: listener } = authService.onAuthStateChange(async (user) => {
+    const { data: listener } = authService.onAuthStateChange(async (user, event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        isRecoveringRef.current = true;
+        sessionStorage.setItem('nimbox_is_recovering', 'true');
+      }
+
+      // Si estamos en proceso de recuperación, NUNCA entrar al dashboard ni setear usuario
+      if (isRecoveringRef.current || sessionStorage.getItem('nimbox_is_recovering') === 'true') {
+        setIsForgotPasswordOpen(false);
+        setIsLoginOpen(false);
+        setIsRegisterOpen(false);
+        setIsResetPasswordOpen(true);
+        setCurrentView('landing');
+        setCurrentUser(null);
+        return;
+      }
+
       if (user) {
         setCurrentUser(user);
         setCurrentView(vistaPara(user));
@@ -116,6 +173,26 @@ export default function App() {
       <RegisterModal isOpen={isRegisterOpen} onClose={() => setIsRegisterOpen(false)} onRegisterSuccess={handleRegisterSuccess} />
       <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} onLoginSuccess={handleLoginSuccess} onForgotPassword={handleOpenForgotPassword} onOpenRegister={handleOpenRegister} />
       <ForgotPasswordModal isOpen={isForgotPasswordOpen} onClose={() => setIsForgotPasswordOpen(false)} onBackToLogin={handleOpenLogin} />
+      <ResetPasswordModal 
+        isOpen={isResetPasswordOpen} 
+        onClose={() => {
+          isRecoveringRef.current = false;
+          sessionStorage.removeItem('nimbox_is_recovering');
+          setIsResetPasswordOpen(false);
+          window.history.replaceState(null, '', window.location.pathname);
+        }} 
+        onResetSuccess={async () => {
+          isRecoveringRef.current = false;
+          sessionStorage.removeItem('nimbox_is_recovering');
+          setIsResetPasswordOpen(false);
+          await authService.signOut();
+          setCurrentUser(null);
+          setCurrentView('landing');
+          window.history.replaceState(null, '', window.location.pathname);
+          showNotification('¡Contraseña actualizada con éxito! Inicia sesión con tu nueva contraseña.', 'success');
+          handleOpenLogin();
+        }} 
+      />
       <PaymentModal isOpen={isPaymentOpen} onClose={() => setIsPaymentOpen(false)} user={currentUser} selectedPlan={selectedPlan} billingCycle={billingCycle} onPaymentSuccess={handlePaymentSuccess} />
 
       <Toast toast={toast} onClose={() => setToast(null)} />

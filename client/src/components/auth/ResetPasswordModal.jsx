@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Lock, Eye, EyeOff, CheckCircle2, ShieldCheck, AlertCircle } from 'lucide-react';
+import { authService } from '../../services/authService.js';
 
 export const ResetPasswordModal = ({ isOpen, onClose, onResetSuccess }) => {
   const [newPassword, setNewPassword] = useState('');
@@ -30,42 +31,28 @@ export const ResetPasswordModal = ({ isOpen, onClose, onResetSuccess }) => {
 
   const isFormValid = Object.values(requirements).every(Boolean);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!isFormValid) return;
+    if (!isFormValid || isLoading) return;
 
     setIsLoading(true);
     setErrorMessage('');
 
-    // Simulamos la actualización en el backend
-    setTimeout(() => {
-      try {
-        const resetEmail = sessionStorage.getItem('nimbox_reset_email');
-        if (!resetEmail) {
-            setErrorMessage('La sesión de recuperación ha expirado. Por favor solicita un nuevo enlace.');
-            setIsLoading(false);
-            return;
-        }
-
-        const registeredUsers = JSON.parse(localStorage.getItem('nimbox_registered_users') || '[]');
-        const userIndex = registeredUsers.findIndex(u => u.email.toLowerCase() === resetEmail.toLowerCase());
-
-        if (userIndex !== -1) {
-          registeredUsers[userIndex].password = newPassword;
-          localStorage.setItem('nimbox_registered_users', JSON.stringify(registeredUsers));
-          sessionStorage.removeItem('nimbox_reset_email');
-          setIsSuccess(true);
-          setTimeout(() => {
-            onResetSuccess();
-          }, 2000);
-        } else {
-          setErrorMessage('No se pudo encontrar la cuenta asociada.');
-        }
-      } catch (err) {
-        setErrorMessage('Error al restablecer la contraseña.');
+    try {
+      const { success, error } = await authService.updateUserPassword(newPassword);
+      if (success) {
+        setIsSuccess(true);
+        setTimeout(() => {
+          if (onResetSuccess) onResetSuccess();
+        }, 2000);
+      } else {
+        setErrorMessage(error || 'No se pudo actualizar la contraseña. El enlace puede haber expirado.');
       }
+    } catch (err) {
+      setErrorMessage(err.message || 'Error al restablecer la contraseña.');
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
   const RequirementItem = ({ met, text }) => (
