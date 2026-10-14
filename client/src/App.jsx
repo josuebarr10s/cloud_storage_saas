@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { LandingPage } from './views/LandingPage.jsx';
 import { DashboardView } from './views/DashboardView.jsx';
+import { AdminDashboardView } from './views/AdminDashboardView.jsx';
 
 import { RegisterModal } from './components/auth/RegisterModal.jsx';
 import { PaymentModal } from './components/payment/PaymentModal.jsx';
@@ -9,6 +10,10 @@ import { ForgotPasswordModal } from './components/auth/ForgotPasswordModal.jsx';
 import { Toast } from './components/Toast.jsx';
 
 import { authService } from './services/authService.js';
+
+// El administrador siempre entra a su panel; un cliente entra al dashboard solo si ya tiene plan
+const esAdmin = (user) => user?.rol === 'Administrador';
+const vistaPara = (user) => (esAdmin(user) || user?.plan !== 'Ninguno') ? 'dashboard' : 'landing';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -32,7 +37,7 @@ export default function App() {
       const user = await authService.getCurrentUser();
       if (user) {
         setCurrentUser(user);
-        setCurrentView(user.plan === 'Ninguno' ? 'landing' : 'dashboard');
+        setCurrentView(vistaPara(user));
       }
     }
     loadSession();
@@ -40,7 +45,7 @@ export default function App() {
     const { data: listener } = authService.onAuthStateChange(async (user) => {
       if (user) {
         setCurrentUser(user);
-        setCurrentView(user.plan === 'Ninguno' ? 'landing' : 'dashboard');
+        setCurrentView(vistaPara(user));
       } else {
         setCurrentUser(null);
         setCurrentView('landing');
@@ -75,9 +80,10 @@ export default function App() {
   const handleLoginSuccess = async (user) => {
     setCurrentUser(user);
     setIsLoginOpen(false);
-    setCurrentView(user.plan === 'Ninguno' ? 'landing' : 'dashboard');
+    setCurrentView(vistaPara(user));
     
-    if (user.plan !== 'Ninguno') showNotification(`¡Hola de nuevo, ${user.name}!`, 'success');
+    if (esAdmin(user)) showNotification(`¡Hola, ${user.name}! Entraste al panel de administración.`, 'success');
+    else if (user.plan !== 'Ninguno') showNotification(`¡Hola de nuevo, ${user.name}!`, 'success');
     else showNotification(`Bienvenido. Selecciona un plan para continuar.`, 'info');
   };
 
@@ -98,7 +104,11 @@ export default function App() {
   return (
     <div>
       {currentView === 'dashboard' && currentUser ? (
-        <DashboardView currentUser={currentUser} onLogout={handleLogout} onNotification={showNotification} />
+        esAdmin(currentUser) ? (
+          <AdminDashboardView currentUser={currentUser} onLogout={handleLogout} onNotification={showNotification} />
+        ) : (
+          <DashboardView currentUser={currentUser} onLogout={handleLogout} onNotification={showNotification} />
+        )
       ) : (
         <LandingPage onOpenCheckout={handleOpenCheckout} onOpenLogin={handleOpenLogin} currentUser={currentUser} />
       )}

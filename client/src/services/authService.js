@@ -3,6 +3,17 @@ import supabase from '../lib/supabase.js';
 const ROLES = { 1: 'Administrador', 2: 'Cliente' };
 const getRolNombre = (idRol) => ROLES[idRol] || 'Cliente';
 
+const MENSAJE_SUSPENDIDO = 'Tu cuenta está suspendida. Contacta al administrador de Nimbox.';
+
+// Capacidad mostrada según el plan (sin plan = 0 GB)
+const cuotaDePlan = (planName) => {
+  const p = (planName || '').toLowerCase();
+  if (!planName || planName === 'Ninguno') return '0 GB';
+  if (p.includes('básico') || p.includes('basico')) return '10 GB';
+  if (p.includes('empresa')) return '2 TB';
+  return '500 GB';
+};
+
 export const authService = {
   async signUpBasic({ email, password, name, securityQuestion, securityAnswer }) {
     const formattedEmail = email.toLowerCase().trim();
@@ -78,6 +89,13 @@ export const authService = {
       let userProfile = null;
       try {
         const { data: dbUser } = await supabase.from('usuario').select('*, suscripcion(*, plan(*))').eq('id_usuario', authData.user.id).single();
+        // Cuenta suspendida por un administrador: no se permite el acceso
+        if (dbUser?.estado === 'suspendido') {
+          await supabase.auth.signOut();
+          localStorage.removeItem('nimbox_current_user');
+          return { user: null, error: new Error(MENSAJE_SUSPENDIDO) };
+        }
+
         if (dbUser) {
           const fullName = [dbUser.nombre, dbUser.apellido].filter(Boolean).join(' ') || formattedEmail.split('@')[0];
           const activeSub = dbUser.suscripcion?.find?.(s => s.estado === 'activa') || dbUser.suscripcion?.[0];
@@ -86,7 +104,7 @@ export const authService = {
           userProfile = {
             id: authData.user.id, name: fullName, email: formattedEmail, rol: getRolNombre(dbUser.id_rol),
             plan: planName, planId: activeSub?.id_plan || null,
-            storageQuota: activeSub ? (planName.toLowerCase().includes('básico') ? '10 GB' : '500 GB') : '0 GB'
+            storageQuota: cuotaDePlan(activeSub ? planName : null)
           };
         }
       } catch (err) {}
@@ -121,11 +139,28 @@ export const authService = {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
-        const { data: dbUser } = await supabase.from('usuario').select('nombre, apellido, id_rol').eq('id_usuario', session.user.id).single();
+        const { data: dbUser } = await supabase
+          .from('usuario')
+          .select('nombre, apellido, id_rol, estado, suscripcion(estado, id_plan, plan(nombre))')
+          .eq('id_usuario', session.user.id)
+          .maybeSingle();
+
+        // Si la cuenta fue suspendida mientras tenía la sesión abierta, se cierra
+        if (dbUser?.estado === 'suspendido') {
+          await supabase.auth.signOut();
+          localStorage.removeItem('nimbox_current_user');
+          return null;
+        }
+
         const fullName = dbUser ? [dbUser.nombre, dbUser.apellido].filter(Boolean).join(' ') : (session.user.user_metadata?.full_name || session.user.email.split('@')[0]);
+
+        // Plan real desde la suscripción activa (antes se leía de user_metadata, que nunca se llena)
+        const activeSub = dbUser?.suscripcion?.find?.(s => s.estado === 'activa');
+        const planName = activeSub?.plan?.nombre || 'Ninguno';
+
         return {
           id: session.user.id, name: fullName, email: session.user.email, rol: getRolNombre(dbUser?.id_rol),
-          plan: session.user.user_metadata?.plan_name || 'Ninguno', storageQuota: '0 GB'
+          plan: planName, planId: activeSub?.id_plan || null, storageQuota: cuotaDePlan(activeSub ? planName : null)
         };
       }
     } catch (e) {}
