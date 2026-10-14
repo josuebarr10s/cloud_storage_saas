@@ -48,6 +48,8 @@ CREATE TABLE IF NOT EXISTS public.usuario (
   apellido CHARACTER VARYING,
   estado CHARACTER VARYING NOT NULL DEFAULT 'activo'::character varying,
   fecha_registro TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  pregunta_usuario text,
+  respuesta_usuario text,
   CONSTRAINT usuario_pkey PRIMARY KEY (id_usuario),
   CONSTRAINT usuario_id_usuario_fkey FOREIGN KEY (id_usuario) REFERENCES auth.users(id) ON DELETE CASCADE,
   CONSTRAINT usuario_id_rol_fkey FOREIGN KEY (id_rol) REFERENCES public.rol(id_rol)
