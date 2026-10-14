@@ -189,6 +189,102 @@ export const authService = {
     return { data: null, error: new Error('Usuario no encontrado.') };
   },
 
+  async sendPasswordResetEmail(email) {
+    const formattedEmail = email.toLowerCase().trim();
+    try {
+      const { data, error } = await supabase.auth.resetPasswordForEmail(formattedEmail, {
+        redirectTo: `${window.location.origin}/`,
+      });
+      if (error) {
+        return { success: false, error: error.message };
+      }
+      return { success: true, data };
+    } catch (err) {
+      return { success: false, error: err.message || 'Error al enviar correo de recuperación.' };
+    }
+  },
+
+  async verifyOtpAndResetPassword({ email, token, newPassword }) {
+    const formattedEmail = email.toLowerCase().trim();
+    const cleanToken = (token || '').trim();
+
+    try {
+      // 1. Verificar el código OTP de recuperación de 6 dígitos con Supabase
+      const { data: otpData, error: otpError } = await supabase.auth.verifyOtp({
+        email: formattedEmail,
+        token: cleanToken,
+        type: 'recovery'
+      });
+
+      if (otpError) {
+        return { 
+          success: false, 
+          error: otpError.message.includes('expired') 
+            ? 'El código de 6 dígitos ha expirado. Por favor solicita uno nuevo.' 
+            : 'Código de verificación incorrecto. Revisa el correo enviado a tu Gmail.' 
+        };
+      }
+
+      // 2. Con la sesión autenticada por OTP, actualizar la contraseña en Supabase
+      const { data: updateData, error: updateError } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+
+      if (updateError) {
+        return { success: false, error: updateError.message || 'Error al actualizar la contraseña.' };
+      }
+
+      // 3. Sincronizar en almacenamiento local si existe
+      try {
+        const registeredUsers = JSON.parse(localStorage.getItem('nimbox_registered_users') || '[]');
+        const userIdx = registeredUsers.findIndex(u => u.email.toLowerCase() === formattedEmail);
+        if (userIdx !== -1) {
+          registeredUsers[userIdx].password = newPassword;
+          localStorage.setItem('nimbox_registered_users', JSON.stringify(registeredUsers));
+        }
+      } catch (e) {}
+
+      return { success: true, user: updateData?.user };
+    } catch (err) {
+      return { success: false, error: err.message || 'Error al procesar la verificación.' };
+    }
+  },
+
+  async updateUserPassword(newPassword) {
+    try {
+      const { data, error } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      // Sincronizar en almacenamiento local si existe
+      try {
+        const currentUser = JSON.parse(localStorage.getItem('nimbox_current_user') || '{}');
+        const userEmail = data?.user?.email || currentUser?.email;
+        if (userEmail) {
+          const registeredUsers = JSON.parse(localStorage.getItem('nimbox_registered_users') || '[]');
+          const userIdx = registeredUsers.findIndex(u => u.email.toLowerCase() === userEmail.toLowerCase());
+          if (userIdx !== -1) {
+            registeredUsers[userIdx].password = newPassword;
+            localStorage.setItem('nimbox_registered_users', JSON.stringify(registeredUsers));
+          }
+        }
+      } catch (e) {}
+
+      // Cerrar la sesión de recuperación para que el usuario deba iniciar sesión con su nueva contraseña
+      try {
+        await supabase.auth.signOut();
+      } catch (e) {}
+      localStorage.removeItem('nimbox_current_user');
+
+      return { success: true, user: data?.user };
+    } catch (err) {
+      return { success: false, error: err.message || 'Error al actualizar la contraseña.' };
+    }
+  },
+
   async resetPasswordWithSecurityAnswer(email, newPassword) {
     try {
       const registeredUsers = JSON.parse(localStorage.getItem('nimbox_registered_users') || '[]');
@@ -203,14 +299,16 @@ export const authService = {
   },
 
   onAuthStateChange(callback) {
-    return supabase.auth.onAuthStateChange((event, session) => {
+    return supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        callback(session?.user || null, event);
+        return;
+      }
       if (session?.user) {
-        setTimeout(async () => {
-          const user = await authService.getCurrentUser();
-          callback(user);
-        }, 0);
+        const user = await authService.getCurrentUser();
+        callback(user, event);
       } else {
-        callback(null);
+        callback(null, event);
       }
     });
   }
