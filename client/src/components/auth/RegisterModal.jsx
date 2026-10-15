@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, ShieldCheck, Eye, EyeOff, Sparkles, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
+import { X, ShieldCheck, Eye, EyeOff, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
 import { authService } from '../../services/authService.js';
 
 export const RegisterModal = ({ isOpen, onClose, onRegisterSuccess }) => {
@@ -31,16 +31,6 @@ export const RegisterModal = ({ isOpen, onClose, onRegisterSuccess }) => {
   }, [isOpen]);
 
   if (!isOpen) return null;
-
-  const handleAutofillTestData = () => {
-    setFullName('Carlos Mendoza');
-    setEmail('carlos.mendoza@nimbox.com');
-    setPassword('Nimbox2026!');
-    setConfirmPassword('Nimbox2026!');
-    setSecurityQuestion('mascota');
-    setSecurityAnswer('Firulais');
-    setErrors({});
-  };
 
   const getPasswordStrength = (pass) => {
     if (!pass) return { score: 0, label: 'Vacía', color: 'var(--border-color)' };
@@ -123,11 +113,6 @@ export const RegisterModal = ({ isOpen, onClose, onRegisterSuccess }) => {
         </div>
 
         <div style={{ padding: '1.75rem', overflowY: 'auto', maxHeight: '75vh' }}>
-          
-          <button type="button" onClick={handleAutofillTestData} style={{ width: '100%', padding: '8px', marginBottom: '15px', background: 'var(--primary-light)', border: '1px dashed var(--primary)', color: 'var(--primary)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', fontSize: '0.85rem' }}>
-            <Sparkles size={15} /> Autocompletar datos de prueba
-          </button>
-
           {errors.general && (
             <div style={{ background: 'var(--danger-bg)', border: '1px solid var(--danger)', color: 'var(--danger)', padding: '10px', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '15px' }}>
               <AlertCircle size={16} /> <span>{errors.general}</span>

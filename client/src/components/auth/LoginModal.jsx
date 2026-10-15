@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, Lock, Mail, Eye, EyeOff, ArrowRight, Sparkles, LogIn, AlertCircle, Loader2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Lock, Mail, Eye, EyeOff, ArrowRight, LogIn, AlertCircle, Loader2 } from 'lucide-react';
 import { authService } from '../../services/authService.js';
 
 export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onOpenRegister, onForgotPassword }) => {
@@ -7,11 +7,28 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onOpenRegister, on
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(true);
+  const [rememberMe, setRememberMe] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
+  // Limpiar campos automáticamente cada vez que se abre el modal por seguridad
+  useEffect(() => {
+    if (isOpen) {
+      setEmail('');
+      setPassword('');
+      setShowPassword(false);
+      setErrorMessage('');
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
+
+  const handleClose = () => {
+    setEmail('');
+    setPassword('');
+    setErrorMessage('');
+    onClose();
+  };
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -27,6 +44,10 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onOpenRegister, on
       const { user, error } = await authService.signIn({ email, password });
 
       if (user) {
+        // Limpiar credenciales del estado inmediatamente
+        setEmail('');
+        setPassword('');
+        setErrorMessage('');
         onLoginSuccess && onLoginSuccess(user);
         onClose();
       } else {
@@ -37,31 +58,6 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onOpenRegister, on
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleUseDemoAccount = () => {
-    const demoUser = {
-      name: 'Usuario Demo',
-      email: 'demo@nimbox.com',
-      password: 'Password123!',
-      plan: 'Pro',
-      planId: 2,
-      storageQuota: '500 GB',
-      billingCycle: 'monthly',
-      transactionId: 'NMB-DEMO99'
-    };
-
-    setEmail(demoUser.email);
-    setPassword(demoUser.password);
-    setErrorMessage('');
-
-    try {
-      const registeredUsers = JSON.parse(localStorage.getItem('nimbox_registered_users') || '[]');
-      if (!registeredUsers.some(u => u.email === demoUser.email)) {
-        registeredUsers.push(demoUser);
-        localStorage.setItem('nimbox_registered_users', JSON.stringify(registeredUsers));
-      }
-    } catch (e) {}
   };
 
   return (
@@ -127,7 +123,7 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onOpenRegister, on
           </div>
 
           <button
-            onClick={onClose}
+            onClick={handleClose}
             style={{
               width: '32px',
               height: '32px',
@@ -146,29 +142,6 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onOpenRegister, on
 
         {/* Content */}
         <div style={{ padding: '1.75rem' }}>
-          {/* Quick Demo Credentials Autofill */}
-          <button
-            type="button"
-            onClick={handleUseDemoAccount}
-            style={{
-              width: '100%',
-              padding: '8px 12px',
-              background: 'var(--primary-light)',
-              border: '1px dashed var(--primary)',
-              borderRadius: 'var(--radius-sm)',
-              color: 'var(--primary)',
-              fontSize: '0.825rem',
-              fontWeight: 600,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              marginBottom: '1.25rem'
-            }}
-          >
-            <Sparkles size={15} /> Probar con cuenta de demostración
-          </button>
-
           {errorMessage && (
             <div
               style={{
@@ -189,7 +162,7 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onOpenRegister, on
             </div>
           )}
 
-          <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <form onSubmit={handleLogin} autoComplete="off" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             {/* Email */}
             <div>
               <label style={{ display: 'block', fontSize: '0.825rem', fontWeight: 600, color: 'var(--text-strong)', marginBottom: '6px' }}>
@@ -201,6 +174,7 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onOpenRegister, on
                   placeholder="tu@correo.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="off"
                   style={{
                     width: '100%',
                     padding: '10px 12px 10px 36px',
@@ -235,6 +209,7 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onOpenRegister, on
                   placeholder="Tu contraseña registrada"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="new-password"
                   style={{
                     width: '100%',
                     padding: '10px 38px 10px 36px',
@@ -309,12 +284,12 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onOpenRegister, on
             <button
               type="button"
               onClick={() => {
-                onClose();
+                handleClose();
                 onOpenRegister && onOpenRegister();
               }}
               style={{ color: 'var(--primary)', fontWeight: 700 }}
             >
-              Simula tu pago y regístrate aquí
+              Haz tu pago y regístrate aquí
             </button>
           </div>
         </div>

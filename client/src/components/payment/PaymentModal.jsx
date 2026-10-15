@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, ShieldCheck, Lock, Sparkles, CheckCircle2, Loader2 } from 'lucide-react';
+import { X, ShieldCheck, Lock, CheckCircle2, Loader2 } from 'lucide-react';
 import { plansService } from '../../services/plansService.js';
 
 const DEFAULT_PLANS = [
@@ -35,14 +35,6 @@ export const PaymentModal = ({ isOpen, onClose, user, selectedPlan, billingCycle
   const isAnnual = activeBillingCycle === 'annual';
   const monthlyPrice = isAnnual ? activePlan.precioAnual : activePlan.precio;
   const billedTotal = isAnnual ? (monthlyPrice * 12).toFixed(2) : monthlyPrice.toFixed(2);
-
-  const handleAutofill = () => {
-    setCardName(user?.name || 'Carlos Mendoza');
-    setCardNumber('4242 4242 4242 4242');
-    setCardExpiry('12/28');
-    setCardCvc('884');
-    setErrors({});
-  };
 
   // Función para formatear la fecha con barra automática
   const handleExpiryChange = (e) => {
@@ -130,8 +122,6 @@ export const PaymentModal = ({ isOpen, onClose, user, selectedPlan, billingCycle
                 {errors.general}
               </div>
             )}
-
-            <button type="button" onClick={handleAutofill} style={{ width: '100%', padding: '8px', marginBottom: '15px', background: 'var(--primary-light)', border: '1px dashed var(--primary)', color: 'var(--primary)', cursor: 'pointer', borderRadius: '4px' }}><Sparkles size={15}/> Autocompletar Tarjeta de Prueba</button>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div>
