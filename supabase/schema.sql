@@ -48,8 +48,8 @@ CREATE TABLE IF NOT EXISTS public.usuario (
   apellido CHARACTER VARYING,
   estado CHARACTER VARYING NOT NULL DEFAULT 'activo'::character varying,
   fecha_registro TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  pregunta_usuario text,
-  respuesta_usuario text,
+  pregunta_usuario text,   -- ya no se usa (la recuperación es por correo)
+  respuesta_usuario text,  -- ya no se usa
   CONSTRAINT usuario_pkey PRIMARY KEY (id_usuario),
   CONSTRAINT usuario_id_usuario_fkey FOREIGN KEY (id_usuario) REFERENCES auth.users(id) ON DELETE CASCADE,
   CONSTRAINT usuario_id_rol_fkey FOREIGN KEY (id_rol) REFERENCES public.rol(id_rol)
@@ -57,15 +57,18 @@ CREATE TABLE IF NOT EXISTS public.usuario (
 
 ALTER TABLE public.usuario ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Permitir lectura y modificacion a usuario propio" ON public.usuario;
 CREATE POLICY "Permitir lectura y modificacion a usuario propio"
   ON public.usuario FOR ALL USING (true);
 
 
--- 4. TRIGGER: Crear registro en usuario y almacenamiento automáticamente tras Auth SignUp
-CREATE OR REPLACE FUNCTION public.handle_new_user_custom()
+-- 4. TRIGGER: Crear perfil y almacenamiento automáticamente tras Auth SignUp
+-- No crea suscripción: el usuario queda "sin plan" (solo ve la landing) hasta que paga
+-- (PaymentModal -> plansService.createSubscription).
+CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  -- Crear en public.usuario
+  -- 1. Perfil en public.usuario
   INSERT INTO public.usuario (id_usuario, id_rol, nombre, apellido, estado)
   VALUES (
     NEW.id,
@@ -76,23 +79,23 @@ BEGIN
   )
   ON CONFLICT (id_usuario) DO NOTHING;
 
-  -- Crear en public.almacenamiento (500 GB por defecto)
+  -- 2. Almacenamiento en 0: sin plan no hay espacio. Al pagar se actualiza al límite del plan.
   INSERT INTO public.almacenamiento (id_usuario, capacidad_total_bytes, espacio_usado_bytes)
-  VALUES (
-    NEW.id,
-    536870912000,
-    0
-  )
+  VALUES (NEW.id, 0, 0)
   ON CONFLICT (id_usuario) DO NOTHING;
 
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS on_auth_user_created_custom ON auth.users;
-CREATE TRIGGER on_auth_user_created_custom
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user_custom();
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- Trigger anterior (duplicado), ya no se usa
+DROP TRIGGER IF EXISTS on_auth_user_created_custom ON auth.users;
+DROP FUNCTION IF EXISTS public.handle_new_user_custom();
 
 
 -- 5. TABLA ALMACENAMIENTO
@@ -108,6 +111,7 @@ CREATE TABLE IF NOT EXISTS public.almacenamiento (
 
 ALTER TABLE public.almacenamiento ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Permitir a usuario ver/modificar su almacenamiento" ON public.almacenamiento;
 CREATE POLICY "Permitir a usuario ver/modificar su almacenamiento"
   ON public.almacenamiento FOR ALL USING (true);
 
@@ -119,7 +123,7 @@ CREATE TABLE IF NOT EXISTS public.suscripcion (
   id_plan UUID NOT NULL,
   fecha_inicio TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
   fecha_fin TIMESTAMP WITH TIME ZONE NOT NULL,
-  estado CHARACTER VARYING NOT NULL DEFAULT 'activa'::character varying,
+  estado CHARACTER VARYING NOT NULL DEFAULT 'activa'::character varying, -- 'activa' | 'reemplazada' | 'cancelada'
   precio_contratado NUMERIC NOT NULL,
   limite_bytes_contratado BIGINT NOT NULL,
   fecha_creacion TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -130,6 +134,7 @@ CREATE TABLE IF NOT EXISTS public.suscripcion (
 
 ALTER TABLE public.suscripcion ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Permitir gestión de suscripciones" ON public.suscripcion;
 CREATE POLICY "Permitir gestión de suscripciones"
   ON public.suscripcion FOR ALL USING (true);
 
@@ -149,6 +154,7 @@ CREATE TABLE IF NOT EXISTS public.pago (
 
 ALTER TABLE public.pago ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Permitir gestión de pagos" ON public.pago;
 CREATE POLICY "Permitir gestión de pagos"
   ON public.pago FOR ALL USING (true);
 
@@ -170,6 +176,7 @@ ALTER TABLE public.carpeta ADD COLUMN IF NOT EXISTS color CHARACTER VARYING DEFA
 
 ALTER TABLE public.carpeta ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Permitir a usuario gestionar sus carpetas" ON public.carpeta;
 CREATE POLICY "Permitir a usuario gestionar sus carpetas"
   ON public.carpeta FOR ALL USING (true);
 
@@ -192,6 +199,7 @@ CREATE TABLE IF NOT EXISTS public.archivo (
 
 ALTER TABLE public.archivo ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Permitir a usuario gestionar sus archivos" ON public.archivo;
 CREATE POLICY "Permitir a usuario gestionar sus archivos"
   ON public.archivo FOR ALL USING (true);
 
@@ -210,6 +218,7 @@ ON CONFLICT (id) DO UPDATE SET public = true;
 DROP POLICY IF EXISTS "Permitir subida a nimbox-files" ON storage.objects;
 DROP POLICY IF EXISTS "Permitir lectura en nimbox-files" ON storage.objects;
 DROP POLICY IF EXISTS "Permitir eliminacion en nimbox-files" ON storage.objects;
+DROP POLICY IF EXISTS "Permitir actualizacion en nimbox-files" ON storage.objects;
 
 -- Crear políticas globales para nimbox-files
 CREATE POLICY "Permitir subida a nimbox-files"
@@ -227,6 +236,10 @@ CREATE POLICY "Permitir eliminacion en nimbox-files"
 CREATE POLICY "Permitir actualizacion en nimbox-files"
   ON storage.objects FOR UPDATE
   USING (bucket_id = 'nimbox-files');
+
+-- =============================================================================
+-- 11. PAPELERA (borrado lógico) E HISTORIAL DE VERSIONES
+-- =============================================================================
 
 -- Papelera: marcar en vez de borrar
 ALTER TABLE public.archivo
@@ -247,5 +260,6 @@ CREATE TABLE IF NOT EXISTS public.archivo_version (
 );
 
 ALTER TABLE public.archivo_version ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Usuario gestiona sus versiones" ON public.archivo_version;
 CREATE POLICY "Usuario gestiona sus versiones"
   ON public.archivo_version FOR ALL USING (auth.uid() = id_usuario);

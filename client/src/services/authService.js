@@ -14,125 +14,111 @@ const cuotaDePlan = (planName) => {
   return '500 GB';
 };
 
+// Traduce los errores más comunes de Supabase Auth a mensajes claros
+const mensajeDeError = (error) => {
+  const msg = (error?.message || '').toLowerCase();
+  if (msg.includes('invalid login credentials')) return 'Correo o contraseña incorrectos.';
+  if (msg.includes('email not confirmed')) return 'Tu correo aún no está confirmado. Revisa tu bandeja de entrada.';
+  if (msg.includes('already registered')) return 'Ya existe una cuenta con este correo.';
+  if (msg.includes('rate limit') || msg.includes('too many')) return 'Demasiados intentos. Espera unos minutos e inténtalo de nuevo.';
+  return error?.message || 'Ocurrió un error inesperado.';
+};
+
 export const authService = {
-  async signUpBasic({ email, password, name, securityQuestion, securityAnswer }) {
+  /**
+   * Registro: crea la cuenta en Supabase Auth.
+   * El trigger de la BD crea la fila en public.usuario; aquí solo se completa el nombre.
+   * (El correo y la contraseña los guarda Supabase en auth.users)
+   */
+  async signUpBasic({ email, password, name }) {
     const formattedEmail = email.toLowerCase().trim();
     const nameParts = (name || '').trim().split(' ');
     const nombre = nameParts[0] || 'Usuario';
     const apellido = nameParts.slice(1).join(' ') || '';
-    
+
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: formattedEmail,
       password: password,
       options: { data: { full_name: name, nombre: nombre, apellido: apellido } }
     });
 
-    if (authError) return { user: null, error: authError };
+    if (authError) return { user: null, error: new Error(mensajeDeError(authError)) };
     const userId = authData?.user?.id;
-    if (!userId) return { user: null, error: new Error('No se pudo obtener el ID') };
+    if (!userId) return { user: null, error: new Error('No se pudo crear la cuenta.') };
 
     const userObj = {
       id: userId, name: name, email: formattedEmail, rol: 'Cliente', plan: 'Ninguno', storageQuota: '0 GB'
     };
 
     try {
-      const { error: updateError } = await supabase
+      // Perfil en public.usuario (si el trigger ya lo creó, solo se actualiza)
+      const { error: perfilError } = await supabase
         .from('usuario')
-        .update({ 
-          pregunta_usuario: securityQuestion, 
-          respuesta_usuario: securityAnswer,
+        .upsert({
+          id_usuario: userId,
+          id_rol: 2,
           nombre: nombre,
-          apellido: apellido
-        })
-        .eq('id_usuario', userId);
+          apellido: apellido,
+          estado: 'activo'
+        }, { onConflict: 'id_usuario' });
+      if (perfilError) console.error('Error al guardar el perfil:', perfilError.message);
 
-      if (updateError || updateError === null) {
-         await supabase.from('usuario').insert({ 
-           id_usuario: userId, 
-           id_rol: 2, 
-           nombre: nombre, 
-           apellido: apellido, 
-           estado: 'activo', 
-           pregunta_usuario: securityQuestion, 
-           respuesta_usuario: securityAnswer, 
-           email: formattedEmail 
-         });
-      }
-      
-      await supabase.from('almacenamiento').upsert({ id_usuario: userId, capacidad_total_bytes: 0, espacio_usado_bytes: 0 });
+      // Sin plan no hay espacio; al pagar se actualiza al límite del plan
+      const { error: almError } = await supabase
+        .from('almacenamiento')
+        .upsert({ id_usuario: userId, capacidad_total_bytes: 0, espacio_usado_bytes: 0 }, { onConflict: 'id_usuario' });
+      if (almError) console.error('Error al crear el almacenamiento:', almError.message);
     } catch (err) {
-      console.error("Error al forzar guardado en BD:", err);
+      console.error('Error al guardar en BD:', err);
     }
 
     localStorage.setItem('nimbox_current_user', JSON.stringify(userObj));
-    try {
-      const existingUsers = JSON.parse(localStorage.getItem('nimbox_registered_users') || '[]');
-      existingUsers.push({ ...userObj, password, securityQuestion, securityAnswer });
-      localStorage.setItem('nimbox_registered_users', JSON.stringify(existingUsers));
-    } catch (e) {}
-
     return { user: userObj, error: null };
-  },
-
-  async checkUserSubscription(userId) {
-    try {
-      const { data } = await supabase.from('suscripcion').select('*').eq('id_usuario', userId).eq('estado', 'activa').maybeSingle();
-      return data ? true : false;
-    } catch (e) { return false; }
   },
 
   async signIn({ email, password }) {
     const formattedEmail = email.toLowerCase().trim();
     const { data: authData, error: authError } = await supabase.auth.signInWithPassword({ email: formattedEmail, password });
 
-    if (!authError && authData?.user) {
-      let userProfile = null;
-      try {
-        const { data: dbUser } = await supabase.from('usuario').select('*, suscripcion(*, plan(*))').eq('id_usuario', authData.user.id).single();
-        // Cuenta suspendida por un administrador: no se permite el acceso
-        if (dbUser?.estado === 'suspendido') {
-          await supabase.auth.signOut();
-          localStorage.removeItem('nimbox_current_user');
-          return { user: null, error: new Error(MENSAJE_SUSPENDIDO) };
-        }
-
-        if (dbUser) {
-          const fullName = [dbUser.nombre, dbUser.apellido].filter(Boolean).join(' ') || formattedEmail.split('@')[0];
-          const activeSub = dbUser.suscripcion?.find?.(s => s.estado === 'activa') || dbUser.suscripcion?.[0];
-          const planName = activeSub?.plan?.nombre || 'Ninguno';
-
-          userProfile = {
-            id: authData.user.id, name: fullName, email: formattedEmail, rol: getRolNombre(dbUser.id_rol),
-            plan: planName, planId: activeSub?.id_plan || null,
-            storageQuota: cuotaDePlan(activeSub ? planName : null)
-          };
-        }
-      } catch (err) {}
-
-      if (!userProfile) {
-        userProfile = { id: authData.user.id, name: authData.user.user_metadata?.full_name || formattedEmail.split('@')[0], email: formattedEmail, rol: 'Cliente', plan: 'Ninguno', storageQuota: '0 GB' };
-      }
-      localStorage.setItem('nimbox_current_user', JSON.stringify(userProfile));
-      return { user: userProfile, error: null };
+    if (authError || !authData?.user) {
+      return { user: null, error: new Error(mensajeDeError(authError)) };
     }
 
+    let userProfile = null;
     try {
-      const registeredUsers = JSON.parse(localStorage.getItem('nimbox_registered_users') || '[]');
-      const localUser = registeredUsers.find(u => u.email.toLowerCase() === formattedEmail && u.password === password);
-      if (localUser) {
-        const cleanUser = { ...localUser, rol: 'Cliente', plan: 'Ninguno', storageQuota: '0 GB' };
-        delete cleanUser.password;
-        localStorage.setItem('nimbox_current_user', JSON.stringify(cleanUser));
-        return { user: cleanUser, error: null };
+      const { data: dbUser } = await supabase.from('usuario').select('*, suscripcion(*, plan(*))').eq('id_usuario', authData.user.id).single();
+      // Cuenta suspendida por un administrador: no se permite el acceso
+      if (dbUser?.estado === 'suspendido') {
+        await supabase.auth.signOut();
+        localStorage.removeItem('nimbox_current_user');
+        return { user: null, error: new Error(MENSAJE_SUSPENDIDO) };
       }
-    } catch (e) {}
 
-    return { user: null, error: authError || new Error('Credenciales inválidas') };
+      if (dbUser) {
+        const fullName = [dbUser.nombre, dbUser.apellido].filter(Boolean).join(' ') || formattedEmail.split('@')[0];
+        const activeSub = dbUser.suscripcion?.find?.(s => s.estado === 'activa');
+        const planName = activeSub?.plan?.nombre || 'Ninguno';
+
+        userProfile = {
+          id: authData.user.id, name: fullName, email: formattedEmail, rol: getRolNombre(dbUser.id_rol),
+          plan: planName, planId: activeSub?.id_plan || null,
+          storageQuota: cuotaDePlan(activeSub ? planName : null)
+        };
+      }
+    } catch (err) {}
+
+    if (!userProfile) {
+      userProfile = { id: authData.user.id, name: authData.user.user_metadata?.full_name || formattedEmail.split('@')[0], email: formattedEmail, rol: 'Cliente', plan: 'Ninguno', storageQuota: '0 GB' };
+    }
+    localStorage.setItem('nimbox_current_user', JSON.stringify(userProfile));
+    return { user: userProfile, error: null };
   },
 
   async signOut() {
     try { await supabase.auth.signOut(); } catch (e) {}
     localStorage.removeItem('nimbox_current_user');
+    // Limpieza de datos viejos: antes se guardaban contraseñas en el navegador
+    localStorage.removeItem('nimbox_registered_users');
   },
 
   async getCurrentUser() {
@@ -154,7 +140,7 @@ export const authService = {
 
         const fullName = dbUser ? [dbUser.nombre, dbUser.apellido].filter(Boolean).join(' ') : (session.user.user_metadata?.full_name || session.user.email.split('@')[0]);
 
-        // Plan real desde la suscripción activa (antes se leía de user_metadata, que nunca se llena)
+        // Plan real desde la suscripción activa
         const activeSub = dbUser?.suscripcion?.find?.(s => s.estado === 'activa');
         const planName = activeSub?.plan?.nombre || 'Ninguno';
 
@@ -165,28 +151,8 @@ export const authService = {
       }
     } catch (e) {}
 
-    try {
-      const saved = localStorage.getItem('nimbox_current_user');
-      if (saved) return { ...JSON.parse(saved), rol: 'Cliente' };
-    } catch (e) {}
+    // Sin sesión de Supabase no hay usuario
     return null;
-  },
-
-  async findUserSecurityQuestion(email) {
-    const formattedEmail = email.toLowerCase().trim();
-    try {
-      const { data, error } = await supabase.from('usuario').select('pregunta_usuario, respuesta_usuario, id_usuario').eq('email', formattedEmail).maybeSingle();
-      if (data) return { data, error: null };
-    } catch (e) {}
-
-    try {
-      const registeredUsers = JSON.parse(localStorage.getItem('nimbox_registered_users') || '[]');
-      const localUser = registeredUsers.find(u => u.email.toLowerCase() === formattedEmail);
-      if (localUser) {
-        return { data: { pregunta_usuario: localUser.securityQuestion, respuesta_usuario: localUser.securityAnswer, id_usuario: localUser.id }, error: null };
-      }
-    } catch (e) {}
-    return { data: null, error: new Error('Usuario no encontrado.') };
   },
 
   async sendPasswordResetEmail(email) {
@@ -196,57 +162,11 @@ export const authService = {
         redirectTo: `${window.location.origin}/`,
       });
       if (error) {
-        return { success: false, error: error.message };
+        return { success: false, error: mensajeDeError(error) };
       }
       return { success: true, data };
     } catch (err) {
       return { success: false, error: err.message || 'Error al enviar correo de recuperación.' };
-    }
-  },
-
-  async verifyOtpAndResetPassword({ email, token, newPassword }) {
-    const formattedEmail = email.toLowerCase().trim();
-    const cleanToken = (token || '').trim();
-
-    try {
-      // 1. Verificar el código OTP de recuperación de 6 dígitos con Supabase
-      const { data: otpData, error: otpError } = await supabase.auth.verifyOtp({
-        email: formattedEmail,
-        token: cleanToken,
-        type: 'recovery'
-      });
-
-      if (otpError) {
-        return { 
-          success: false, 
-          error: otpError.message.includes('expired') 
-            ? 'El código de 6 dígitos ha expirado. Por favor solicita uno nuevo.' 
-            : 'Código de verificación incorrecto. Revisa el correo enviado a tu Gmail.' 
-        };
-      }
-
-      // 2. Con la sesión autenticada por OTP, actualizar la contraseña en Supabase
-      const { data: updateData, error: updateError } = await supabase.auth.updateUser({
-        password: newPassword
-      });
-
-      if (updateError) {
-        return { success: false, error: updateError.message || 'Error al actualizar la contraseña.' };
-      }
-
-      // 3. Sincronizar en almacenamiento local si existe
-      try {
-        const registeredUsers = JSON.parse(localStorage.getItem('nimbox_registered_users') || '[]');
-        const userIdx = registeredUsers.findIndex(u => u.email.toLowerCase() === formattedEmail);
-        if (userIdx !== -1) {
-          registeredUsers[userIdx].password = newPassword;
-          localStorage.setItem('nimbox_registered_users', JSON.stringify(registeredUsers));
-        }
-      } catch (e) {}
-
-      return { success: true, user: updateData?.user };
-    } catch (err) {
-      return { success: false, error: err.message || 'Error al procesar la verificación.' };
     }
   },
 
@@ -256,22 +176,8 @@ export const authService = {
         password: newPassword
       });
       if (error) {
-        return { success: false, error: error.message };
+        return { success: false, error: mensajeDeError(error) };
       }
-
-      // Sincronizar en almacenamiento local si existe
-      try {
-        const currentUser = JSON.parse(localStorage.getItem('nimbox_current_user') || '{}');
-        const userEmail = data?.user?.email || currentUser?.email;
-        if (userEmail) {
-          const registeredUsers = JSON.parse(localStorage.getItem('nimbox_registered_users') || '[]');
-          const userIdx = registeredUsers.findIndex(u => u.email.toLowerCase() === userEmail.toLowerCase());
-          if (userIdx !== -1) {
-            registeredUsers[userIdx].password = newPassword;
-            localStorage.setItem('nimbox_registered_users', JSON.stringify(registeredUsers));
-          }
-        }
-      } catch (e) {}
 
       // Cerrar la sesión de recuperación para que el usuario deba iniciar sesión con su nueva contraseña
       try {
@@ -285,28 +191,19 @@ export const authService = {
     }
   },
 
-  async resetPasswordWithSecurityAnswer(email, newPassword) {
-    try {
-      const registeredUsers = JSON.parse(localStorage.getItem('nimbox_registered_users') || '[]');
-      const userIndex = registeredUsers.findIndex(u => u.email.toLowerCase() === email.toLowerCase().trim());
-      if (userIndex !== -1) {
-        registeredUsers[userIndex].password = newPassword;
-        localStorage.setItem('nimbox_registered_users', JSON.stringify(registeredUsers));
-        return { success: true };
-      }
-    } catch (e) {}
-    return { success: false, error: 'No se pudo actualizar localmente.' };
-  },
-
   onAuthStateChange(callback) {
-    return supabase.auth.onAuthStateChange(async (event, session) => {
+    return supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'PASSWORD_RECOVERY') {
         callback(session?.user || null, event);
         return;
       }
       if (session?.user) {
-        const user = await authService.getCurrentUser();
-        callback(user, event);
+        // Se consulta la BD fuera del listener (setTimeout): llamar a Supabase dentro
+        // de onAuthStateChange puede bloquear la sesión y dejar la app cargando
+        setTimeout(async () => {
+          const user = await authService.getCurrentUser();
+          callback(user, event);
+        }, 0);
       } else {
         callback(null, event);
       }

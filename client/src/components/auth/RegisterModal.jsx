@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, ShieldCheck, Eye, EyeOff, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
+import { X, ShieldCheck, Eye, EyeOff, ArrowRight, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { authService } from '../../services/authService.js';
+import { getPasswordRequirements, getPasswordStrength, PASSWORD_REQUIREMENT_LABELS } from '../../utils/passwordRules.js';
 
 export const RegisterModal = ({ isOpen, onClose, onRegisterSuccess }) => {
   const [fullName, setFullName] = useState('');
@@ -10,8 +11,6 @@ export const RegisterModal = ({ isOpen, onClose, onRegisterSuccess }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(true);
-  const [securityQuestion, setSecurityQuestion] = useState('');
-  const [securityAnswer, setSecurityAnswer] = useState('');
   
   const [errors, setErrors] = useState({});
   const [isRegistering, setIsRegistering] = useState(false);
@@ -22,8 +21,6 @@ export const RegisterModal = ({ isOpen, onClose, onRegisterSuccess }) => {
       setEmail('');
       setPassword('');
       setConfirmPassword('');
-      setSecurityQuestion('');
-      setSecurityAnswer('');
       setAgreeTerms(true);
       setErrors({});
       setIsRegistering(false);
@@ -32,31 +29,25 @@ export const RegisterModal = ({ isOpen, onClose, onRegisterSuccess }) => {
 
   if (!isOpen) return null;
 
-  const getPasswordStrength = (pass) => {
-    if (!pass) return { score: 0, label: 'Vacía', color: 'var(--border-color)' };
-    let score = 0;
-    if (pass.length >= 6) score += 1;
-    if (pass.length >= 8) score += 1;
-    if (/[A-Z]/.test(pass) && /[0-9]/.test(pass)) score += 1;
-    if (/[^A-Za-z0-9]/.test(pass)) score += 1;
-
-    if (score <= 1) return { score: 1, label: 'Débil', color: '#ef4444' };
-    if (score === 2) return { score: 2, label: 'Aceptable', color: '#f59e0b' };
-    if (score === 3) return { score: 3, label: 'Fuerte', color: '#3b82f6' };
-    return { score: 4, label: 'Muy Segura', color: '#10b981' };
-  };
-
   const passwordStrength = getPasswordStrength(password);
+  const requirements = getPasswordRequirements(password, confirmPassword);
+
+  const RequirementItem = ({ met, text }) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', color: met ? 'var(--success)' : 'var(--text-muted)' }}>
+      <CheckCircle2 size={14} style={{ opacity: met ? 1 : 0.3 }} />
+      <span>{text}</span>
+    </div>
+  );
 
   const validateForm = () => {
     const errs = {};
     if (!fullName.trim()) errs.fullName = 'Ingresa tu nombre completo';
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!email.trim() || !emailRegex.test(email)) errs.email = 'Ingresa un correo válido';
-    if (!password || password.length < 6) errs.password = 'Mínimo 6 caracteres';
-    if (password !== confirmPassword) errs.confirmPassword = 'Las contraseñas no coinciden';
-    if (!securityQuestion) errs.securityQuestion = 'Selecciona una pregunta de seguridad';
-    if (!securityAnswer.trim()) errs.securityAnswer = 'Ingresa una respuesta';
+    if (!requirements.length || !requirements.number || !requirements.special) {
+      errs.password = 'La contraseña no cumple los requisitos de abajo';
+    }
+    if (!requirements.match) errs.confirmPassword = 'Las contraseñas no coinciden';
     if (!agreeTerms) errs.agreeTerms = 'Debes aceptar los términos y condiciones';
     
     setErrors(errs);
@@ -74,9 +65,7 @@ export const RegisterModal = ({ isOpen, onClose, onRegisterSuccess }) => {
       const { user, error } = await authService.signUpBasic({
         email, 
         password, 
-        name: fullName, 
-        securityQuestion, 
-        securityAnswer
+        name: fullName
       });
 
       if (error || !user) {
@@ -187,22 +176,12 @@ export const RegisterModal = ({ isOpen, onClose, onRegisterSuccess }) => {
               {errors.confirmPassword && <span style={{ color: 'var(--danger)', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{errors.confirmPassword}</span>}
             </div>
 
-            <div>
-              <label style={{ display: 'block', fontSize: '0.825rem', fontWeight: 600, marginBottom: '6px' }}>Pregunta de Seguridad</label>
-              <select value={securityQuestion} onChange={(e) => setSecurityQuestion(e.target.value)} style={{ width: '100%', padding: '10px 12px', border: errors.securityQuestion ? '1px solid var(--danger)' : '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', outline: 'none', background: 'var(--bg-main)' }}>
-                <option value="" disabled>Selecciona una opción...</option>
-                <option value="mascota">¿Cuál fue el nombre de tu primera mascota?</option>
-                <option value="ciudad">¿En qué ciudad naciste?</option>
-                <option value="madre">¿Cuál es el segundo nombre de tu madre?</option>
-                <option value="colegio">¿Cómo se llamaba tu primer colegio?</option>
-              </select>
-              {errors.securityQuestion && <span style={{ color: 'var(--danger)', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{errors.securityQuestion}</span>}
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '0.825rem', fontWeight: 600, marginBottom: '6px' }}>Respuesta de Seguridad</label>
-              <input type="text" value={securityAnswer} onChange={(e) => setSecurityAnswer(e.target.value)} placeholder="Tu respuesta secreta" style={{ width: '100%', padding: '10px 12px', border: errors.securityAnswer ? '1px solid var(--danger)' : '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', outline: 'none' }} />
-              {errors.securityAnswer && <span style={{ color: 'var(--danger)', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{errors.securityAnswer}</span>}
+            {/* Requisitos de la contraseña (los mismos que al restablecerla) */}
+            <div style={{ background: 'var(--bg-subtle)', padding: '12px', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <RequirementItem met={requirements.length} text={PASSWORD_REQUIREMENT_LABELS.length} />
+              <RequirementItem met={requirements.number} text={PASSWORD_REQUIREMENT_LABELS.number} />
+              <RequirementItem met={requirements.special} text={PASSWORD_REQUIREMENT_LABELS.special} />
+              <RequirementItem met={requirements.match} text={PASSWORD_REQUIREMENT_LABELS.match} />
             </div>
 
             <div style={{ marginTop: '5px' }}>

@@ -48,8 +48,9 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
   const [itemToMove, setItemToMove] = useState(null);
 
-  const planName = currentUser?.plan || 'Pro';
-  const storageQuota = currentUser?.storageQuota || '500 GB';
+  // Sin plan conocido no se asume ninguno (antes mostraba "Pro" por defecto)
+  const planName = currentUser?.plan || 'Ninguno';
+  const storageQuota = currentUser?.storageQuota || '0 GB';
   const retentionDays = getRetentionDays(planName);
   const isTrash = activeTab === 'trash';
 

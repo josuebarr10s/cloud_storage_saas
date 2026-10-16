@@ -14,7 +14,9 @@ import { authService } from './services/authService.js';
 
 // El administrador siempre entra a su panel; un cliente entra al dashboard solo si ya tiene plan
 const esAdmin = (user) => user?.rol === 'Administrador';
-const vistaPara = (user) => (esAdmin(user) || user?.plan !== 'Ninguno') ? 'dashboard' : 'landing';
+// Si no se sabe el plan (undefined), se trata como "sin plan": nunca se entra al dashboard por defecto
+const tienePlan = (user) => Boolean(user?.plan) && user.plan !== 'Ninguno';
+const vistaPara = (user) => (esAdmin(user) || tienePlan(user)) ? 'dashboard' : 'landing';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -175,11 +177,17 @@ export default function App() {
       <ForgotPasswordModal isOpen={isForgotPasswordOpen} onClose={() => setIsForgotPasswordOpen(false)} onBackToLogin={handleOpenLogin} />
       <ResetPasswordModal 
         isOpen={isResetPasswordOpen} 
-        onClose={() => {
+        onClose={async () => {
+          // Si cierra sin cambiar la contraseña, se cierra también la sesión temporal
+          // que Supabase abre con el enlace del correo (si no, entraría a la cuenta sin contraseña)
+          await authService.signOut();
           isRecoveringRef.current = false;
           sessionStorage.removeItem('nimbox_is_recovering');
           setIsResetPasswordOpen(false);
+          setCurrentUser(null);
+          setCurrentView('landing');
           window.history.replaceState(null, '', window.location.pathname);
+          showNotification('No se cambió la contraseña. Si la necesitas, solicita un nuevo enlace de recuperación.', 'info');
         }} 
         onResetSuccess={async () => {
           isRecoveringRef.current = false;

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Lock, Eye, EyeOff, CheckCircle2, ShieldCheck, AlertCircle } from 'lucide-react';
 import { authService } from '../../services/authService.js';
+import { getPasswordRequirements, getPasswordStrength, PASSWORD_REQUIREMENT_LABELS } from '../../utils/passwordRules.js';
 
 export const ResetPasswordModal = ({ isOpen, onClose, onResetSuccess }) => {
   const [newPassword, setNewPassword] = useState('');
@@ -11,22 +12,9 @@ export const ResetPasswordModal = ({ isOpen, onClose, onResetSuccess }) => {
   const [isSuccess, setIsSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  // Password requirements state
-  const [requirements, setRequirements] = useState({
-    length: false,
-    number: false,
-    special: false,
-    match: false
-  });
-
-  useEffect(() => {
-    setRequirements({
-      length: newPassword.length >= 8,
-      number: /[0-9]/.test(newPassword),
-      special: /[!@#$%^&*(),.?":{}|<>]/.test(newPassword),
-      match: newPassword === confirmPassword && confirmPassword !== ''
-    });
-  }, [newPassword, confirmPassword]);
+  // Requisitos y nivel de seguridad (mismas reglas que el registro)
+  const requirements = getPasswordRequirements(newPassword, confirmPassword);
+  const passwordStrength = getPasswordStrength(newPassword);
 
   if (!isOpen) return null;
 
@@ -127,6 +115,29 @@ export const ResetPasswordModal = ({ isOpen, onClose, onResetSuccess }) => {
                       {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
                   </div>
+
+                  {/* Barra de seguridad (igual que en el registro) */}
+                  {newPassword && (
+                    <>
+                      <div style={{ display: 'flex', gap: '4px', marginTop: '6px' }}>
+                        {[1, 2, 3, 4].map((level) => (
+                          <div
+                            key={level}
+                            style={{
+                              flex: 1,
+                              height: '4px',
+                              borderRadius: '2px',
+                              backgroundColor: passwordStrength.score >= level ? passwordStrength.color : 'var(--border-color)',
+                              transition: 'background-color 0.2s ease'
+                            }}
+                          />
+                        ))}
+                      </div>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: passwordStrength.color, marginTop: '4px', display: 'block', textAlign: 'right' }}>
+                        Seguridad: {passwordStrength.label}
+                      </span>
+                    </>
+                  )}
                 </div>
 
                 <div>
@@ -146,10 +157,10 @@ export const ResetPasswordModal = ({ isOpen, onClose, onResetSuccess }) => {
                 </div>
 
                 <div style={{ background: 'var(--bg-subtle)', padding: '12px', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <RequirementItem met={requirements.length} text="Mínimo 8 caracteres" />
-                  <RequirementItem met={requirements.number} text="Al menos un número" />
-                  <RequirementItem met={requirements.special} text="Al menos un carácter especial (!@#$)" />
-                  <RequirementItem met={requirements.match} text="Las contraseñas coinciden" />
+                  <RequirementItem met={requirements.length} text={PASSWORD_REQUIREMENT_LABELS.length} />
+                  <RequirementItem met={requirements.number} text={PASSWORD_REQUIREMENT_LABELS.number} />
+                  <RequirementItem met={requirements.special} text={PASSWORD_REQUIREMENT_LABELS.special} />
+                  <RequirementItem met={requirements.match} text={PASSWORD_REQUIREMENT_LABELS.match} />
                 </div>
 
                 <button
