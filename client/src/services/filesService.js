@@ -1,85 +1,18 @@
 import supabase from '../lib/supabase.js';
+import { STORAGE_CONSTANTS } from '../constants/storage.js';
+import { formatBytes, formatDate } from '../utils/formatters.js';
+import { detectCategoryAndType } from '../strategies/fileCategoryStrategy.js';
+import { calculateRetentionDays } from '../strategies/retentionStrategy.js';
+import { FileFactory, FolderFactory } from '../factories/entityFactory.js';
 
-const BUCKET = 'nimbox-files';
-const DIA_MS = 24 * 60 * 60 * 1000;
-
-function formatBytes(bytes, decimals = 1) {
-  if (!bytes || bytes === 0) return '0 Bytes';
-  const k = 1024;
-  const dm = decimals < 0 ? 0 : decimals;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
-}
-
-function formatDate(fecha) {
-  return new Date(fecha).toLocaleDateString('es-ES', {
-    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
-  });
-}
-
-function detectCategoryAndType(filename) {
-  const ext = filename.split('.').pop()?.toLowerCase() || '';
-  if (['png', 'jpg', 'jpeg', 'svg', 'gif', 'webp', 'bmp', 'ico'].includes(ext)) {
-    return { type: 'image', category: 'images', mimeCategory: 'image', ext };
-  }
-  if (['mp4', 'webm', 'mov', 'avi', 'mkv', 'm4v'].includes(ext)) {
-    return { type: 'video', category: 'media', mimeCategory: 'video', ext };
-  }
-  if (['mp3', 'wav', 'ogg', 'aac', 'flac', 'm4a'].includes(ext)) {
-    return { type: 'audio', category: 'media', mimeCategory: 'audio', ext };
-  }
-  if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) {
-    return { type: 'zip', category: 'docs', mimeCategory: 'archive', ext };
-  }
-  if (['pdf'].includes(ext)) {
-    return { type: 'pdf', category: 'docs', mimeCategory: 'pdf', ext };
-  }
-  if (['js', 'jsx', 'ts', 'tsx', 'html', 'css', 'json', 'txt', 'md', 'csv', 'sql', 'py', 'java', 'c', 'cpp', 'xml', 'yaml', 'yml'].includes(ext)) {
-    return { type: 'code', category: 'docs', mimeCategory: 'text', ext };
-  }
-  return { type: 'doc', category: 'docs', mimeCategory: 'other', ext };
-}
+const BUCKET = STORAGE_CONSTANTS.STORAGE_BUCKET;
+const DIA_MS = STORAGE_CONSTANTS.MS_PER_DAY;
 
 /**
- * Convierte una fila de public.carpeta al formato que usa la UI
+ * Adaptadores de compatibilidad delegados al Patrón Factory
  */
-function mapCarpeta(c) {
-  return {
-    id: c.id_carpeta,
-    name: c.nombre,
-    color: c.color || 'purple',
-    parentId: c.id_carpeta_padre || null,
-    updated: formatDate(c.fecha_creacion),
-    created_at: c.fecha_creacion,
-    isFolder: true
-  };
-}
-
-/**
- * Convierte una fila de public.archivo al formato que usa el Dashboard
- */
-function mapArchivo(f) {
-  const { category, type, ext, mimeCategory } = detectCategoryAndType(f.nombre);
-  const bytes = parseInt(f.tamano || 0, 10);
-  return {
-    id: f.id_archivo,
-    name: f.nombre,
-    type: f.tipo || type,
-    mimeCategory: mimeCategory,
-    ext: ext,
-    size_bytes: bytes,
-    size: formatBytes(bytes),
-    updated: formatDate(f.fecha_modificacion || f.fecha_subida),
-    updated_at: f.fecha_modificacion || f.fecha_subida,
-    category: category,
-    shared: false,
-    file_path: f.ruta_storage,
-    folder_id: f.id_carpeta || null,
-    deleted_at: f.fecha_eliminacion || null,
-    isFolder: false
-  };
-}
+const mapCarpeta = (c) => FolderFactory.createFromDb(c);
+const mapArchivo = (f) => FileFactory.createFromDb(f);
 
 /**
  * Obtiene el ID del usuario activo (parámetro o sesión de Supabase)
@@ -113,13 +46,10 @@ async function recalcularAlmacenamiento(userId) {
 
 /**
  * Días que un archivo permanece en la papelera según el plan.
- * Devuelve null cuando la retención es ilimitada.
+ * Delega al Patrón Strategy (retentionStrategy).
  */
 export function getRetentionDays(planName = '') {
-  const p = planName.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-  if (p.includes('basico')) return 7;
-  if (p.includes('empresa')) return null;
-  return 30;
+  return calculateRetentionDays(planName);
 }
 
 /**

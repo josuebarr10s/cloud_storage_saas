@@ -11,11 +11,13 @@ import { ResetPasswordModal } from './components/auth/ResetPasswordModal.jsx';
 import { Toast } from './components/Toast.jsx';
 
 import { authService } from './services/authService.js';
+import { USER_ROLES } from './constants/roles.js';
+import { PLAN_NAMES } from './constants/plans.js';
 
 // El administrador siempre entra a su panel; un cliente entra al dashboard solo si ya tiene plan
-const esAdmin = (user) => user?.rol === 'Administrador';
+const esAdmin = (user) => user?.rol === USER_ROLES.ADMIN_NAME;
 // Si no se sabe el plan (undefined), se trata como "sin plan": nunca se entra al dashboard por defecto
-const tienePlan = (user) => Boolean(user?.plan) && user.plan !== 'Ninguno';
+const tienePlan = (user) => Boolean(user?.plan) && user.plan !== PLAN_NAMES.NONE;
 const vistaPara = (user) => (esAdmin(user) || tienePlan(user)) ? 'dashboard' : 'landing';
 
 export default function App() {
