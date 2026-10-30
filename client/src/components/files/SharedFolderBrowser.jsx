@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Folder, FileText, Image as ImageIcon, Video, Music, Archive, FileCode,
-  Eye, Download, Upload, FolderPlus, Trash2, ChevronRight, Loader2, RefreshCw
+  Eye, Download, Upload, FolderPlus, Trash2, ChevronRight, Loader2, RefreshCw, Edit2
 } from 'lucide-react';
 import { sharingService, SHARE_PERMISSIONS } from '../../services/sharingService.js';
 import { filesService } from '../../services/filesService.js';
 import { FilePreviewModal } from './FilePreviewModal.jsx';
 import { CreateFolderModal } from './CreateFolderModal.jsx';
+import { RenameModal } from './RenameModal.jsx';
 
 const ICONS_BY_TYPE = {
   image: ImageIcon,
@@ -30,6 +31,8 @@ export const SharedFolderBrowser = ({ rootFolder, ownerId, permission, onNotific
   const [isBusy, setIsBusy] = useState(false);
   const [previewFile, setPreviewFile] = useState(null);
   const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false);
+  const [fileToRename, setFileToRename] = useState(null);
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false);
 
   const uploadInputRef = useRef(null);
   const versionInputRef = useRef(null);
@@ -67,15 +70,45 @@ export const SharedFolderBrowser = ({ rootFolder, ownerId, permission, onNotific
     }
   };
 
-  const handleUploadFiles = (e) => {
-    const selected = Array.from(e.target.files || []);
-    e.target.value = '';
-    if (selected.length === 0) return;
+  const uploadFiles = (fileList) => {
+    const selected = Array.from(fileList || []);
+    if (selected.length === 0 || isBusy) return;
     runEditorAction(async () => {
       for (const file of selected) {
         await filesService.uploadFile(ownerId, file, currentFolder.id);
       }
     }, selected.length === 1 ? `"${selected[0].name}" se subió a la carpeta.` : `Se subieron ${selected.length} archivos.`);
+  };
+
+  const handleUploadFiles = (e) => {
+    uploadFiles(e.target.files);
+    e.target.value = '';
+  };
+
+  // Arrastrar archivos desde la computadora (solo editor)
+  const isFileDrag = (e) => Array.from(e.dataTransfer?.types || []).includes('Files');
+
+  const handleDragOver = (e) => {
+    if (!isEditor || !isFileDrag(e)) return;
+    e.preventDefault();
+    setIsDraggingFiles(true);
+  };
+
+  const handleDragLeave = (e) => {
+    if (!e.currentTarget.contains(e.relatedTarget)) setIsDraggingFiles(false);
+  };
+
+  const handleDrop = (e) => {
+    if (!isEditor || !isFileDrag(e)) return;
+    e.preventDefault();
+    setIsDraggingFiles(false);
+    uploadFiles(e.dataTransfer.files);
+  };
+
+  const handleRename = async (newName) => {
+    await filesService.renameFile(fileToRename, newName);
+    onNotification && onNotification(`Ahora se llama "${newName}".`, 'success');
+    loadContents();
   };
 
   const handlePickNewVersion = (file) => {
@@ -138,7 +171,36 @@ export const SharedFolderBrowser = ({ rootFolder, ownerId, permission, onNotific
   const isEmpty = contents.folders.length === 0 && contents.files.length === 0;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', textAlign: 'left' }}>
+    <div
+      style={{ display: 'flex', flexDirection: 'column', gap: '12px', textAlign: 'left', position: 'relative' }}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {isDraggingFiles && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: '-8px',
+            zIndex: 5,
+            background: 'var(--primary-light)',
+            border: '2px dashed var(--primary)',
+            borderRadius: 'var(--radius-lg)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+            color: 'var(--primary)',
+            fontWeight: 700,
+            pointerEvents: 'none'
+          }}
+        >
+          <Upload size={30} />
+          Suelta los archivos para subirlos a "{currentFolder.name}"
+        </div>
+      )}
+
       {/* Ruta dentro de la carpeta compartida */}
       <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px', fontSize: '0.85rem' }}>
         {path.map((folder, index) => (
@@ -176,6 +238,9 @@ export const SharedFolderBrowser = ({ rootFolder, ownerId, permission, onNotific
           <button type="button" className="btn-secondary" onClick={() => setIsCreateFolderOpen(true)} disabled={isBusy} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
             <FolderPlus size={16} /> Nueva carpeta
           </button>
+          <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', alignSelf: 'center' }}>
+            También puedes arrastrar archivos aquí
+          </span>
           <input ref={uploadInputRef} type="file" multiple hidden onChange={handleUploadFiles} />
           <input ref={versionInputRef} type="file" hidden onChange={handleUploadNewVersion} />
         </div>
@@ -230,6 +295,9 @@ export const SharedFolderBrowser = ({ rootFolder, ownerId, permission, onNotific
                   </button>
                   {isEditor && (
                     <>
+                      <button type="button" onClick={() => setFileToRename(file)} disabled={isBusy} style={iconButtonStyle} title="Cambiar nombre">
+                        <Edit2 size={15} />
+                      </button>
                       <button type="button" onClick={() => handlePickNewVersion(file)} disabled={isBusy} style={iconButtonStyle} title="Subir versión nueva">
                         <Upload size={15} />
                       </button>
@@ -250,6 +318,13 @@ export const SharedFolderBrowser = ({ rootFolder, ownerId, permission, onNotific
         isOpen={Boolean(previewFile)}
         onClose={() => setPreviewFile(null)}
         onNotification={onNotification}
+      />
+
+      <RenameModal
+        item={fileToRename}
+        isOpen={Boolean(fileToRename)}
+        onClose={() => setFileToRename(null)}
+        onRename={handleRename}
       />
 
       <CreateFolderModal

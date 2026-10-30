@@ -4,12 +4,14 @@ import {
   FileText, Image as ImageIcon, Video, FileCode, Archive, Trash2, Download, 
   CheckCircle, Shield, MoreVertical, Plus, Clock, ExternalLink, Loader2,
   Eye, LayoutGrid, List, Music, Sparkles, RotateCcw, Folder, FolderOpen,
-  ArrowLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Edit2, ArrowRight, CreditCard
+  ArrowLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Edit2, ArrowRight, CreditCard, Users
 } from 'lucide-react';
 import { filesService, getRetentionDays } from '../services/filesService.js';
 import { FilePreviewModal } from '../components/files/FilePreviewModal.jsx';
 import { VersionHistoryModal } from '../components/files/VersionHistoryModal.jsx';
 import { ShareLinkModal } from '../components/files/ShareLinkModal.jsx';
+import { SharedWithMeList } from '../components/files/SharedWithMeList.jsx';
+import { RenameModal } from '../components/files/RenameModal.jsx';
 import { sharingService } from '../services/sharingService.js';
 import { CreateFolderModal } from '../components/files/CreateFolderModal.jsx';
 import { MoveItemModal } from '../components/files/MoveItemModal.jsx';
@@ -17,8 +19,8 @@ import { FolderCard } from '../components/files/FolderCard.jsx';
 import { PaymentHistory } from '../components/billing/PaymentHistory.jsx';
 import './dashboard-responsive.css';
 
-export const DashboardView = ({ currentUser, onLogout, onNotification, onChangePlan, billingVersion = 0 }) => {
-  const [activeTab, setActiveTab] = useState('all'); // 'all' | 'docs' | 'images' | 'media' | 'trash' | 'billing'
+export const DashboardView = ({ currentUser, onLogout, onNotification, onChangePlan, onOpenShared, initialTab = 'all', billingVersion = 0 }) => {
+  const [activeTab, setActiveTab] = useState(initialTab); // 'all' | 'docs' | 'images' | 'media' | 'shared' | 'trash' | 'billing'
   const [searchQuery, setSearchQuery] = useState('');
   const [files, setFiles] = useState([]);
   const [folders, setFolders] = useState([]);
@@ -49,6 +51,9 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
   const [selectedShareItem, setSelectedShareItem] = useState(null);
   const [isShareOpen, setIsShareOpen] = useState(false);
 
+  const [fileToRename, setFileToRename] = useState(null);
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false);
+
   const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false);
   const [editingFolder, setEditingFolder] = useState(null);
 
@@ -61,6 +66,9 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
   const retentionDays = getRetentionDays(planName);
   const isTrash = activeTab === 'trash';
   const isBilling = activeTab === 'billing';
+  const isSharedTab = activeTab === 'shared';
+  // Subir, crear carpetas, ordenar y cambiar de vista solo aplica a los archivos propios
+  const canManageFiles = !isTrash && !isSharedTab;
 
   // Cargar contenido principal (Archivos, Carpetas y Breadcrumbs)
   const loadDashboardData = async () => {
@@ -127,33 +135,78 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
     || (planName.toLowerCase().includes('básico') ? 10 * 1024 ** 3 : 500 * 1024 ** 3);
   const percentUsed = Math.min(100, Math.max(0.1, ((totalBytes / quotaBytes) * 100).toFixed(1)));
 
-  // Subida de archivos (en la carpeta actual)
-  const handleFileUpload = async (e) => {
-    const uploadedFile = e.target.files?.[0];
-    if (!uploadedFile) return;
+  // Subida de uno o varios archivos (botón o arrastrar y soltar) a la carpeta indicada
+  const uploadFiles = async (fileList, folderId = currentFolderId) => {
+    const selected = Array.from(fileList || []);
+    if (selected.length === 0 || isUploading) return;
 
     setIsUploading(true);
-    onNotification && onNotification(`Subiendo "${uploadedFile.name}" a Nimbox Cloud...`, 'info');
+    onNotification && onNotification(
+      selected.length === 1 ? `Subiendo "${selected[0].name}" a Nimbox Cloud...` : `Subiendo ${selected.length} archivos a Nimbox Cloud...`,
+      'info'
+    );
 
+    let current = null;
     try {
-      const newFile = await filesService.uploadFile(currentUser?.id, uploadedFile, currentFolderId);
+      for (const uploadedFile of selected) {
+        current = uploadedFile;
+        const newFile = await filesService.uploadFile(currentUser?.id, uploadedFile, folderId);
+        // Una versión nueva reemplaza al archivo que ya estaba en la lista
+        setFiles(prev => {
+          const previous = prev.find(f => f.id === newFile.id);
+          return [{ ...newFile, shared: previous?.shared }, ...prev.filter(f => f.id !== newFile.id)];
+        });
 
-      if (newFile.isNewVersion) {
-        setFiles(prev => [newFile, ...prev.filter(f => f.id !== newFile.id)]);
-        onNotification && onNotification(`Se guardó una nueva versión de "${uploadedFile.name}".`, 'success');
-      } else {
-        setFiles(prev => [newFile, ...prev]);
-        onNotification && onNotification(`Archivo "${uploadedFile.name}" subido exitosamente.`, 'success');
+        if (selected.length === 1) {
+          onNotification && onNotification(
+            newFile.isNewVersion ? `Se guardó una nueva versión de "${uploadedFile.name}".` : `Archivo "${uploadedFile.name}" subido exitosamente.`,
+            'success'
+          );
+          setSelectedPreviewFile(newFile);
+          setIsPreviewOpen(true);
+        }
       }
-
-      setSelectedPreviewFile(newFile);
-      setIsPreviewOpen(true);
+      if (selected.length > 1) {
+        onNotification && onNotification(`Se subieron ${selected.length} archivos.`, 'success');
+      }
     } catch (err) {
-      onNotification && onNotification(`Error al subir el archivo: ${err.message}`, 'error');
+      onNotification && onNotification(`Error al subir "${current?.name}": ${err.message}`, 'error');
     } finally {
       setIsUploading(false);
-      e.target.value = '';
     }
+  };
+
+  const handleFileUpload = (e) => {
+    uploadFiles(e.target.files);
+    e.target.value = '';
+  };
+
+  // Arrastrar archivos desde la computadora al área de contenido.
+  // Los elementos de la propia lista se arrastran como texto (para moverlos), no como 'Files'.
+  const isFileDrag = (e) => Array.from(e.dataTransfer?.types || []).includes('Files');
+
+  const handleContentDragOver = (e) => {
+    if (!canManageFiles || !isFileDrag(e)) return;
+    e.preventDefault();
+    setIsDraggingFiles(true);
+  };
+
+  const handleContentDragLeave = (e) => {
+    if (!e.currentTarget.contains(e.relatedTarget)) setIsDraggingFiles(false);
+  };
+
+  const handleContentDrop = (e) => {
+    if (!canManageFiles || !isFileDrag(e)) return;
+    e.preventDefault();
+    setIsDraggingFiles(false);
+    uploadFiles(e.dataTransfer.files);
+  };
+
+  const handleRenameFile = async (newName) => {
+    const updated = await filesService.renameFile(fileToRename, newName);
+    setFiles(prev => prev.map(f => f.id === updated.id ? { ...updated, shared: f.shared } : f));
+    if (selectedPreviewFile?.id === updated.id) setSelectedPreviewFile(updated);
+    onNotification && onNotification(`Ahora se llama "${updated.name}".`, 'success');
   };
 
   // Crear o editar carpeta
@@ -511,7 +564,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
                 ESPACIO ACTIVO
               </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: 'var(--success-light)' }}>
-                <Shield size={14} /> Cifrado Zero-Knowledge Activado
+                <Shield size={14} /> Archivos privados
               </span>
             </div>
             <h2 className="nb-dash-banner-title" style={{ fontSize: '1.75rem', fontWeight: 800, marginBottom: '6px' }}>
@@ -533,7 +586,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
               minWidth: '240px'
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '8px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', fontSize: '0.8rem', marginBottom: '8px' }}>
               <span>Almacenamiento en uso</span>
               <span style={{ fontWeight: 700 }}>{usedStorage} / {storageQuota}</span>
             </div>
@@ -573,6 +626,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
               { id: 'docs', label: 'Documentos' },
               { id: 'images', label: 'Imágenes' },
               { id: 'media', label: 'Multimedia' },
+              { id: 'shared', label: 'Compartidos conmigo', icon: <Users size={14} /> },
               { id: 'trash', label: 'Papelera', icon: <Trash2 size={14} /> },
               { id: 'billing', label: 'Pagos', icon: <CreditCard size={14} /> }
             ].map((tab) => (
@@ -612,7 +666,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
           {!isBilling && (
           <div className="nb-dash-toolbar" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
             {/* Control de Ordenamiento (Sorting) */}
-            {!isTrash && (
+            {canManageFiles && (
               <div
                 style={{
                   display: 'flex',
@@ -674,7 +728,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
             )}
 
             {/* View Mode Toggle */}
-            {!isTrash && (
+            {canManageFiles && (
               <div
                 style={{
                   display: 'flex',
@@ -724,7 +778,8 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
             <div className="nb-dash-search" style={{ position: 'relative' }}>
               <input className="nb-dash-search-input"
                 type="text"
-                placeholder={isTrash ? 'Buscar en papelera...' : 'Buscar archivos/carpetas...'}
+                placeholder={isTrash ? 'Buscar en papelera' : isSharedTab ? 'Buscar en compartidos' : 'Buscar en Nimbox'}
+                aria-label="Buscar archivos y carpetas"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={{
@@ -734,14 +789,14 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
                   background: 'var(--bg-body)',
                   fontSize: '0.85rem',
                   outline: 'none',
-                  width: '180px'
+                  width: '200px'
                 }}
               />
               <Search size={16} color="var(--text-light)" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
             </div>
 
             {/* Botón Crear Carpeta */}
-            {!isTrash && (
+            {canManageFiles && (
               <button
                 type="button"
                 onClick={() => { setEditingFolder(null); setIsCreateFolderOpen(true); }}
@@ -760,7 +815,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
             )}
 
             {/* Botón Subir Archivo */}
-            {!isTrash && (
+            {canManageFiles && (
               <label
                 className="btn-primary"
                 style={{
@@ -779,6 +834,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
                 {isUploading ? 'Subiendo...' : 'Subir Archivo'}
                 <input
                   type="file"
+                  multiple
                   onChange={handleFileUpload}
                   disabled={isUploading}
                   style={{ display: 'none' }}
@@ -917,14 +973,44 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
         ) : (
         <div className="nb-dash-content"
           style={{
+            position: 'relative',
             background: 'var(--bg-card)',
             borderRadius: 'var(--radius-lg)',
             border: '1px solid var(--border-color)',
             overflow: 'hidden',
             boxShadow: 'var(--shadow-sm)'
           }}
+          onDragOver={handleContentDragOver}
+          onDragLeave={handleContentDragLeave}
+          onDrop={handleContentDrop}
         >
-          {isTrash ? (
+          {isDraggingFiles && (
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                zIndex: 5,
+                background: 'var(--primary-light)',
+                border: '2px dashed var(--primary)',
+                borderRadius: 'var(--radius-lg)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                color: 'var(--primary)',
+                fontWeight: 700,
+                pointerEvents: 'none'
+              }}
+            >
+              <Upload size={32} />
+              Suelta los archivos para subirlos {currentFolderId ? 'a esta carpeta' : 'a Nimbox'}
+            </div>
+          )}
+
+          {isSharedTab ? (
+            <SharedWithMeList searchQuery={searchQuery} onOpen={onOpenShared} onNotification={onNotification} />
+          ) : isTrash ? (
             /* TRASH VIEW */
             isLoadingTrash ? (
               <div style={{ padding: '3.5rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
@@ -1121,6 +1207,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
                     onMove={handleOpenMoveModal}
                     onDelete={handleDeleteFolder}
                     onShare={handleOpenShare}
+                    onDropUpload={uploadFiles}
                     itemCount={files.filter(f => f.folder_id === folder.id).length + allFolders.filter(f => f.parentId === folder.id).length}
                     onDropFile={handleDropFileOnFolder}
                   />
@@ -1219,6 +1306,22 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
 
                         <button
                           type="button"
+                          onClick={() => setFileToRename(file)}
+                          style={{
+                            padding: '7px 9px',
+                            borderRadius: 'var(--radius-sm)',
+                            color: 'var(--text-muted)',
+                            background: 'var(--bg-subtle)',
+                            border: '1px solid var(--border-color)',
+                            cursor: 'pointer'
+                          }}
+                          title="Cambiar nombre"
+                        >
+                          <Edit2 size={16} />
+                        </button>
+
+                        <button
+                          type="button"
                           onClick={() => handleOpenMoveModal(file)}
                           style={{
                             padding: '7px 9px',
@@ -1306,6 +1409,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
                         onMove={handleOpenMoveModal}
                         onDelete={handleDeleteFolder}
                         onShare={handleOpenShare}
+                        onDropUpload={uploadFiles}
                         itemCount={files.filter(f => f.folder_id === folder.id).length + allFolders.filter(f => f.parentId === folder.id).length}
                         onDropFile={handleDropFileOnFolder}
                       />
@@ -1436,6 +1540,14 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
                           <div style={{ display: 'flex', gap: '6px' }}>
                             <button
                               type="button"
+                              onClick={() => setFileToRename(file)}
+                              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px' }}
+                              title="Cambiar nombre"
+                            >
+                              <Edit2 size={15} />
+                            </button>
+                            <button
+                              type="button"
                               onClick={() => handleOpenMoveModal(file)}
                               style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px' }}
                               title="Mover a otra carpeta"
@@ -1512,6 +1624,14 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
         onClose={() => setIsPreviewOpen(false)}
         onNotification={onNotification}
         onShare={handleOpenShare}
+      />
+
+      {/* MODAL DE CAMBIAR NOMBRE */}
+      <RenameModal
+        item={fileToRename}
+        isOpen={Boolean(fileToRename)}
+        onClose={() => setFileToRename(null)}
+        onRename={handleRenameFile}
       />
 
       {/* MODAL DE COMPARTIR POR ENLACE */}

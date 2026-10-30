@@ -20,7 +20,8 @@ export const FolderCard = ({
   onDelete,
   onShare,
   itemCount = 0,
-  onDropFile
+  onDropFile,
+  onDropUpload
 }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -43,6 +44,11 @@ export const FolderCard = ({
     e.preventDefault();
     e.stopPropagation();
     setIsDragOver(false);
+    // Archivos arrastrados desde la computadora: se suben dentro de esta carpeta
+    if (e.dataTransfer.files?.length && onDropUpload) {
+      onDropUpload(e.dataTransfer.files, folder.id);
+      return;
+    }
     const data = e.dataTransfer.getData('text/plain');
     if (data && onDropFile) {
       try {

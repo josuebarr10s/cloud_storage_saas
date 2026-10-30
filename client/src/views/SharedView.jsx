@@ -6,6 +6,7 @@ import { sharingService, SHARE_PERMISSIONS } from '../services/sharingService.js
 import { filesService } from '../services/filesService.js';
 import { FilePreviewModal } from '../components/files/FilePreviewModal.jsx';
 import { SharedFolderBrowser, getFileIconByType } from '../components/files/SharedFolderBrowser.jsx';
+import { RenameModal } from '../components/files/RenameModal.jsx';
 
 const badgeStyle = {
   fontSize: '0.75rem',
@@ -31,6 +32,7 @@ export const SharedView = ({ token, currentUser, hasPlan, onExit, onLogout, onNo
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isUploadingVersion, setIsUploadingVersion] = useState(false);
+  const [isRenameOpen, setIsRenameOpen] = useState(false);
   const versionInputRef = useRef(null);
 
   useEffect(() => {
@@ -79,6 +81,12 @@ export const SharedView = ({ token, currentUser, hasPlan, onExit, onLogout, onNo
     } finally {
       setIsUploadingVersion(false);
     }
+  };
+
+  const handleRename = async (newName) => {
+    const updated = await filesService.renameFile(shared.file, newName);
+    setShared({ ...shared, file: updated });
+    onNotification && onNotification(`Ahora se llama "${updated.name}".`, 'success');
   };
 
   // Sin plan no hay dashboard: al salir, lo compartido solo se recupera con el enlace
@@ -210,6 +218,9 @@ export const SharedView = ({ token, currentUser, hasPlan, onExit, onLogout, onNo
                         Subir versión nueva
                       </button>
                       <input ref={versionInputRef} type="file" hidden onChange={handleUploadVersion} />
+                      <button type="button" className="btn-secondary" onClick={() => setIsRenameOpen(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <Edit2 size={16} /> Cambiar nombre
+                      </button>
                     </>
                   )}
                 </div>
@@ -245,6 +256,15 @@ export const SharedView = ({ token, currentUser, hasPlan, onExit, onLogout, onNo
           )}
         </div>
       </main>
+
+      {!isFolder && (
+        <RenameModal
+          item={shared?.file}
+          isOpen={isRenameOpen}
+          onClose={() => setIsRenameOpen(false)}
+          onRename={handleRename}
+        />
+      )}
 
       {!isFolder && (
         <FilePreviewModal

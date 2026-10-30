@@ -738,3 +738,40 @@ BEGIN
   );
 END;
 $$;
+
+-- "Compartidos conmigo": lo que el usuario ya abrió por enlace y sigue disponible
+-- (enlace activo y vigente, dueño con plan y archivo fuera de la papelera), con el
+-- permiso efectivo. SECURITY DEFINER porque quien recibe no puede leer enlace_compartido.
+CREATE OR REPLACE FUNCTION public.mis_compartidos()
+RETURNS TABLE (
+  token TEXT,
+  tipo TEXT,
+  permiso TEXT,
+  propietario TEXT,
+  nombre TEXT,
+  tamano BIGINT,
+  fecha_modificacion TIMESTAMP WITH TIME ZONE,
+  fecha_acceso TIMESTAMP WITH TIME ZONE
+)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT
+    e.token::text,
+    CASE WHEN e.id_archivo IS NOT NULL THEN 'archivo' ELSE 'carpeta' END,
+    CASE WHEN e.permiso = 'editor' AND public.plan_permite_editor(e.id_usuario) THEN 'editor' ELSE 'lector' END,
+    trim(concat_ws(' ', u.nombre, u.apellido)),
+    COALESCE(a.nombre, c.nombre)::text,
+    a.tamano,
+    COALESCE(a.fecha_modificacion, c.fecha_creacion),
+    ac.fecha_acceso
+  FROM public.acceso_compartido ac
+  JOIN public.enlace_compartido e ON e.id_enlace = ac.id_enlace
+  JOIN public.usuario u ON u.id_usuario = e.id_usuario
+  LEFT JOIN public.archivo a ON a.id_archivo = e.id_archivo
+  LEFT JOIN public.carpeta c ON c.id_carpeta = e.id_carpeta
+  WHERE ac.id_usuario = auth.uid()
+    AND e.activo
+    AND (e.fecha_expiracion IS NULL OR e.fecha_expiracion > NOW())
+    AND public.tiene_plan_activo(e.id_usuario)
+    AND (e.id_carpeta IS NOT NULL OR a.eliminado = false)
+  ORDER BY ac.fecha_acceso DESC;
+$$;

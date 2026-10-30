@@ -534,6 +534,41 @@ export const filesService = {
   },
 
   /**
+   * Cambiar el nombre de un archivo (el dueño o quien lo edita por un enlace).
+   * No permite repetir el nombre de otro archivo en la misma carpeta, porque al subir
+   * un archivo con el mismo nombre se guarda como versión nueva del existente.
+   * @param {Object} file archivo ya mapeado (id, folder_id, owner_id)
+   * @param {string} newName
+   */
+  async renameFile(file, newName) {
+    const nombre = (newName || '').trim();
+    if (!nombre) throw new Error('El nombre no puede quedar vacío.');
+
+    let repetido = supabase
+      .from('archivo')
+      .select('id_archivo')
+      .eq('id_usuario', file.owner_id)
+      .eq('nombre', nombre)
+      .eq('eliminado', false)
+      .neq('id_archivo', file.id);
+    repetido = file.folder_id ? repetido.eq('id_carpeta', file.folder_id) : repetido.is('id_carpeta', null);
+
+    const { data: coincidencias } = await repetido.limit(1);
+    if (coincidencias?.length) {
+      throw new Error(`Ya hay un archivo llamado "${nombre}" en esta carpeta.`);
+    }
+
+    const { data, error } = await supabase
+      .from('archivo')
+      .update({ nombre })
+      .eq('id_archivo', file.id)
+      .select();
+
+    if (error) throw new Error(`No se pudo cambiar el nombre: ${error.message}`);
+    return mapArchivo(data[0]);
+  },
+
+  /**
    * Obtener URL de vista previa o Blob para un archivo
    */
   async getFilePreviewUrl(filePath) {

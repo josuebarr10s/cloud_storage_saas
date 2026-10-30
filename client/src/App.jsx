@@ -49,6 +49,8 @@ export default function App() {
   const [isResetPasswordOpen, setIsResetPasswordOpen] = useState(isRecoveringRef.current);
   // Enlace compartido pendiente (?share=TOKEN). Tiene prioridad sobre landing y dashboard mientras haya sesión.
   const [shareToken, setShareToken] = useState(() => takeShareTokenFromUrl());
+  // Pestaña con la que se abre el dashboard (al volver de "Compartidos conmigo" se regresa a ella)
+  const [dashboardTab, setDashboardTab] = useState('all');
   const [toast, setToast] = useState(null);
 
   const showNotification = (message, type = 'info') => {
@@ -168,6 +170,12 @@ export default function App() {
     showNotification(`¡Pago exitoso! Plan ${planData.plan} activado.`, 'success');
   };
 
+  // Abrir algo de "Compartidos conmigo": misma vista que el enlace, sin guardarlo como pendiente
+  const handleOpenShared = (token) => {
+    setDashboardTab('shared');
+    setShareToken(token);
+  };
+
   const handleExitShared = () => {
     clearPendingShareToken();
     setShareToken(null);
@@ -177,6 +185,7 @@ export default function App() {
   const handleLogout = async () => {
     clearPendingShareToken();
     setShareToken(null);
+    setDashboardTab('all');
     await authService.signOut();
     setCurrentUser(null);
     setCurrentView('landing');
@@ -191,7 +200,7 @@ export default function App() {
         esAdmin(currentUser) ? (
           <AdminDashboardView currentUser={currentUser} onLogout={handleLogout} onNotification={showNotification} />
         ) : (
-          <DashboardView currentUser={currentUser} onLogout={handleLogout} onNotification={showNotification} onChangePlan={handleOpenCheckout} billingVersion={billingVersion} />
+          <DashboardView currentUser={currentUser} onLogout={handleLogout} onNotification={showNotification} onChangePlan={handleOpenCheckout} onOpenShared={handleOpenShared} initialTab={dashboardTab} billingVersion={billingVersion} />
         )
       ) : (
         <LandingPage onOpenCheckout={handleOpenCheckout} onOpenLogin={handleOpenLogin} onLogout={handleLogout} currentUser={currentUser} />

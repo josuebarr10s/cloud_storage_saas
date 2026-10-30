@@ -53,6 +53,7 @@ export class FileFactory {
       shared: false,
       file_path: rawFile.ruta_storage,
       folder_id: rawFile.id_carpeta || null,
+      owner_id: rawFile.id_usuario,
       deleted_at: rawFile.fecha_eliminacion || null,
       isFolder: false,
     };

@@ -1,6 +1,6 @@
 import supabase from '../lib/supabase.js';
 import { FileFactory, FolderFactory } from '../factories/entityFactory.js';
-import { normalizeText } from '../utils/formatters.js';
+import { normalizeText, formatBytes, formatDate } from '../utils/formatters.js';
 
 const SHARE_PARAM = 'share';
 // localStorage (no sessionStorage) para que el enlace sobreviva si el usuario
@@ -191,6 +191,27 @@ export const sharingService = {
       file: data.archivo ? FileFactory.createFromDb(data.archivo) : null,
       folder: data.carpeta ? FolderFactory.createFromDb(data.carpeta) : null,
     };
+  },
+
+  /**
+   * "Compartidos conmigo": lo que el usuario ya abrió por enlace y sigue disponible,
+   * con el permiso que le dio el dueño. Para abrirlo se usa el mismo token del enlace.
+   * @returns {Promise<Array<{ token: string, type: 'file'|'folder', permission: string,
+   *   ownerName: string, name: string, size: string|null, updated: string }>>}
+   */
+  async getSharedWithMe() {
+    const { data, error } = await supabase.rpc('mis_compartidos');
+    if (error) throw new Error(`No se pudieron cargar los compartidos: ${error.message}`);
+
+    return (data || []).map(c => ({
+      token: c.token,
+      type: c.tipo === 'carpeta' ? 'folder' : 'file',
+      permission: c.permiso,
+      ownerName: c.propietario || 'Un usuario de Nimbox',
+      name: c.nombre,
+      size: c.tipo === 'archivo' ? formatBytes(Number(c.tamano || 0)) : null,
+      updated: formatDate(c.fecha_modificacion),
+    }));
   },
 
   /**
