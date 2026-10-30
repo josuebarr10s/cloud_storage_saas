@@ -4,7 +4,7 @@ import {
   FileText, Image as ImageIcon, Video, FileCode, Archive, Trash2, Download, 
   CheckCircle, Shield, MoreVertical, Plus, Clock, ExternalLink, Loader2,
   Eye, LayoutGrid, List, Music, Sparkles, RotateCcw, Folder, FolderOpen,
-  ArrowLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Edit2, ArrowRight
+  ArrowLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Edit2, ArrowRight, CreditCard
 } from 'lucide-react';
 import { filesService, getRetentionDays } from '../services/filesService.js';
 import { FilePreviewModal } from '../components/files/FilePreviewModal.jsx';
@@ -12,9 +12,11 @@ import { VersionHistoryModal } from '../components/files/VersionHistoryModal.jsx
 import { CreateFolderModal } from '../components/files/CreateFolderModal.jsx';
 import { MoveItemModal } from '../components/files/MoveItemModal.jsx';
 import { FolderCard } from '../components/files/FolderCard.jsx';
+import { PaymentHistory } from '../components/billing/PaymentHistory.jsx';
+import './dashboard-responsive.css';
 
-export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
-  const [activeTab, setActiveTab] = useState('all'); // 'all' | 'docs' | 'images' | 'media' | 'trash'
+export const DashboardView = ({ currentUser, onLogout, onNotification, onChangePlan, billingVersion = 0 }) => {
+  const [activeTab, setActiveTab] = useState('all'); // 'all' | 'docs' | 'images' | 'media' | 'trash' | 'billing'
   const [searchQuery, setSearchQuery] = useState('');
   const [files, setFiles] = useState([]);
   const [folders, setFolders] = useState([]);
@@ -53,6 +55,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
   const storageQuota = currentUser?.storageQuota || '0 GB';
   const retentionDays = getRetentionDays(planName);
   const isTrash = activeTab === 'trash';
+  const isBilling = activeTab === 'billing';
 
   // Cargar contenido principal (Archivos, Carpetas y Breadcrumbs)
   const loadDashboardData = async () => {
@@ -375,7 +378,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-subtle)', display: 'flex', flexDirection: 'column' }}>
       {/* Top Navbar */}
-      <header
+      <header className="nb-dash-header"
         style={{
           background: 'var(--bg-body)',
           borderBottom: '1px solid var(--border-color)',
@@ -388,7 +391,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
           zIndex: 100
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        <div className="nb-dash-header-left" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           {/* Logo */}
           <div
             style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
@@ -410,7 +413,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
             </span>
           </div>
 
-          <span
+          <span className="nb-dash-plan"
             style={{
               background: 'var(--primary-light)',
               color: 'var(--primary)',
@@ -467,15 +470,15 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
             }}
           >
             <LogOut size={15} />
-            <span>Cerrar Sesión</span>
+            <span className="nb-dash-hide-sm">Cerrar Sesión</span>
           </button>
         </div>
       </header>
 
       {/* Main Dashboard Workspace */}
-      <main style={{ flex: 1, padding: '2rem 1.5rem', maxWidth: '1240px', margin: '0 auto', width: '100%' }}>
+      <main className="nb-dash-main" style={{ flex: 1, padding: '2rem 1.5rem', maxWidth: '1240px', margin: '0 auto', width: '100%' }}>
         {/* Welcome Banner */}
-        <div
+        <div className="nb-dash-banner"
           style={{
             background: 'var(--bg-hero-banner)',
             borderRadius: 'var(--radius-xl)',
@@ -499,7 +502,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
                 <Shield size={14} /> Cifrado Zero-Knowledge Activado
               </span>
             </div>
-            <h2 style={{ fontSize: '1.75rem', fontWeight: 800, marginBottom: '6px' }}>
+            <h2 className="nb-dash-banner-title" style={{ fontSize: '1.75rem', fontWeight: 800, marginBottom: '6px' }}>
               ¡Bienvenido a tu nube, {currentUser?.name || 'Cliente'}!
             </h2>
             <p style={{ opacity: 0.85, fontSize: '0.9rem', maxWidth: '520px' }}>
@@ -508,7 +511,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
           </div>
 
           {/* Storage Quota Card inside banner */}
-          <div
+          <div className="nb-dash-quota"
             style={{
               background: 'var(--white-alpha-15)',
               backdropFilter: 'blur(10px)',
@@ -532,7 +535,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
         </div>
 
         {/* Action Controls, Sorting & Filters */}
-        <div
+        <div className="nb-dash-controls"
           style={{
             display: 'flex',
             flexWrap: 'wrap',
@@ -543,7 +546,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
           }}
         >
           {/* Tabs */}
-          <div
+          <div className="nb-dash-tabs"
             style={{
               display: 'flex',
               background: 'var(--bg-card)',
@@ -558,13 +561,16 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
               { id: 'docs', label: 'Documentos' },
               { id: 'images', label: 'Imágenes' },
               { id: 'media', label: 'Multimedia' },
-              { id: 'trash', label: 'Papelera', icon: <Trash2 size={14} /> }
+              { id: 'trash', label: 'Papelera', icon: <Trash2 size={14} /> },
+              { id: 'billing', label: 'Pagos', icon: <CreditCard size={14} /> }
             ].map((tab) => (
               <button
                 key={tab.id}
+                className="nb-dash-tab"
                 type="button"
                 onClick={() => {
                   setActiveTab(tab.id);
+                  setSearchQuery('');
                   if (tab.id !== 'all') setCurrentFolderId(null);
                 }}
                 style={{
@@ -591,7 +597,8 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
           </div>
 
           {/* Right Toolbar: Sort Dropdown, Search, View Toggle, Create Folder & Upload */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
+          {!isBilling && (
+          <div className="nb-dash-toolbar" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
             {/* Control de Ordenamiento (Sorting) */}
             {!isTrash && (
               <div
@@ -702,8 +709,8 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
             )}
 
             {/* Search Input */}
-            <div style={{ position: 'relative' }}>
-              <input
+            <div className="nb-dash-search" style={{ position: 'relative' }}>
+              <input className="nb-dash-search-input"
                 type="text"
                 placeholder={isTrash ? 'Buscar en papelera...' : 'Buscar archivos/carpetas...'}
                 value={searchQuery}
@@ -767,11 +774,12 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
               </label>
             )}
           </div>
+          )}
         </div>
 
         {/* Navigation Breadcrumbs Bar (Solo en pestaña 'all') */}
         {!isTrash && activeTab === 'all' && (
-          <div
+          <div className="nb-dash-breadcrumb"
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -887,7 +895,15 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
         )}
 
         {/* Content Area: Folders & Files */}
-        <div
+        {isBilling ? (
+          <PaymentHistory
+            currentUser={currentUser}
+            onChangePlan={onChangePlan}
+            onNotification={onNotification}
+            refreshKey={`${planName}-${billingVersion}`}
+          />
+        ) : (
+        <div className="nb-dash-content"
           style={{
             background: 'var(--bg-card)',
             borderRadius: 'var(--radius-lg)',
@@ -910,7 +926,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
                 <p style={{ fontSize: '0.85rem', margin: 0 }}>Los archivos que elimines aparecerán aquí y podrás restaurarlos.</p>
               </div>
             ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+              <table className="nb-dash-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                 <thead>
                   <tr style={{ background: 'var(--bg-subtle)', borderBottom: '1px solid var(--border-color)', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em' }}>
                     <th style={{ padding: '12px 20px', fontWeight: 600 }}>Nombre del archivo</th>
@@ -1047,7 +1063,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
             </div>
           ) : viewMode === 'list' ? (
             /* LIST VIEW TABLE */
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+            <table className="nb-dash-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead>
                 <tr style={{ background: 'var(--bg-subtle)', borderBottom: '1px solid var(--border-color)', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em' }}>
                   <th
@@ -1445,6 +1461,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification }) => {
             </div>
           )}
         </div>
+        )}
       </main>
 
       {/* MODAL DE CREAR / EDITAR CARPETA */}

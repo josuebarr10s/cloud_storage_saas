@@ -1,0 +1,53 @@
+/* ============================================================
+   Dashboard: ajustes responsive (solo diseño, sin lógica).
+   Los estilos base viven en línea en DashboardView.jsx; aquí se
+   adaptan a pantallas pequeñas (por eso algunos usan !important).
+   ============================================================ */
+
+/* Pestañas: si no caben, se desplazan horizontalmente en vez de empujar la página */
+.nb-dash-tabs {
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.nb-dash-tabs::-webkit-scrollbar { display: none; }
+.nb-dash-tab { white-space: nowrap; flex-shrink: 0; }
+
+.nb-dash-plan { white-space: nowrap; }
+
+/* Tablas (lista de archivos y papelera): scroll horizontal dentro de la tarjeta */
+.nb-dash-content { overflow-x: auto !important; }
+.nb-dash-table { min-width: 720px; }
+
+.nb-dash-controls > * { min-width: 0; }
+
+/* Tablet */
+@media (max-width: 960px) {
+  .nb-dash-controls { flex-direction: column; align-items: stretch !important; }
+  .nb-dash-tabs { width: 100%; }
+  .nb-dash-toolbar { width: 100%; }
+  .nb-dash-search { flex: 1 1 200px; }
+  .nb-dash-search-input { width: 100% !important; }
+}
+
+/* Celular */
+@media (max-width: 640px) {
+  .nb-dash-header { padding: 0.7rem 1rem !important; gap: 10px; }
+  .nb-dash-header-left { gap: 10px !important; min-width: 0; }
+  .nb-dash-hide-sm { display: none; }
+  .nb-dash-plan { font-size: 0.68rem !important; padding: 2px 8px !important; }
+
+  .nb-dash-main { padding: 1.25rem 1rem !important; }
+
+  .nb-dash-banner { padding: 1.35rem !important; border-radius: var(--radius-lg) !important; margin-bottom: 1.5rem !important; }
+  .nb-dash-banner-title { font-size: 1.35rem !important; line-height: 1.25; }
+  .nb-dash-quota { min-width: 0 !important; width: 100%; }
+
+  .nb-dash-breadcrumb { flex-wrap: wrap; gap: 6px; padding: 10px 12px !important; }
+}
+
+/* Celulares muy angostos: el plan ya aparece en el banner */
+@media (max-width: 400px) {
+  .nb-dash-plan { display: none; }
+}

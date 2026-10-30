@@ -27,6 +27,8 @@ export default function App() {
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [billingCycle, setBillingCycle] = useState('monthly');
+  // Sube con cada pago para que el historial de pagos se recargue aunque el plan no cambie
+  const [billingVersion, setBillingVersion] = useState(0);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
@@ -151,6 +153,7 @@ export default function App() {
   const handlePaymentSuccess = (planData) => {
     const updatedUser = { ...currentUser, plan: planData.plan, storageQuota: planData.storageQuota };
     setCurrentUser(updatedUser);
+    setBillingVersion((v) => v + 1);
     setCurrentView('dashboard'); 
     showNotification(`¡Pago exitoso! Plan ${planData.plan} activado.`, 'success');
   };
@@ -168,7 +171,7 @@ export default function App() {
         esAdmin(currentUser) ? (
           <AdminDashboardView currentUser={currentUser} onLogout={handleLogout} onNotification={showNotification} />
         ) : (
-          <DashboardView currentUser={currentUser} onLogout={handleLogout} onNotification={showNotification} />
+          <DashboardView currentUser={currentUser} onLogout={handleLogout} onNotification={showNotification} onChangePlan={handleOpenCheckout} billingVersion={billingVersion} />
         )
       ) : (
         <LandingPage onOpenCheckout={handleOpenCheckout} onOpenLogin={handleOpenLogin} onLogout={handleLogout} currentUser={currentUser} />

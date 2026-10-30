@@ -2,6 +2,7 @@ import supabase from '../lib/supabase.js';
 import { DEFAULT_PLANS } from '../constants/plans.js';
 import { STORAGE_CONSTANTS } from '../constants/storage.js';
 import { normalizeText } from '../utils/formatters.js';
+import { encodePaymentMethod } from '../utils/billing.js';
 
 const UUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 const ANNUAL_DISCOUNT_FACTOR = 0.8;
@@ -76,7 +77,7 @@ export const plansService = {
   /**
    * Registra una transacción en public.suscripcion y public.pago
    */
-  async createSubscription({ userId, planId, planName, billingCycle, amountPaid, transactionId }) {
+  async createSubscription({ userId, planId, planName, billingCycle, amountPaid, transactionId, cardLast4, cardBrand }) {
     if (!userId) return { subscription: null, error: new Error('userId es requerido') };
 
     if (!UUID_REGEX.test(userId)) {
@@ -146,13 +147,19 @@ export const plansService = {
           .upsert({ id_usuario: userId, capacidad_total_bytes: limitBytes }, { onConflict: 'id_usuario' });
 
         // Registrar recibo en public.pago
-        await supabase.from('pago').insert([{
+        // Solo se guarda la marca y los últimos 4 dígitos, nunca el número completo ni el CVC
+        const { error: pagoErr } = await supabase.from('pago').insert([{
           id_suscripcion: subRecord.id_suscripcion,
           monto: parseFloat(amountPaid || 12),
-          metodo_pago: 'tarjeta_simulada',
+          metodo_pago: encodePaymentMethod(cardBrand, cardLast4),
           referencia_transaccion: transactionId || `NMB-${Date.now()}`,
           estado: 'completado'
         }]);
+
+        if (pagoErr) {
+          // La suscripción ya quedó activa: se registra el fallo sin cancelar el pago al usuario
+          console.error('Error al insertar en public.pago:', pagoErr.message);
+        }
       }
 
       return { subscription: subRecord, error: subErr };

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, ShieldCheck, Lock, CheckCircle2, Loader2 } from 'lucide-react';
 import { plansService } from '../../services/plansService.js';
+import { detectCardBrand } from '../../utils/billing.js';
 
 const DEFAULT_PLANS = [
   { id_plan: '11111111-1111-1111-1111-111111111111', nombre: 'Básico', precio: 5, precioAnual: 4.0, storageQuota: '10 GB' },
@@ -24,6 +25,10 @@ export const PaymentModal = ({ isOpen, onClose, user, selectedPlan, billingCycle
     if (isOpen) {
       setCurrentStep(1);
       setErrors({});
+      // Cada apertura empieza limpia: nunca se reutilizan número, vencimiento ni CVC de una compra anterior
+      setCardNumber('');
+      setCardExpiry('');
+      setCardCvc('');
       if (selectedPlan) setActivePlan(selectedPlan);
       if (billingCycle) setActiveBillingCycle(billingCycle);
       if (user?.name) setCardName(user.name);
@@ -74,7 +79,8 @@ export const PaymentModal = ({ isOpen, onClose, user, selectedPlan, billingCycle
           planName: activePlan.nombre,
           billingCycle: activeBillingCycle,
           amountPaid: billedTotal,
-          cardLast4: cardLast4
+          cardLast4: cardLast4,
+          cardBrand: detectCardBrand(cardNumber)
         });
 
         // Si no se pudo guardar la suscripción, no se muestra "Pago exitoso"
