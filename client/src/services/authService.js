@@ -1,5 +1,4 @@
 import supabase from '../lib/supabase.js';
-import { USER_ROLES } from '../constants/roles.js';
 import { mapAuthErrorMessage, AUTH_MESSAGES } from '../utils/authErrorHandler.js';
 import { UserFactory } from '../factories/entityFactory.js';
 
@@ -14,8 +13,9 @@ const STORAGE_KEYS = Object.freeze({
  */
 export const authService = {
   /**
-   * Registro: crea la cuenta en Supabase Auth y vincula perfil inicial.
-   * El trigger de la BD crea la fila en public.usuario; aquí solo se completa el nombre.
+   * Registro: crea la cuenta en Supabase Auth.
+   * El trigger handle_new_user de la BD crea public.usuario (con nombre y apellido de los metadatos)
+   * y public.almacenamiento en 0; la RLS no permite insertarlos desde el cliente.
    */
   async signUpBasic({ email, password, name }) {
     const formattedEmail = String(email || '').toLowerCase().trim();
@@ -43,30 +43,6 @@ export const authService = {
       emailFallback: formattedEmail,
     });
     userObj.name = name; // Asegura mantener el nombre completo ingresado
-
-    try {
-      // Perfil en public.usuario (si el trigger ya lo creó, se actualiza nombre/apellido)
-      const { error: perfilError } = await supabase
-        .from('usuario')
-        .upsert({
-          id_usuario: userId,
-          id_rol: USER_ROLES.CLIENT_ID,
-          nombre: nombre,
-          apellido: apellido,
-          estado: 'activo'
-        }, { onConflict: 'id_usuario' });
-
-      if (perfilError) console.error('Error al guardar el perfil:', perfilError.message);
-
-      // Sin plan no hay espacio; al pagar se actualiza al límite del plan
-      const { error: almError } = await supabase
-        .from('almacenamiento')
-        .upsert({ id_usuario: userId, capacidad_total_bytes: 0, espacio_usado_bytes: 0 }, { onConflict: 'id_usuario' });
-
-      if (almError) console.error('Error al crear el almacenamiento:', almError.message);
-    } catch (err) {
-      console.error('Error al guardar en BD:', err);
-    }
 
     localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(userObj));
     return { user: userObj, error: null };

@@ -389,22 +389,7 @@ export const filesService = {
       throw new Error('El ID de usuario no es un UUID de Supabase válido. Asegúrate de registrarte o iniciar sesión correctamente.');
     }
 
-    // 1. Asegurar que existe registro del usuario en la tabla public.usuario para evitar error de FK
-    try {
-      const { data: dbUser } = await supabase.from('usuario').select('id_usuario').eq('id_usuario', activeUserId).single();
-      if (!dbUser) {
-        const { data: { user } } = await supabase.auth.getUser();
-        const email = user?.email || 'usuario@nimbox.com';
-        const nameParts = (user?.user_metadata?.full_name || email.split('@')[0]).split(' ');
-        await supabase.from('usuario').upsert({
-          id_usuario: activeUserId,
-          id_rol: 2,
-          nombre: nameParts[0] || 'Usuario',
-          apellido: nameParts.slice(1).join(' ') || '',
-          estado: 'activo'
-        });
-      }
-    } catch (e) {}
+    // La fila de public.usuario ya existe: la crea el trigger handle_new_user al registrarse
 
     const { type } = detectCategoryAndType(file.name);
     const timestamp = Date.now();
@@ -413,7 +398,7 @@ export const filesService = {
 
     let uploadedPath = storagePath;
 
-    // 2. Subir binario a Supabase Storage (el timestamp en la ruta evita sobrescribir versiones anteriores)
+    // 1. Subir binario a Supabase Storage (el timestamp en la ruta evita sobrescribir versiones anteriores)
     console.log(`Subiendo archivo a Supabase Storage (${BUCKET})... Ruta: ${storagePath}`);
     const { data: storageData, error: storageError } = await supabase.storage
       .from(BUCKET)
@@ -433,7 +418,7 @@ export const filesService = {
 
     const ahora = new Date().toISOString();
 
-    // 3. ¿Ya existe un archivo activo con el mismo nombre EN ESTA MISMA CARPETA? -> nueva versión
+    // 2. ¿Ya existe un archivo activo con el mismo nombre EN ESTA MISMA CARPETA? -> nueva versión
     let busqueda = supabase
       .from('archivo')
       .select('*')
@@ -455,7 +440,7 @@ export const filesService = {
     let isNewVersion = false;
 
     if (existente) {
-      // 3a. La versión actual pasa al historial
+      // 2a. La versión actual pasa al historial
       const { error: versionError } = await supabase.from('archivo_version').insert([{
         id_archivo: existente.id_archivo,
         id_usuario: activeUserId,
@@ -467,7 +452,7 @@ export const filesService = {
         throw new Error(`No se pudo guardar la versión anterior: ${versionError.message}`);
       }
 
-      // 3b. El registro principal apunta al archivo nuevo
+      // 2b. El registro principal apunta al archivo nuevo
       const { data: updated, error: updateError } = await supabase
         .from('archivo')
         .update({
@@ -486,7 +471,7 @@ export const filesService = {
       savedRecord = updated?.[0];
       isNewVersion = true;
     } else {
-      // 3c. Archivo nuevo: insertar registro en public.archivo
+      // 2c. Archivo nuevo: insertar registro en public.archivo
       const { data: dbData, error: dbError } = await supabase
         .from('archivo')
         .insert([{
@@ -509,7 +494,7 @@ export const filesService = {
       savedRecord = dbData?.[0];
     }
 
-    // 4. Actualizar espacio usado
+    // 3. Actualizar espacio usado
     await recalcularAlmacenamiento(activeUserId);
 
     return {

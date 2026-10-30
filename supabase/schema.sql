@@ -55,11 +55,51 @@ CREATE TABLE IF NOT EXISTS public.usuario (
   CONSTRAINT usuario_id_rol_fkey FOREIGN KEY (id_rol) REFERENCES public.rol(id_rol)
 );
 
+-- ¿El usuario con sesión es administrador? SECURITY DEFINER para poder leer public.usuario
+-- desde sus propias políticas sin entrar en recursión de RLS.
+CREATE OR REPLACE FUNCTION public.es_admin()
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT EXISTS (SELECT 1 FROM public.usuario WHERE id_usuario = auth.uid() AND id_rol = 1);
+$$;
+
 ALTER TABLE public.usuario ENABLE ROW LEVEL SECURITY;
 
+-- Cada usuario ve y edita solo su perfil; el administrador ve y edita todos.
+-- No hay política de INSERT: la fila la crea el trigger handle_new_user (sección 4).
 DROP POLICY IF EXISTS "Permitir lectura y modificacion a usuario propio" ON public.usuario;
-CREATE POLICY "Permitir lectura y modificacion a usuario propio"
-  ON public.usuario FOR ALL USING (true);
+DROP POLICY IF EXISTS "usuario_ver" ON public.usuario;
+DROP POLICY IF EXISTS "usuario_editar" ON public.usuario;
+CREATE POLICY "usuario_ver" ON public.usuario
+  FOR SELECT USING (id_usuario = auth.uid() OR public.es_admin());
+CREATE POLICY "usuario_editar" ON public.usuario
+  FOR UPDATE USING (id_usuario = auth.uid() OR public.es_admin());
+
+-- Un cliente no puede cambiarse el rol ni el estado (hacerse admin o quitarse una suspensión).
+-- auth.uid() es null en el SQL Editor y en los triggers del servidor: ahí sí se permite.
+CREATE OR REPLACE FUNCTION public.proteger_rol_y_estado() RETURNS trigger AS $$
+BEGIN
+  IF auth.uid() IS NOT NULL AND NOT public.es_admin()
+     AND (NEW.id_rol IS DISTINCT FROM OLD.id_rol OR NEW.estado IS DISTINCT FROM OLD.estado) THEN
+    RAISE EXCEPTION 'Solo un administrador puede cambiar el rol o el estado';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS proteger_rol_y_estado ON public.usuario;
+CREATE TRIGGER proteger_rol_y_estado
+  BEFORE UPDATE ON public.usuario
+  FOR EACH ROW EXECUTE FUNCTION public.proteger_rol_y_estado();
+
+-- Políticas de public.plan (van aquí porque necesitan public.es_admin()):
+-- cualquiera puede leer los planes (la landing muestra precios sin sesión), solo el admin los modifica.
+ALTER TABLE public.plan ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "plan_ver" ON public.plan;
+DROP POLICY IF EXISTS "plan_admin" ON public.plan;
+CREATE POLICY "plan_ver" ON public.plan FOR SELECT USING (true);
+CREATE POLICY "plan_admin" ON public.plan
+  FOR ALL USING (public.es_admin()) WITH CHECK (public.es_admin());
 
 
 -- 4. TRIGGER: Crear perfil y almacenamiento automáticamente tras Auth SignUp
@@ -111,9 +151,17 @@ CREATE TABLE IF NOT EXISTS public.almacenamiento (
 
 ALTER TABLE public.almacenamiento ENABLE ROW LEVEL SECURITY;
 
+-- Cada usuario lo suyo; el administrador puede leer todo (estadísticas del panel)
 DROP POLICY IF EXISTS "Permitir a usuario ver/modificar su almacenamiento" ON public.almacenamiento;
-CREATE POLICY "Permitir a usuario ver/modificar su almacenamiento"
-  ON public.almacenamiento FOR ALL USING (true);
+DROP POLICY IF EXISTS "alm_ver" ON public.almacenamiento;
+DROP POLICY IF EXISTS "alm_insertar" ON public.almacenamiento;
+DROP POLICY IF EXISTS "alm_editar" ON public.almacenamiento;
+CREATE POLICY "alm_ver" ON public.almacenamiento
+  FOR SELECT USING (id_usuario = auth.uid() OR public.es_admin());
+CREATE POLICY "alm_insertar" ON public.almacenamiento
+  FOR INSERT WITH CHECK (id_usuario = auth.uid());
+CREATE POLICY "alm_editar" ON public.almacenamiento
+  FOR UPDATE USING (id_usuario = auth.uid());
 
 
 -- 6. TABLA SUSCRIPCION
@@ -134,9 +182,17 @@ CREATE TABLE IF NOT EXISTS public.suscripcion (
 
 ALTER TABLE public.suscripcion ENABLE ROW LEVEL SECURITY;
 
+-- Cada usuario lo suyo; el administrador puede leer todo
 DROP POLICY IF EXISTS "Permitir gestión de suscripciones" ON public.suscripcion;
-CREATE POLICY "Permitir gestión de suscripciones"
-  ON public.suscripcion FOR ALL USING (true);
+DROP POLICY IF EXISTS "sus_ver" ON public.suscripcion;
+DROP POLICY IF EXISTS "sus_insertar" ON public.suscripcion;
+DROP POLICY IF EXISTS "sus_editar" ON public.suscripcion;
+CREATE POLICY "sus_ver" ON public.suscripcion
+  FOR SELECT USING (id_usuario = auth.uid() OR public.es_admin());
+CREATE POLICY "sus_insertar" ON public.suscripcion
+  FOR INSERT WITH CHECK (id_usuario = auth.uid());
+CREATE POLICY "sus_editar" ON public.suscripcion
+  FOR UPDATE USING (id_usuario = auth.uid());
 
 
 -- 7. TABLA PAGO
@@ -154,9 +210,24 @@ CREATE TABLE IF NOT EXISTS public.pago (
 
 ALTER TABLE public.pago ENABLE ROW LEVEL SECURITY;
 
+-- Un pago es del usuario dueño de su suscripción; el administrador puede leer todos (ingresos)
 DROP POLICY IF EXISTS "Permitir gestión de pagos" ON public.pago;
-CREATE POLICY "Permitir gestión de pagos"
-  ON public.pago FOR ALL USING (true);
+DROP POLICY IF EXISTS "pago_ver" ON public.pago;
+DROP POLICY IF EXISTS "pago_insertar" ON public.pago;
+CREATE POLICY "pago_ver" ON public.pago
+  FOR SELECT USING (
+    public.es_admin() OR EXISTS (
+      SELECT 1 FROM public.suscripcion s
+      WHERE s.id_suscripcion = pago.id_suscripcion AND s.id_usuario = auth.uid()
+    )
+  );
+CREATE POLICY "pago_insertar" ON public.pago
+  FOR INSERT WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.suscripcion s
+      WHERE s.id_suscripcion = pago.id_suscripcion AND s.id_usuario = auth.uid()
+    )
+  );
 
 
 -- 8. TABLA CARPETA
@@ -176,9 +247,11 @@ ALTER TABLE public.carpeta ADD COLUMN IF NOT EXISTS color CHARACTER VARYING DEFA
 
 ALTER TABLE public.carpeta ENABLE ROW LEVEL SECURITY;
 
+-- Solo el dueño
 DROP POLICY IF EXISTS "Permitir a usuario gestionar sus carpetas" ON public.carpeta;
-CREATE POLICY "Permitir a usuario gestionar sus carpetas"
-  ON public.carpeta FOR ALL USING (true);
+DROP POLICY IF EXISTS "carpeta_propia" ON public.carpeta;
+CREATE POLICY "carpeta_propia" ON public.carpeta
+  FOR ALL USING (id_usuario = auth.uid()) WITH CHECK (id_usuario = auth.uid());
 
 
 -- 9. TABLA ARCHIVO
@@ -199,43 +272,50 @@ CREATE TABLE IF NOT EXISTS public.archivo (
 
 ALTER TABLE public.archivo ENABLE ROW LEVEL SECURITY;
 
+-- Solo el dueño
 DROP POLICY IF EXISTS "Permitir a usuario gestionar sus archivos" ON public.archivo;
-CREATE POLICY "Permitir a usuario gestionar sus archivos"
-  ON public.archivo FOR ALL USING (true);
+DROP POLICY IF EXISTS "archivo_propio" ON public.archivo;
+CREATE POLICY "archivo_propio" ON public.archivo
+  FOR ALL USING (id_usuario = auth.uid()) WITH CHECK (id_usuario = auth.uid());
 
 
 -- =============================================================================
 -- 10. POLITICAS Y PERMISOS DEL BUCKET DE STORAGE 'nimbox-files'
--- Permite subida, consulta y eliminación de archivos sin ser bloqueado por RLS
+-- Bucket privado: cada archivo se guarda en {id_usuario}/... y solo su dueño
+-- puede leerlo, subirlo, modificarlo o borrarlo.
 -- =============================================================================
 
--- Crear bucket público si no existe
+-- Crear bucket privado si no existe
 INSERT INTO storage.buckets (id, name, public)
-VALUES ('nimbox-files', 'nimbox-files', true)
-ON CONFLICT (id) DO UPDATE SET public = true;
+VALUES ('nimbox-files', 'nimbox-files', false)
+ON CONFLICT (id) DO UPDATE SET public = false;
 
--- Desactivar políticas restrictivas previas
+-- Quitar las políticas globales anteriores (cualquiera podía leer y borrar todo)
 DROP POLICY IF EXISTS "Permitir subida a nimbox-files" ON storage.objects;
 DROP POLICY IF EXISTS "Permitir lectura en nimbox-files" ON storage.objects;
 DROP POLICY IF EXISTS "Permitir eliminacion en nimbox-files" ON storage.objects;
 DROP POLICY IF EXISTS "Permitir actualizacion en nimbox-files" ON storage.objects;
+DROP POLICY IF EXISTS "storage_ver" ON storage.objects;
+DROP POLICY IF EXISTS "storage_subir" ON storage.objects;
+DROP POLICY IF EXISTS "storage_editar" ON storage.objects;
+DROP POLICY IF EXISTS "storage_borrar" ON storage.objects;
 
--- Crear políticas globales para nimbox-files
-CREATE POLICY "Permitir subida a nimbox-files"
-  ON storage.objects FOR INSERT
-  WITH CHECK (bucket_id = 'nimbox-files');
+-- La primera carpeta de la ruta debe ser el id del usuario con sesión
+CREATE POLICY "storage_ver" ON storage.objects
+  FOR SELECT TO authenticated
+  USING (bucket_id = 'nimbox-files' AND (storage.foldername(name))[1] = auth.uid()::text);
 
-CREATE POLICY "Permitir lectura en nimbox-files"
-  ON storage.objects FOR SELECT
-  USING (bucket_id = 'nimbox-files');
+CREATE POLICY "storage_subir" ON storage.objects
+  FOR INSERT TO authenticated
+  WITH CHECK (bucket_id = 'nimbox-files' AND (storage.foldername(name))[1] = auth.uid()::text);
 
-CREATE POLICY "Permitir eliminacion en nimbox-files"
-  ON storage.objects FOR DELETE
-  USING (bucket_id = 'nimbox-files');
+CREATE POLICY "storage_editar" ON storage.objects
+  FOR UPDATE TO authenticated
+  USING (bucket_id = 'nimbox-files' AND (storage.foldername(name))[1] = auth.uid()::text);
 
-CREATE POLICY "Permitir actualizacion en nimbox-files"
-  ON storage.objects FOR UPDATE
-  USING (bucket_id = 'nimbox-files');
+CREATE POLICY "storage_borrar" ON storage.objects
+  FOR DELETE TO authenticated
+  USING (bucket_id = 'nimbox-files' AND (storage.foldername(name))[1] = auth.uid()::text);
 
 -- =============================================================================
 -- 11. PAPELERA (borrado lógico) E HISTORIAL DE VERSIONES
