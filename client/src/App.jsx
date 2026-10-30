@@ -186,7 +186,7 @@ export default function App() {
   return (
     <div>
       {currentUser && shareToken ? (
-        <SharedFileView token={shareToken} currentUser={currentUser} onExit={handleExitShared} onLogout={handleLogout} onNotification={showNotification} />
+        <SharedFileView token={shareToken} currentUser={currentUser} hasPlan={vistaPara(currentUser) === 'dashboard'} onExit={handleExitShared} onLogout={handleLogout} onNotification={showNotification} />
       ) : currentView === 'dashboard' && currentUser ? (
         esAdmin(currentUser) ? (
           <AdminDashboardView currentUser={currentUser} onLogout={handleLogout} onNotification={showNotification} />

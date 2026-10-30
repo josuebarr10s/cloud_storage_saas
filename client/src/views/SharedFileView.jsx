@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   FileText, Image as ImageIcon, Video, Music, Archive, FileCode,
-  Eye, Download, ArrowLeft, Loader2, AlertCircle, LogOut, Lock, User
+  Eye, Download, ArrowLeft, Loader2, AlertCircle, LogOut, Lock, User, Info
 } from 'lucide-react';
 import { sharingService } from '../services/sharingService.js';
 import { filesService } from '../services/filesService.js';
@@ -18,8 +18,9 @@ const ICONS_BY_TYPE = {
 /**
  * Vista de un archivo que otro usuario compartió por enlace (solo lectura).
  * Se muestra a cualquier usuario con sesión, tenga plan o no.
+ * hasPlan: si es false, el usuario no tiene espacio propio y al salir va a la landing.
  */
-export const SharedFileView = ({ token, currentUser, onExit, onLogout, onNotification }) => {
+export const SharedFileView = ({ token, currentUser, hasPlan, onExit, onLogout, onNotification }) => {
   const [shared, setShared] = useState(null);
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -56,6 +57,12 @@ export const SharedFileView = ({ token, currentUser, onExit, onLogout, onNotific
     } finally {
       setIsDownloading(false);
     }
+  };
+
+  // Sin plan no hay dashboard ni lista de compartidos: al salir, el archivo solo se recupera con el enlace
+  const handleLeave = () => {
+    if (!hasPlan && !window.confirm('Si sales, para volver a ver este archivo tendrás que abrir el enlace otra vez. ¿Quieres salir?')) return;
+    onExit();
   };
 
   const FileIcon = ICONS_BY_TYPE[shared?.file?.type] || FileText;
@@ -156,8 +163,30 @@ export const SharedFileView = ({ token, currentUser, onExit, onLogout, onNotific
                 </button>
               </div>
 
-              <button type="button" className="btn-ghost" onClick={onExit} style={{ marginTop: '1.25rem', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                <ArrowLeft size={16} /> Ir a Nimbox
+              {!hasPlan && (
+                <div
+                  style={{
+                    marginTop: '1.5rem',
+                    padding: '12px 14px',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'var(--primary-light)',
+                    color: 'var(--text-main)',
+                    fontSize: '0.82rem',
+                    textAlign: 'left',
+                    display: 'flex',
+                    gap: '8px'
+                  }}
+                >
+                  <Info size={16} color="var(--primary)" style={{ flexShrink: 0, marginTop: '1px' }} />
+                  <span>
+                    <strong>Acceso limitado:</strong> como aún no tienes un plan, solo puedes ver y descargar los archivos que te compartan.
+                    Si sales de esta página, necesitarás el enlace para volver a abrir este archivo.
+                  </span>
+                </div>
+              )}
+
+              <button type="button" className="btn-ghost" onClick={handleLeave} style={{ marginTop: '1.25rem', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                <ArrowLeft size={16} /> {hasPlan ? 'Ir a mi Nimbox' : 'Ir a Nimbox'}
               </button>
             </>
           )}
