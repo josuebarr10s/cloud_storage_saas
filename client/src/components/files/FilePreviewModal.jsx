@@ -2,17 +2,17 @@ import React, { useState, useEffect } from 'react';
 import {
   X, Download, Share2, ZoomIn, ZoomOut, Maximize2, RotateCw,
   FileText, Image as ImageIcon, Video, Music, Archive, FileCode,
-  Check, Copy, ExternalLink, Loader2, AlertCircle, Info, Calendar, HardDrive
+  Copy, ExternalLink, Loader2, AlertCircle, Info, Calendar, HardDrive
 } from 'lucide-react';
 import { filesService } from '../../services/filesService.js';
 
-export const FilePreviewModal = ({ file, isOpen, onClose, onNotification }) => {
+// onShare: si se pasa (solo el dueño), muestra el botón Compartir
+export const FilePreviewModal = ({ file, isOpen, onClose, onNotification, onShare }) => {
   const [previewUrl, setPreviewUrl] = useState(null);
   const [textContent, setTextContent] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [zoomLevel, setZoomLevel] = useState(1);
-  const [copiedLink, setCopiedLink] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
 
   useEffect(() => {
@@ -92,15 +92,6 @@ export const FilePreviewModal = ({ file, isOpen, onClose, onNotification }) => {
       onNotification && onNotification(`Error al descargar: ${err.message}`, 'error');
     } finally {
       setIsDownloading(false);
-    }
-  };
-
-  const handleCopyLink = () => {
-    if (previewUrl) {
-      navigator.clipboard.writeText(previewUrl);
-      setCopiedLink(true);
-      onNotification && onNotification('Enlace copiado al portapapeles.', 'success');
-      setTimeout(() => setCopiedLink(false), 3000);
     }
   };
 
@@ -509,21 +500,23 @@ export const FilePreviewModal = ({ file, isOpen, onClose, onNotification }) => {
 
           {/* Action Header Buttons */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <button
-              type="button"
-              onClick={handleCopyLink}
-              className="btn-ghost"
-              style={{
-                padding: '6px 10px',
-                fontSize: '0.8rem',
-                borderRadius: 'var(--radius-sm)',
-                color: copiedLink ? 'var(--success)' : 'var(--text-muted)'
-              }}
-              title="Copiar enlace de vista previa"
-            >
-              {copiedLink ? <Check size={16} /> : <Copy size={16} />}
-              <span style={{ display: 'none', mdDisplay: 'inline' }}>{copiedLink ? 'Copiado' : 'Enlace'}</span>
-            </button>
+            {onShare && (
+              <button
+                type="button"
+                onClick={() => onShare(file)}
+                className="btn-secondary"
+                style={{
+                  padding: '6px 12px',
+                  fontSize: '0.8rem',
+                  borderRadius: 'var(--radius-sm)',
+                  gap: '6px'
+                }}
+                title="Compartir por enlace"
+              >
+                <Share2 size={15} />
+                <span>Compartir</span>
+              </button>
+            )}
 
             <button
               type="button"

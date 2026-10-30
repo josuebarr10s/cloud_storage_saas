@@ -45,6 +45,61 @@ async function recalcularAlmacenamiento(userId) {
 }
 
 /**
+ * Sube el binario a Storage dentro de la carpeta del dueño ({ownerId}/...).
+ * El timestamp en la ruta evita sobrescribir versiones anteriores.
+ * @returns {Promise<string>} ruta guardada en Storage
+ */
+async function subirBinario(ownerId, file) {
+  const cleanFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const storagePath = `${ownerId}/${Date.now()}_${cleanFileName}`;
+
+  console.log(`Subiendo archivo a Supabase Storage (${BUCKET})... Ruta: ${storagePath}`);
+  const { data, error } = await supabase.storage
+    .from(BUCKET)
+    .upload(storagePath, file, {
+      cacheControl: '3600',
+      upsert: false
+    });
+
+  if (error) {
+    console.error('Error al subir a Supabase Storage:', error.message, error);
+    throw new Error(`Falló la subida a Supabase Storage: ${error.message}`);
+  }
+
+  return data?.path || storagePath;
+}
+
+/**
+ * La versión actual de un archivo pasa al historial de su dueño y el registro
+ * apunta al contenido nuevo (cambios: ruta_storage, tamano y opcionalmente tipo)
+ * @returns {Promise<Object>} registro actualizado de public.archivo
+ */
+async function reemplazarVersionActual(existente, cambios) {
+  const { error: versionError } = await supabase.from('archivo_version').insert([{
+    id_archivo: existente.id_archivo,
+    id_usuario: existente.id_usuario,
+    tamano: existente.tamano,
+    ruta_storage: existente.ruta_storage
+  }]);
+
+  if (versionError) {
+    throw new Error(`No se pudo guardar la versión anterior: ${versionError.message}`);
+  }
+
+  const { data: updated, error: updateError } = await supabase
+    .from('archivo')
+    .update({ ...cambios, fecha_modificacion: new Date().toISOString() })
+    .eq('id_archivo', existente.id_archivo)
+    .select();
+
+  if (updateError) {
+    throw new Error(`No se pudo actualizar el archivo: ${updateError.message}`);
+  }
+
+  return updated?.[0];
+}
+
+/**
  * Días que un archivo permanece en la papelera según el plan.
  * Delega al Patrón Strategy (retentionStrategy).
  */
@@ -376,6 +431,7 @@ export const filesService = {
   /**
    * Subir archivo al bucket `nimbox-files` e insertarlo en public.archivo.
    * Si ya existe un archivo con el mismo nombre en el mismo lugar, el anterior pasa al historial de versiones.
+   * userId es el dueño del espacio: quien edita una carpeta compartida pasa el id del dueño.
    */
   async uploadFile(userId, file, currentFolderId = null) {
     const activeUserId = await resolveUserId(userId);
@@ -392,29 +448,9 @@ export const filesService = {
     // La fila de public.usuario ya existe: la crea el trigger handle_new_user al registrarse
 
     const { type } = detectCategoryAndType(file.name);
-    const timestamp = Date.now();
-    const cleanFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const storagePath = `${activeUserId}/${timestamp}_${cleanFileName}`;
 
-    let uploadedPath = storagePath;
-
-    // 1. Subir binario a Supabase Storage (el timestamp en la ruta evita sobrescribir versiones anteriores)
-    console.log(`Subiendo archivo a Supabase Storage (${BUCKET})... Ruta: ${storagePath}`);
-    const { data: storageData, error: storageError } = await supabase.storage
-      .from(BUCKET)
-      .upload(storagePath, file, {
-        cacheControl: '3600',
-        upsert: false
-      });
-
-    if (storageError) {
-      console.error('Error al subir a Supabase Storage:', storageError.message, storageError);
-      throw new Error(`Falló la subida a Supabase Storage: ${storageError.message}`);
-    }
-
-    if (storageData?.path) {
-      uploadedPath = storageData.path;
-    }
+    // 1. Subir binario a Supabase Storage
+    const uploadedPath = await subirBinario(activeUserId, file);
 
     const ahora = new Date().toISOString();
 
@@ -440,38 +476,15 @@ export const filesService = {
     let isNewVersion = false;
 
     if (existente) {
-      // 2a. La versión actual pasa al historial
-      const { error: versionError } = await supabase.from('archivo_version').insert([{
-        id_archivo: existente.id_archivo,
-        id_usuario: activeUserId,
-        tamano: existente.tamano,
-        ruta_storage: existente.ruta_storage
-      }]);
-
-      if (versionError) {
-        throw new Error(`No se pudo guardar la versión anterior: ${versionError.message}`);
-      }
-
-      // 2b. El registro principal apunta al archivo nuevo
-      const { data: updated, error: updateError } = await supabase
-        .from('archivo')
-        .update({
-          ruta_storage: uploadedPath,
-          tamano: file.size,
-          tipo: type,
-          fecha_modificacion: ahora
-        })
-        .eq('id_archivo', existente.id_archivo)
-        .select();
-
-      if (updateError) {
-        throw new Error(`No se pudo actualizar el archivo: ${updateError.message}`);
-      }
-
-      savedRecord = updated?.[0];
+      // 2a. La versión actual pasa al historial y el registro apunta al archivo nuevo
+      savedRecord = await reemplazarVersionActual(existente, {
+        ruta_storage: uploadedPath,
+        tamano: file.size,
+        tipo: type
+      });
       isNewVersion = true;
     } else {
-      // 2c. Archivo nuevo: insertar registro en public.archivo
+      // 2b. Archivo nuevo: insertar registro en public.archivo
       const { data: dbData, error: dbError } = await supabase
         .from('archivo')
         .insert([{
@@ -502,6 +515,22 @@ export const filesService = {
       updated: 'Ahora mismo',
       isNewVersion
     };
+  },
+
+  /**
+   * Reemplazar el contenido de un archivo existente (lo usa quien edita por un enlace).
+   * Conserva nombre y carpeta; la versión anterior pasa al historial del dueño.
+   * @param {Object} file archivo ya mapeado (id, file_path, size_bytes)
+   * @param {File} newFile
+   * @param {string} ownerId dueño del archivo: el binario se guarda en su carpeta de Storage
+   */
+  async uploadNewVersion(file, newFile, ownerId) {
+    const uploadedPath = await subirBinario(ownerId, newFile);
+    const updated = await reemplazarVersionActual(
+      { id_archivo: file.id, id_usuario: ownerId, tamano: file.size_bytes, ruta_storage: file.file_path },
+      { ruta_storage: uploadedPath, tamano: newFile.size }
+    );
+    return mapArchivo(updated);
   },
 
   /**

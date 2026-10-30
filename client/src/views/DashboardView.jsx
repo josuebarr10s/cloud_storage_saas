@@ -46,7 +46,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
   const [selectedVersionFile, setSelectedVersionFile] = useState(null);
   const [isVersionsOpen, setIsVersionsOpen] = useState(false);
 
-  const [selectedShareFile, setSelectedShareFile] = useState(null);
+  const [selectedShareItem, setSelectedShareItem] = useState(null);
   const [isShareOpen, setIsShareOpen] = useState(false);
 
   const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false);
@@ -78,11 +78,11 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
         filesService.getUserFolders(currentUser?.id, currentFolderId),
         filesService.getAllUserFolders(currentUser?.id),
         filesService.getFolderPath(currentFolderId),
-        sharingService.getSharedFileIds()
+        sharingService.getSharedIds()
       ]);
 
-      setFiles(userFiles.map(f => ({ ...f, shared: sharedIds.has(f.id) })));
-      setFolders(userFolders);
+      setFiles(userFiles.map(f => ({ ...f, shared: sharedIds.files.has(f.id) })));
+      setFolders(userFolders.map(f => ({ ...f, shared: sharedIds.folders.has(f.id) })));
       setAllFolders(userAllFolders);
       setFolderPath(path);
     } catch (err) {
@@ -161,7 +161,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
     try {
       if (editingFolder) {
         const updated = await filesService.updateFolder(editingFolder.id, { name, color });
-        setFolders(prev => prev.map(f => f.id === updated.id ? updated : f));
+        setFolders(prev => prev.map(f => f.id === updated.id ? { ...updated, shared: f.shared } : f));
         setAllFolders(prev => prev.map(f => f.id === updated.id ? updated : f));
         onNotification && onNotification(`Carpeta "${name}" actualizada.`, 'success');
       } else {
@@ -298,14 +298,17 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
     }
   };
 
-  const handleOpenShare = (file, e) => {
+  // item: archivo o carpeta
+  const handleOpenShare = (item, e) => {
     e && e.stopPropagation();
-    setSelectedShareFile(file);
+    setSelectedShareItem(item);
     setIsShareOpen(true);
   };
 
-  const handleShareChange = (fileId, shared) => {
-    setFiles(prev => prev.map(f => f.id === fileId ? { ...f, shared } : f));
+  const handleShareChange = (item, shared) => {
+    const marcar = (prev) => prev.map(i => i.id === item.id ? { ...i, shared } : i);
+    if (item.isFolder) setFolders(marcar);
+    else setFiles(marcar);
   };
 
   const getFileIcon = (type, ext) => {
@@ -1117,6 +1120,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
                     onEdit={handleEditFolder}
                     onMove={handleOpenMoveModal}
                     onDelete={handleDeleteFolder}
+                    onShare={handleOpenShare}
                     itemCount={files.filter(f => f.folder_id === folder.id).length + allFolders.filter(f => f.parentId === folder.id).length}
                     onDropFile={handleDropFileOnFolder}
                   />
@@ -1301,6 +1305,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
                         onEdit={handleEditFolder}
                         onMove={handleOpenMoveModal}
                         onDelete={handleDeleteFolder}
+                        onShare={handleOpenShare}
                         itemCount={files.filter(f => f.folder_id === folder.id).length + allFolders.filter(f => f.parentId === folder.id).length}
                         onDropFile={handleDropFileOnFolder}
                       />
@@ -1506,11 +1511,12 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
         isOpen={isPreviewOpen}
         onClose={() => setIsPreviewOpen(false)}
         onNotification={onNotification}
+        onShare={handleOpenShare}
       />
 
       {/* MODAL DE COMPARTIR POR ENLACE */}
       <ShareLinkModal
-        file={selectedShareFile}
+        item={selectedShareItem}
         isOpen={isShareOpen}
         onClose={() => setIsShareOpen(false)}
         currentUser={currentUser}

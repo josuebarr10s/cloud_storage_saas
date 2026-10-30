@@ -1,31 +1,37 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
-  FileText, Image as ImageIcon, Video, Music, Archive, FileCode,
-  Eye, Download, ArrowLeft, Loader2, AlertCircle, LogOut, Lock, User, Info
+  Eye, Download, Upload, ArrowLeft, Loader2, AlertCircle, LogOut, Lock, User, Info, Edit2, Folder
 } from 'lucide-react';
-import { sharingService } from '../services/sharingService.js';
+import { sharingService, SHARE_PERMISSIONS } from '../services/sharingService.js';
 import { filesService } from '../services/filesService.js';
 import { FilePreviewModal } from '../components/files/FilePreviewModal.jsx';
+import { SharedFolderBrowser, getFileIconByType } from '../components/files/SharedFolderBrowser.jsx';
 
-const ICONS_BY_TYPE = {
-  image: ImageIcon,
-  video: Video,
-  audio: Music,
-  zip: Archive,
-  code: FileCode,
+const badgeStyle = {
+  fontSize: '0.75rem',
+  fontWeight: 600,
+  color: 'var(--text-muted)',
+  background: 'var(--bg-hover)',
+  padding: '3px 10px',
+  borderRadius: 'var(--radius-full)',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '4px'
 };
 
 /**
- * Vista de un archivo que otro usuario compartió por enlace (solo lectura).
+ * Vista de un archivo o una carpeta que otro usuario compartió por enlace.
  * Se muestra a cualquier usuario con sesión, tenga plan o no.
  * hasPlan: si es false, el usuario no tiene espacio propio y al salir va a la landing.
  */
-export const SharedFileView = ({ token, currentUser, hasPlan, onExit, onLogout, onNotification }) => {
+export const SharedView = ({ token, currentUser, hasPlan, onExit, onLogout, onNotification }) => {
   const [shared, setShared] = useState(null);
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isUploadingVersion, setIsUploadingVersion] = useState(false);
+  const versionInputRef = useRef(null);
 
   useEffect(() => {
     async function openLink() {
@@ -34,7 +40,7 @@ export const SharedFileView = ({ token, currentUser, hasPlan, onExit, onLogout, 
       try {
         const result = await sharingService.openSharedLink(token);
         if (result.isOwner) {
-          onNotification && onNotification('Este enlace es de uno de tus archivos.', 'info');
+          onNotification && onNotification('Este enlace es de algo que tú compartiste.', 'info');
           onExit();
           return;
         }
@@ -59,13 +65,31 @@ export const SharedFileView = ({ token, currentUser, hasPlan, onExit, onLogout, 
     }
   };
 
-  // Sin plan no hay dashboard ni lista de compartidos: al salir, el archivo solo se recupera con el enlace
+  const handleUploadVersion = async (e) => {
+    const newFile = e.target.files?.[0];
+    e.target.value = '';
+    if (!newFile) return;
+    setIsUploadingVersion(true);
+    try {
+      const updated = await filesService.uploadNewVersion(shared.file, newFile, shared.ownerId);
+      setShared({ ...shared, file: updated });
+      onNotification && onNotification(`Se subió una versión nueva de "${shared.file.name}".`, 'success');
+    } catch (err) {
+      onNotification && onNotification(err.message, 'error');
+    } finally {
+      setIsUploadingVersion(false);
+    }
+  };
+
+  // Sin plan no hay dashboard: al salir, lo compartido solo se recupera con el enlace
   const handleLeave = () => {
-    if (!hasPlan && !window.confirm('Si sales, para volver a ver este archivo tendrás que abrir el enlace otra vez. ¿Quieres salir?')) return;
+    if (!hasPlan && !window.confirm('Si sales, para volver a ver esto tendrás que abrir el enlace otra vez. ¿Quieres salir?')) return;
     onExit();
   };
 
-  const FileIcon = ICONS_BY_TYPE[shared?.file?.type] || FileText;
+  const isFolder = shared?.type === 'folder';
+  const isEditor = shared?.permission === SHARE_PERMISSIONS.EDITOR;
+  const ItemIcon = isFolder ? Folder : getFileIconByType(shared?.file?.type);
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-body)', display: 'flex', flexDirection: 'column' }}>
@@ -98,10 +122,18 @@ export const SharedFileView = ({ token, currentUser, hasPlan, onExit, onLogout, 
       </header>
 
       {/* Contenido */}
-      <main style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem 1rem' }}>
+      <main style={{ flex: 1, display: 'flex', alignItems: isFolder ? 'flex-start' : 'center', justifyContent: 'center', padding: '2rem 1rem' }}>
         <div
-          className="card-white"
-          style={{ width: '100%', maxWidth: '460px', padding: '2rem 1.5rem', textAlign: 'center' }}
+          style={{
+            width: '100%',
+            maxWidth: isFolder ? '820px' : '460px',
+            padding: '2rem 1.5rem',
+            textAlign: 'center',
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-color)',
+            borderRadius: 'var(--radius-xl)',
+            boxShadow: 'var(--shadow-sm)'
+          }}
         >
           {isLoading ? (
             <div style={{ color: 'var(--text-muted)' }}>
@@ -134,34 +166,54 @@ export const SharedFileView = ({ token, currentUser, hasPlan, onExit, onLogout, 
                   margin: '0 auto 14px auto'
                 }}
               >
-                <FileIcon size={30} />
+                <ItemIcon size={30} />
               </div>
 
               <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)', margin: '0 0 4px 0', wordBreak: 'break-word' }}>
-                {shared.file.name}
+                {isFolder ? shared.folder.name : shared.file.name}
               </h2>
-              <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0 0 12px 0' }}>
-                {shared.file.size} · {shared.file.updated}
-              </p>
+              {!isFolder && (
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0 0 12px 0' }}>
+                  {shared.file.size} · {shared.file.updated}
+                </p>
+              )}
 
-              <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '8px', marginBottom: '1.5rem' }}>
-                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', background: 'var(--bg-hover)', padding: '3px 10px', borderRadius: 'var(--radius-full)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '8px', margin: '8px 0 1.5rem 0' }}>
+                <span style={badgeStyle}>
                   <User size={12} /> Compartido por {shared.ownerName}
                 </span>
-                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', background: 'var(--bg-hover)', padding: '3px 10px', borderRadius: 'var(--radius-full)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                  <Lock size={12} /> Solo lectura
+                <span style={badgeStyle}>
+                  {isEditor ? <><Edit2 size={12} /> Puedes editar</> : <><Lock size={12} /> Solo lectura</>}
                 </span>
               </div>
 
-              <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '10px' }}>
-                <button type="button" className="btn-primary" onClick={() => setIsPreviewOpen(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                  <Eye size={16} /> Ver archivo
-                </button>
-                <button type="button" className="btn-secondary" onClick={handleDownload} disabled={isDownloading} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                  {isDownloading ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Download size={16} />}
-                  Descargar
-                </button>
-              </div>
+              {isFolder ? (
+                <SharedFolderBrowser
+                  rootFolder={shared.folder}
+                  ownerId={shared.ownerId}
+                  permission={shared.permission}
+                  onNotification={onNotification}
+                />
+              ) : (
+                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '10px' }}>
+                  <button type="button" className="btn-primary" onClick={() => setIsPreviewOpen(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <Eye size={16} /> Ver archivo
+                  </button>
+                  <button type="button" className="btn-secondary" onClick={handleDownload} disabled={isDownloading} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    {isDownloading ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Download size={16} />}
+                    Descargar
+                  </button>
+                  {isEditor && (
+                    <>
+                      <button type="button" className="btn-secondary" onClick={() => versionInputRef.current?.click()} disabled={isUploadingVersion} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        {isUploadingVersion ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Upload size={16} />}
+                        Subir versión nueva
+                      </button>
+                      <input ref={versionInputRef} type="file" hidden onChange={handleUploadVersion} />
+                    </>
+                  )}
+                </div>
+              )}
 
               {!hasPlan && (
                 <div
@@ -179,8 +231,9 @@ export const SharedFileView = ({ token, currentUser, hasPlan, onExit, onLogout, 
                 >
                   <Info size={16} color="var(--primary)" style={{ flexShrink: 0, marginTop: '1px' }} />
                   <span>
-                    <strong>Acceso limitado:</strong> como aún no tienes un plan, solo puedes ver y descargar los archivos que te compartan.
-                    Si sales de esta página, necesitarás el enlace para volver a abrir este archivo.
+                    <strong>Acceso limitado:</strong> como aún no tienes un plan, no tienes tu propio espacio en Nimbox
+                    y solo puedes usar lo que te compartan. Si sales de esta página, necesitarás el enlace para volver a
+                    abrir {isFolder ? 'esta carpeta' : 'este archivo'}.
                   </span>
                 </div>
               )}
@@ -193,14 +246,16 @@ export const SharedFileView = ({ token, currentUser, hasPlan, onExit, onLogout, 
         </div>
       </main>
 
-      <FilePreviewModal
-        file={shared?.file}
-        isOpen={isPreviewOpen}
-        onClose={() => setIsPreviewOpen(false)}
-        onNotification={onNotification}
-      />
+      {!isFolder && (
+        <FilePreviewModal
+          file={shared?.file}
+          isOpen={isPreviewOpen}
+          onClose={() => setIsPreviewOpen(false)}
+          onNotification={onNotification}
+        />
+      )}
     </div>
   );
 };
 
-export default SharedFileView;
+export default SharedView;

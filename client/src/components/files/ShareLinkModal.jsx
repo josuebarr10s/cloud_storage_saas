@@ -1,21 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import { X, Share2, Copy, Check, Loader2, Link2, Link2Off, Lock } from 'lucide-react';
-import { sharingService, buildShareUrl } from '../../services/sharingService.js';
+import { X, Share2, Copy, Check, Loader2, Link2, Link2Off, Eye, Edit2 } from 'lucide-react';
+import { sharingService, buildShareUrl, canShareAsEditor, SHARE_PERMISSIONS } from '../../services/sharingService.js';
 
-export const ShareLinkModal = ({ file, isOpen, onClose, currentUser, onNotification, onShareChange }) => {
-  const [token, setToken] = useState(null);
+/**
+ * Crear, copiar, cambiar de permiso y desactivar el enlace de un archivo o una carpeta.
+ * item: archivo o carpeta ya mapeados (id, name, isFolder)
+ */
+export const ShareLinkModal = ({ item, isOpen, onClose, currentUser, onNotification, onShareChange }) => {
+  const [link, setLink] = useState(null); // { token, permission } | null
+  const [permission, setPermission] = useState(SHARE_PERMISSIONS.VIEWER);
   const [isLoading, setIsLoading] = useState(true);
   const [isBusy, setIsBusy] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // Consultar si el archivo ya tiene un enlace activo cada vez que se abre el modal
+  const editorAllowed = canShareAsEditor(currentUser?.plan);
+
+  // Consultar si ya tiene un enlace activo cada vez que se abre el modal
   useEffect(() => {
     async function loadLink() {
-      if (!isOpen || !file) return;
+      if (!isOpen || !item) return;
       setIsLoading(true);
       setCopied(false);
       try {
-        setToken(await sharingService.getActiveLink(file.id));
+        const active = await sharingService.getActiveLink(item);
+        setLink(active);
+        setPermission(active?.permission || SHARE_PERMISSIONS.VIEWER);
       } catch (err) {
         onNotification && onNotification(err.message, 'error');
       } finally {
@@ -23,19 +32,42 @@ export const ShareLinkModal = ({ file, isOpen, onClose, currentUser, onNotificat
       }
     }
     loadLink();
-  }, [isOpen, file?.id]);
+  }, [isOpen, item?.id]);
 
-  if (!isOpen || !file) return null;
+  if (!isOpen || !item) return null;
 
-  const shareUrl = token ? buildShareUrl(token) : '';
+  const shareUrl = link ? buildShareUrl(link.token) : '';
+  const kind = item.isFolder ? 'carpeta' : 'archivo';
 
   const handleCreateLink = async () => {
     setIsBusy(true);
     try {
-      const newToken = await sharingService.getOrCreateLink(currentUser?.id, file.id);
-      setToken(newToken);
-      onShareChange && onShareChange(file.id, true);
+      setLink(await sharingService.getOrCreateLink(currentUser?.id, item, permission));
+      onShareChange && onShareChange(item, true);
       onNotification && onNotification('Enlace creado. Cópialo y compártelo.', 'success');
+    } catch (err) {
+      onNotification && onNotification(err.message, 'error');
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  // Con un enlace activo, cambiar el permiso lo actualiza al momento (mismo enlace)
+  const handleChangePermission = async (newPermission) => {
+    if (newPermission === permission || isBusy) return;
+    if (!link) {
+      setPermission(newPermission);
+      return;
+    }
+    setIsBusy(true);
+    try {
+      await sharingService.updatePermission(item, newPermission);
+      setPermission(newPermission);
+      setLink({ ...link, permission: newPermission });
+      onNotification && onNotification(
+        newPermission === SHARE_PERMISSIONS.EDITOR ? 'Ahora el enlace permite editar.' : 'Ahora el enlace es de solo lectura.',
+        'success'
+      );
     } catch (err) {
       onNotification && onNotification(err.message, 'error');
     } finally {
@@ -54,13 +86,13 @@ export const ShareLinkModal = ({ file, isOpen, onClose, currentUser, onNotificat
   };
 
   const handleDeactivate = async () => {
-    if (!window.confirm('¿Desactivar el enlace? Quien lo tenga ya no podrá abrir el archivo.')) return;
+    if (!window.confirm(`¿Desactivar el enlace? Quien lo tenga ya no podrá abrir esta ${kind}.`)) return;
     setIsBusy(true);
     try {
-      await sharingService.deactivateLink(file.id);
-      setToken(null);
-      onShareChange && onShareChange(file.id, false);
-      onNotification && onNotification(`"${file.name}" vuelve a ser privado.`, 'info');
+      await sharingService.deactivateLink(item);
+      setLink(null);
+      onShareChange && onShareChange(item, false);
+      onNotification && onNotification(`"${item.name}" vuelve a ser privad${item.isFolder ? 'a' : 'o'}.`, 'info');
     } catch (err) {
       onNotification && onNotification(err.message, 'error');
     } finally {
@@ -80,12 +112,31 @@ export const ShareLinkModal = ({ file, isOpen, onClose, currentUser, onNotificat
     opacity: isBusy ? 0.7 : 1
   };
 
+  const permissionOptions = [
+    {
+      value: SHARE_PERMISSIONS.VIEWER,
+      icon: Eye,
+      title: 'Solo lectura',
+      description: item.isFolder ? 'Ver y descargar todo lo que hay en la carpeta.' : 'Ver y descargar el archivo.',
+      disabled: false
+    },
+    {
+      value: SHARE_PERMISSIONS.EDITOR,
+      icon: Edit2,
+      title: 'Editor',
+      description: item.isFolder
+        ? 'También subir archivos y versiones nuevas, crear subcarpetas y mandar archivos a tu papelera.'
+        : 'También subir versiones nuevas del archivo.',
+      disabled: !editorAllowed
+    }
+  ];
+
   return (
     <div
       style={{
         position: 'fixed',
         inset: 0,
-        zIndex: 9999,
+        zIndex: 10000,
         background: 'var(--bg-overlay)',
         backdropFilter: 'blur(8px)',
         display: 'flex',
@@ -100,11 +151,12 @@ export const ShareLinkModal = ({ file, isOpen, onClose, currentUser, onNotificat
         style={{
           background: 'var(--bg-card)',
           width: '100%',
-          maxWidth: '500px',
+          maxWidth: '520px',
+          maxHeight: '90vh',
+          overflowY: 'auto',
           borderRadius: 'var(--radius-xl)',
           boxShadow: 'var(--shadow-modal)',
-          border: '1px solid var(--border-color)',
-          overflow: 'hidden'
+          border: '1px solid var(--border-color)'
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -137,10 +189,10 @@ export const ShareLinkModal = ({ file, isOpen, onClose, currentUser, onNotificat
             </div>
             <div style={{ minWidth: 0 }}>
               <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>
-                Compartir por enlace
+                Compartir {kind} por enlace
               </h3>
               <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {file.name}
+                {item.name}
               </p>
             </div>
           </div>
@@ -161,72 +213,113 @@ export const ShareLinkModal = ({ file, isOpen, onClose, currentUser, onNotificat
               <Loader2 size={26} style={{ margin: '0 auto 8px auto', animation: 'spin 1s linear infinite' }} />
               <p style={{ fontSize: '0.85rem', margin: 0 }}>Consultando enlace...</p>
             </div>
-          ) : token ? (
-            <>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <input
-                  type="text"
-                  readOnly
-                  value={shareUrl}
-                  onFocus={(e) => e.target.select()}
-                  style={{
-                    flex: 1,
-                    minWidth: 0,
-                    padding: '9px 12px',
-                    borderRadius: 'var(--radius-md)',
-                    border: '1px solid var(--border-color)',
-                    background: 'var(--bg-subtle)',
-                    color: 'var(--text-main)',
-                    fontSize: '0.82rem'
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={handleCopy}
-                  className="btn-primary"
-                  style={{ ...buttonBase, cursor: 'pointer', opacity: 1 }}
-                >
-                  {copied ? <Check size={15} /> : <Copy size={15} />}
-                  {copied ? 'Copiado' : 'Copiar'}
-                </button>
-              </div>
-
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0, display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
-                <Lock size={14} style={{ flexShrink: 0, marginTop: '2px' }} />
-                Solo lectura: quien abra el enlace debe iniciar sesión en Nimbox y podrá ver y descargar el archivo, pero no modificarlo.
-              </p>
-
-              <button
-                type="button"
-                onClick={handleDeactivate}
-                disabled={isBusy}
-                style={{
-                  ...buttonBase,
-                  alignSelf: 'flex-start',
-                  color: 'var(--danger)',
-                  background: 'var(--danger-bg)',
-                  border: '1px solid var(--danger)'
-                }}
-              >
-                {isBusy ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Link2Off size={15} />}
-                Desactivar enlace
-              </button>
-            </>
           ) : (
             <>
-              <p style={{ fontSize: '0.88rem', color: 'var(--text-main)', margin: 0 }}>
-                Este archivo es <strong>privado</strong>. Crea un enlace para compartirlo con otras personas que tengan cuenta en Nimbox.
+              {/* Permiso */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                  Quien abra el enlace podrá:
+                </span>
+                {permissionOptions.map(({ value, icon: Icon, title, description, disabled }) => {
+                  const selected = permission === value;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => !disabled && handleChangePermission(value)}
+                      disabled={disabled || isBusy}
+                      style={{
+                        textAlign: 'left',
+                        padding: '10px 12px',
+                        borderRadius: 'var(--radius-md)',
+                        border: `1px solid ${selected ? 'var(--primary)' : 'var(--border-color)'}`,
+                        background: selected ? 'var(--primary-light)' : 'var(--bg-card)',
+                        cursor: disabled ? 'not-allowed' : 'pointer',
+                        opacity: disabled ? 0.6 : 1,
+                        display: 'flex',
+                        gap: '10px',
+                        alignItems: 'flex-start'
+                      }}
+                    >
+                      <Icon size={16} color={selected ? 'var(--primary)' : 'var(--text-muted)'} style={{ flexShrink: 0, marginTop: '2px' }} />
+                      <span style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                          {title}
+                          {disabled && (
+                            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--primary)', background: 'var(--primary-light)', padding: '1px 7px', borderRadius: 'var(--radius-full)' }}>
+                              Pro y Empresarial
+                            </span>
+                          )}
+                        </span>
+                        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{description}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: 0 }}>
+                Quien abra el enlace debe iniciar sesión en Nimbox. Lo que suba un editor ocupa tu espacio.
               </p>
-              <button
-                type="button"
-                onClick={handleCreateLink}
-                disabled={isBusy}
-                className="btn-primary"
-                style={{ ...buttonBase, alignSelf: 'flex-start' }}
-              >
-                {isBusy ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Link2 size={15} />}
-                Crear enlace
-              </button>
+
+              {link ? (
+                <>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input
+                      type="text"
+                      readOnly
+                      value={shareUrl}
+                      onFocus={(e) => e.target.select()}
+                      style={{
+                        flex: 1,
+                        minWidth: 0,
+                        padding: '9px 12px',
+                        borderRadius: 'var(--radius-md)',
+                        border: '1px solid var(--border-color)',
+                        background: 'var(--bg-subtle)',
+                        color: 'var(--text-main)',
+                        fontSize: '0.82rem'
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleCopy}
+                      className="btn-primary"
+                      style={{ ...buttonBase, cursor: 'pointer', opacity: 1 }}
+                    >
+                      {copied ? <Check size={15} /> : <Copy size={15} />}
+                      {copied ? 'Copiado' : 'Copiar'}
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleDeactivate}
+                    disabled={isBusy}
+                    style={{
+                      ...buttonBase,
+                      alignSelf: 'flex-start',
+                      color: 'var(--danger)',
+                      background: 'var(--danger-bg)',
+                      border: '1px solid var(--danger)'
+                    }}
+                  >
+                    {isBusy ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Link2Off size={15} />}
+                    Desactivar enlace
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleCreateLink}
+                  disabled={isBusy}
+                  className="btn-primary"
+                  style={{ ...buttonBase, alignSelf: 'flex-start' }}
+                >
+                  {isBusy ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Link2 size={15} />}
+                  Crear enlace
+                </button>
+              )}
             </>
           )}
         </div>

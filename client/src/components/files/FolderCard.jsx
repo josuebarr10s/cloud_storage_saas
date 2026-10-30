@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Folder, MoreVertical, Edit2, Trash2, ArrowRight, FolderOpen } from 'lucide-react';
+import { Folder, MoreVertical, Edit2, Trash2, ArrowRight, FolderOpen, Share2 } from 'lucide-react';
 
 const COLOR_MAP = {
   purple: { color: '#4f46e5', bg: '#eef2ff', border: 'rgba(79, 70, 229, 0.25)' },
@@ -18,6 +18,7 @@ export const FolderCard = ({
   onEdit,
   onMove,
   onDelete,
+  onShare,
   itemCount = 0,
   onDropFile
 }) => {
@@ -115,7 +116,7 @@ export const FolderCard = ({
               gap: '4px'
             }}
           >
-            Carpeta Personal
+            {folder.shared ? <><Share2 size={11} /> Compartida</> : 'Carpeta Personal'}
           </span>
         </td>
 
@@ -141,6 +142,22 @@ export const FolderCard = ({
             >
               <FolderOpen size={15} />
               <span>Abrir</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onShare(folder)}
+              style={{
+                padding: '6px 8px',
+                borderRadius: 'var(--radius-sm)',
+                color: folder.shared ? 'var(--primary)' : 'var(--text-muted)',
+                background: 'var(--bg-subtle)',
+                border: '1px solid var(--border-color)',
+                cursor: 'pointer'
+              }}
+              title="Compartir carpeta"
+            >
+              <Share2 size={15} />
             </button>
 
             <button
@@ -288,6 +305,13 @@ export const FolderCard = ({
               </button>
               <button
                 type="button"
+                onClick={() => { setIsMenuOpen(false); onShare(folder); }}
+                style={{ width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: '0.82rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}
+              >
+                <Share2 size={14} /> Compartir
+              </button>
+              <button
+                type="button"
                 onClick={() => { setIsMenuOpen(false); onEdit(folder); }}
                 style={{ width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: '0.82rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}
               >
@@ -348,9 +372,15 @@ export const FolderCard = ({
         <span style={{ color: colorScheme.color, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
           <FolderOpen size={12} /> Clic para abrir
         </span>
-        <span style={{ fontSize: '0.7rem', color: 'var(--text-light)' }}>
-          {folder.color}
-        </span>
+        {folder.shared ? (
+          <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--primary)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+            <Share2 size={11} /> Compartida
+          </span>
+        ) : (
+          <span style={{ fontSize: '0.7rem', color: 'var(--text-light)' }}>
+            {folder.color}
+          </span>
+        )}
       </div>
     </div>
   );

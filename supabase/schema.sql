@@ -247,11 +247,22 @@ ALTER TABLE public.carpeta ADD COLUMN IF NOT EXISTS color CHARACTER VARYING DEFA
 
 ALTER TABLE public.carpeta ENABLE ROW LEVEL SECURITY;
 
--- Solo el dueño
+-- Dueño de una carpeta. SECURITY DEFINER para usarla en políticas de public.carpeta
+-- sin entrar en recursión de RLS.
+CREATE OR REPLACE FUNCTION public.dueno_carpeta(p_id_carpeta UUID)
+RETURNS UUID LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT id_usuario FROM public.carpeta WHERE id_carpeta = p_id_carpeta;
+$$;
+
+-- Solo el dueño, y la carpeta padre (si hay) también debe ser suya
 DROP POLICY IF EXISTS "Permitir a usuario gestionar sus carpetas" ON public.carpeta;
 DROP POLICY IF EXISTS "carpeta_propia" ON public.carpeta;
 CREATE POLICY "carpeta_propia" ON public.carpeta
-  FOR ALL USING (id_usuario = auth.uid()) WITH CHECK (id_usuario = auth.uid());
+  FOR ALL USING (id_usuario = auth.uid())
+  WITH CHECK (
+    id_usuario = auth.uid()
+    AND (id_carpeta_padre IS NULL OR public.dueno_carpeta(id_carpeta_padre) = auth.uid())
+  );
 
 
 -- 9. TABLA ARCHIVO
@@ -272,11 +283,15 @@ CREATE TABLE IF NOT EXISTS public.archivo (
 
 ALTER TABLE public.archivo ENABLE ROW LEVEL SECURITY;
 
--- Solo el dueño
+-- Solo el dueño, y la carpeta (si hay) también debe ser suya
 DROP POLICY IF EXISTS "Permitir a usuario gestionar sus archivos" ON public.archivo;
 DROP POLICY IF EXISTS "archivo_propio" ON public.archivo;
 CREATE POLICY "archivo_propio" ON public.archivo
-  FOR ALL USING (id_usuario = auth.uid()) WITH CHECK (id_usuario = auth.uid());
+  FOR ALL USING (id_usuario = auth.uid())
+  WITH CHECK (
+    id_usuario = auth.uid()
+    AND (id_carpeta IS NULL OR public.dueno_carpeta(id_carpeta) = auth.uid())
+  );
 
 
 -- =============================================================================
@@ -344,11 +359,17 @@ DROP POLICY IF EXISTS "Usuario gestiona sus versiones" ON public.archivo_version
 CREATE POLICY "Usuario gestiona sus versiones"
   ON public.archivo_version FOR ALL USING (auth.uid() = id_usuario);
 
+
 -- =============================================================================
--- 12. COMPARTIR ARCHIVOS POR ENLACE
+-- 12. COMPARTIR POR ENLACE (ARCHIVOS Y CARPETAS)
 -- Quien abre un enlace debe tener cuenta. Al abrirlo (canjear_enlace) queda
--- registrado en acceso_compartido y desde ese momento puede ver y descargar el
--- archivo. Solo un dueño con plan activo puede crear enlaces.
+-- registrado en acceso_compartido y desde ese momento tiene acceso según el permiso:
+--   lector: ver y descargar (en una carpeta, también todo lo que hay dentro)
+--   editor: además subir versiones nuevas; en una carpeta, también subir archivos,
+--           crear subcarpetas y mandar archivos a la papelera del dueño
+-- Todo lo que sube un editor queda a nombre del dueño y ocupa su espacio.
+-- Crear enlaces exige plan activo; los de editor, plan Pro o Empresarial.
+-- Esta sección se puede volver a correr completa sin problema.
 -- =============================================================================
 
 -- ¿El usuario tiene una suscripción activa?
@@ -359,7 +380,19 @@ RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS
   );
 $$;
 
--- El enlace en sí. id_carpeta y permiso 'editor' quedan listos para las siguientes fases.
+-- ¿Su plan activo incluye permisos avanzados (Pro o Empresarial)?
+CREATE OR REPLACE FUNCTION public.plan_permite_editor(p_usuario UUID)
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.suscripcion s
+    JOIN public.plan p ON p.id_plan = s.id_plan
+    WHERE s.id_usuario = p_usuario AND s.estado = 'activa'
+      AND (lower(p.nombre) LIKE '%pro%' OR lower(p.nombre) LIKE '%empresa%')
+  );
+$$;
+
+-- El enlace en sí: apunta a un archivo o a una carpeta
 CREATE TABLE IF NOT EXISTS public.enlace_compartido (
   id_enlace UUID NOT NULL DEFAULT gen_random_uuid(),
   token CHARACTER VARYING NOT NULL
@@ -380,9 +413,11 @@ CREATE TABLE IF NOT EXISTS public.enlace_compartido (
   CONSTRAINT enlace_compartido_permiso_check CHECK (permiso IN ('lector', 'editor'))
 );
 
--- Un solo enlace activo por archivo (al desactivarlo se puede crear otro con token nuevo)
+-- Un solo enlace activo por archivo o carpeta (al desactivarlo se puede crear otro con token nuevo)
 CREATE UNIQUE INDEX IF NOT EXISTS enlace_compartido_archivo_activo_idx
   ON public.enlace_compartido (id_archivo) WHERE activo AND id_archivo IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS enlace_compartido_carpeta_activo_idx
+  ON public.enlace_compartido (id_carpeta) WHERE activo AND id_carpeta IS NOT NULL;
 
 -- Quién ya abrió cada enlace
 CREATE TABLE IF NOT EXISTS public.acceso_compartido (
@@ -400,8 +435,9 @@ CREATE INDEX IF NOT EXISTS archivo_ruta_storage_idx ON public.archivo (ruta_stor
 ALTER TABLE public.enlace_compartido ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.acceso_compartido ENABLE ROW LEVEL SECURITY;
 
--- Enlaces: solo el dueño los ve y administra; para crear uno necesita plan activo
--- y que el archivo o la carpeta sean suyos. Desactivarlos no exige plan.
+-- Enlaces: solo el dueño los ve y administra. Para crear uno necesita plan activo y que
+-- el archivo o la carpeta sean suyos; para que sea de editor, plan Pro o Empresarial.
+-- Desactivar un enlace no exige plan.
 DROP POLICY IF EXISTS "enlace_ver" ON public.enlace_compartido;
 DROP POLICY IF EXISTS "enlace_crear" ON public.enlace_compartido;
 DROP POLICY IF EXISTS "enlace_editar" ON public.enlace_compartido;
@@ -412,6 +448,7 @@ CREATE POLICY "enlace_crear" ON public.enlace_compartido
   FOR INSERT WITH CHECK (
     id_usuario = auth.uid()
     AND public.tiene_plan_activo(auth.uid())
+    AND (permiso = 'lector' OR public.plan_permite_editor(auth.uid()))
     AND (id_archivo IS NULL OR EXISTS (
       SELECT 1 FROM public.archivo a WHERE a.id_archivo = enlace_compartido.id_archivo AND a.id_usuario = auth.uid()
     ))
@@ -420,7 +457,11 @@ CREATE POLICY "enlace_crear" ON public.enlace_compartido
     ))
   );
 CREATE POLICY "enlace_editar" ON public.enlace_compartido
-  FOR UPDATE USING (id_usuario = auth.uid()) WITH CHECK (id_usuario = auth.uid());
+  FOR UPDATE USING (id_usuario = auth.uid())
+  WITH CHECK (
+    id_usuario = auth.uid()
+    AND (NOT activo OR permiso = 'lector' OR public.plan_permite_editor(auth.uid()))
+  );
 CREATE POLICY "enlace_borrar" ON public.enlace_compartido
   FOR DELETE USING (id_usuario = auth.uid());
 
@@ -435,51 +476,212 @@ CREATE POLICY "acceso_ver" ON public.acceso_compartido
     )
   );
 
--- ¿El usuario con sesión puede ver este archivo por un enlace que ya abrió?
--- El enlace debe seguir activo y vigente, el archivo fuera de la papelera y el dueño con plan.
-CREATE OR REPLACE FUNCTION public.tiene_acceso_compartido(p_id_archivo UUID)
-RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
-  SELECT EXISTS (
-    SELECT 1
-    FROM public.acceso_compartido ac
-    JOIN public.enlace_compartido e ON e.id_enlace = ac.id_enlace
-    JOIN public.archivo a ON a.id_archivo = e.id_archivo
-    WHERE ac.id_usuario = auth.uid()
-      AND e.id_archivo = p_id_archivo
-      AND e.activo
-      AND (e.fecha_expiracion IS NULL OR e.fecha_expiracion > NOW())
-      AND a.eliminado = false
-      AND public.tiene_plan_activo(e.id_usuario)
-  );
+-- Permiso del usuario con sesión sobre una carpeta por los enlaces que ya abrió:
+-- 'editor', 'lector' o null. Se hereda de cualquier carpeta superior compartida.
+-- Un enlace de editor solo cuenta como tal mientras el plan del dueño lo permita.
+CREATE OR REPLACE FUNCTION public.permiso_compartido_carpeta(p_id_carpeta UUID)
+RETURNS text LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  WITH RECURSIVE ancestros AS (
+    SELECT id_carpeta, id_carpeta_padre, 0 AS nivel
+    FROM public.carpeta WHERE id_carpeta = p_id_carpeta
+    UNION ALL
+    SELECT c.id_carpeta, c.id_carpeta_padre, a.nivel + 1
+    FROM public.carpeta c JOIN ancestros a ON c.id_carpeta = a.id_carpeta_padre
+    WHERE a.nivel < 50 -- tope por si alguna carpeta quedó en un ciclo
+  )
+  SELECT CASE
+    WHEN bool_or(e.permiso = 'editor' AND public.plan_permite_editor(e.id_usuario)) THEN 'editor'
+    WHEN count(*) > 0 THEN 'lector'
+  END
+  FROM ancestros an
+  JOIN public.enlace_compartido e ON e.id_carpeta = an.id_carpeta
+  JOIN public.acceso_compartido ac ON ac.id_enlace = e.id_enlace AND ac.id_usuario = auth.uid()
+  WHERE e.activo
+    AND (e.fecha_expiracion IS NULL OR e.fecha_expiracion > NOW())
+    AND public.tiene_plan_activo(e.id_usuario);
 $$;
 
--- Igual, pero a partir de la ruta del objeto en Storage
+-- Permiso sobre un archivo: por un enlace directo al archivo o por la carpeta que lo contiene
+CREATE OR REPLACE FUNCTION public.permiso_compartido_archivo(p_id_archivo UUID, p_id_carpeta UUID)
+RETURNS text LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  WITH permisos AS (
+    SELECT CASE WHEN e.permiso = 'editor' AND public.plan_permite_editor(e.id_usuario)
+                THEN 'editor' ELSE 'lector' END AS permiso
+    FROM public.enlace_compartido e
+    JOIN public.acceso_compartido ac ON ac.id_enlace = e.id_enlace AND ac.id_usuario = auth.uid()
+    WHERE e.id_archivo = p_id_archivo
+      AND e.activo
+      AND (e.fecha_expiracion IS NULL OR e.fecha_expiracion > NOW())
+      AND public.tiene_plan_activo(e.id_usuario)
+    UNION ALL
+    SELECT public.permiso_compartido_carpeta(p_id_carpeta)
+  )
+  SELECT CASE
+    WHEN bool_or(permiso = 'editor') THEN 'editor'
+    WHEN bool_or(permiso = 'lector') THEN 'lector'
+  END
+  FROM permisos;
+$$;
+
+-- Lo mismo, buscando la carpeta del archivo (para tablas que solo guardan id_archivo)
+CREATE OR REPLACE FUNCTION public.permiso_compartido_de_archivo(p_id_archivo UUID)
+RETURNS text LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT public.permiso_compartido_archivo(a.id_archivo, a.id_carpeta)
+  FROM public.archivo a WHERE a.id_archivo = p_id_archivo;
+$$;
+
+CREATE OR REPLACE FUNCTION public.dueno_archivo(p_id_archivo UUID)
+RETURNS UUID LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT id_usuario FROM public.archivo WHERE id_archivo = p_id_archivo;
+$$;
+
+-- ¿Puede leer este objeto de Storage por un enlace?
 CREATE OR REPLACE FUNCTION public.puede_leer_objeto_compartido(p_ruta TEXT)
 RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
   SELECT EXISTS (
     SELECT 1 FROM public.archivo a
-    WHERE a.ruta_storage = p_ruta AND public.tiene_acceso_compartido(a.id_archivo)
+    WHERE a.ruta_storage = p_ruta
+      AND a.eliminado = false
+      AND public.permiso_compartido_archivo(a.id_archivo, a.id_carpeta) IS NOT NULL
   );
 $$;
 
--- Lectura (no edición) de archivos compartidos: se suma a archivo_propio y storage_ver
-DROP POLICY IF EXISTS "archivo_compartido_ver" ON public.archivo;
-CREATE POLICY "archivo_compartido_ver" ON public.archivo
-  FOR SELECT USING (public.tiene_acceso_compartido(id_archivo));
+-- ¿Puede subir objetos a la carpeta de Storage de este dueño? (tiene algún enlace suyo de editor)
+CREATE OR REPLACE FUNCTION public.puede_subir_como(p_dueno TEXT)
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.enlace_compartido e
+    JOIN public.acceso_compartido ac ON ac.id_enlace = e.id_enlace AND ac.id_usuario = auth.uid()
+    WHERE e.id_usuario::text = p_dueno
+      AND e.permiso = 'editor'
+      AND e.activo
+      AND (e.fecha_expiracion IS NULL OR e.fecha_expiracion > NOW())
+      AND public.plan_permite_editor(e.id_usuario)
+  );
+$$;
 
+-- Archivos compartidos: se suman a archivo_propio.
+-- Ver: archivos fuera de la papelera (el editor también ve los que manda a la papelera, porque
+-- Postgres exige poder ver la fila después de un UPDATE). Editor: subir archivos a la carpeta
+-- compartida (a nombre del dueño) y modificar los existentes (versión nueva o papelera).
+DROP POLICY IF EXISTS "archivo_compartido_ver" ON public.archivo;
+DROP POLICY IF EXISTS "archivo_compartido_subir" ON public.archivo;
+DROP POLICY IF EXISTS "archivo_compartido_editar" ON public.archivo;
+CREATE POLICY "archivo_compartido_ver" ON public.archivo
+  FOR SELECT USING (
+    CASE WHEN eliminado
+      THEN public.permiso_compartido_archivo(id_archivo, id_carpeta) = 'editor'
+      ELSE public.permiso_compartido_archivo(id_archivo, id_carpeta) IS NOT NULL
+    END
+  );
+CREATE POLICY "archivo_compartido_subir" ON public.archivo
+  FOR INSERT WITH CHECK (
+    public.permiso_compartido_carpeta(id_carpeta) = 'editor'
+    AND id_usuario = public.dueno_carpeta(id_carpeta)
+  );
+CREATE POLICY "archivo_compartido_editar" ON public.archivo
+  FOR UPDATE USING (
+    eliminado = false AND public.permiso_compartido_archivo(id_archivo, id_carpeta) = 'editor'
+  )
+  WITH CHECK (public.permiso_compartido_archivo(id_archivo, id_carpeta) = 'editor');
+
+-- Quien edita por un enlace no puede cambiar el dueño de un archivo ni sacarlo de su carpeta
+CREATE OR REPLACE FUNCTION public.proteger_archivo_compartido() RETURNS trigger AS $$
+BEGIN
+  IF auth.uid() IS NOT NULL AND OLD.id_usuario <> auth.uid()
+     AND (NEW.id_usuario IS DISTINCT FROM OLD.id_usuario OR NEW.id_carpeta IS DISTINCT FROM OLD.id_carpeta) THEN
+    RAISE EXCEPTION 'Solo el dueño puede mover este archivo.';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS proteger_archivo_compartido ON public.archivo;
+CREATE TRIGGER proteger_archivo_compartido
+  BEFORE UPDATE ON public.archivo
+  FOR EACH ROW EXECUTE FUNCTION public.proteger_archivo_compartido();
+
+-- Carpetas compartidas: ver la carpeta y todo lo que tiene dentro; un editor puede crear
+-- subcarpetas (a nombre del dueño). Se revisa también el padre para que una carpeta
+-- recién creada pase la lectura del INSERT ... RETURNING.
+DROP POLICY IF EXISTS "carpeta_compartida_ver" ON public.carpeta;
+DROP POLICY IF EXISTS "carpeta_compartida_crear" ON public.carpeta;
+CREATE POLICY "carpeta_compartida_ver" ON public.carpeta
+  FOR SELECT USING (
+    public.permiso_compartido_carpeta(id_carpeta) IS NOT NULL
+    OR public.permiso_compartido_carpeta(id_carpeta_padre) IS NOT NULL
+  );
+CREATE POLICY "carpeta_compartida_crear" ON public.carpeta
+  FOR INSERT WITH CHECK (
+    public.permiso_compartido_carpeta(id_carpeta_padre) = 'editor'
+    AND id_usuario = public.dueno_carpeta(id_carpeta_padre)
+  );
+
+-- Versiones: un editor guarda en el historial del dueño la versión que reemplaza
+DROP POLICY IF EXISTS "version_compartida_crear" ON public.archivo_version;
+CREATE POLICY "version_compartida_crear" ON public.archivo_version
+  FOR INSERT WITH CHECK (
+    id_usuario = public.dueno_archivo(id_archivo)
+    AND public.permiso_compartido_de_archivo(id_archivo) = 'editor'
+  );
+
+-- Storage: leer lo compartido y, como editor, subir a la carpeta {id_dueño}/ del dueño
 DROP POLICY IF EXISTS "storage_ver_compartido" ON storage.objects;
+DROP POLICY IF EXISTS "storage_subir_compartido" ON storage.objects;
 CREATE POLICY "storage_ver_compartido" ON storage.objects
   FOR SELECT TO authenticated
   USING (bucket_id = 'nimbox-files' AND public.puede_leer_objeto_compartido(name));
+CREATE POLICY "storage_subir_compartido" ON storage.objects
+  FOR INSERT TO authenticated
+  WITH CHECK (bucket_id = 'nimbox-files' AND public.puede_subir_como((storage.foldername(name))[1]));
 
--- Abre un enlace: lo valida, registra el acceso y devuelve el archivo.
--- Los mensajes de RAISE EXCEPTION llegan tal cual al frontend.
+-- Función de la primera versión de esta sección, reemplazada por permiso_compartido_archivo
+DROP FUNCTION IF EXISTS public.tiene_acceso_compartido(UUID);
+
+-- Espacio usado: se recalcula en la BD cada vez que cambian los archivos o versiones de un
+-- usuario, porque un editor no puede actualizar el almacenamiento del dueño desde el cliente.
+CREATE OR REPLACE FUNCTION public.actualizar_espacio_usado() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_usuario UUID;
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    v_usuario := OLD.id_usuario;
+  ELSE
+    v_usuario := NEW.id_usuario;
+  END IF;
+
+  UPDATE public.almacenamiento
+  SET espacio_usado_bytes =
+        COALESCE((SELECT SUM(tamano) FROM public.archivo WHERE id_usuario = v_usuario), 0)
+      + COALESCE((SELECT SUM(tamano) FROM public.archivo_version WHERE id_usuario = v_usuario), 0),
+      ultima_actualizacion = NOW()
+  WHERE id_usuario = v_usuario;
+  RETURN NULL;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS actualizar_espacio_archivo ON public.archivo;
+CREATE TRIGGER actualizar_espacio_archivo
+  AFTER INSERT OR DELETE OR UPDATE OF tamano ON public.archivo
+  FOR EACH ROW EXECUTE FUNCTION public.actualizar_espacio_usado();
+
+DROP TRIGGER IF EXISTS actualizar_espacio_version ON public.archivo_version;
+CREATE TRIGGER actualizar_espacio_version
+  AFTER INSERT OR DELETE ON public.archivo_version
+  FOR EACH ROW EXECUTE FUNCTION public.actualizar_espacio_usado();
+
+-- Abre un enlace: lo valida, registra el acceso y devuelve el archivo o la carpeta con el
+-- permiso efectivo. Los mensajes de RAISE EXCEPTION llegan tal cual al frontend.
 CREATE OR REPLACE FUNCTION public.canjear_enlace(p_token TEXT)
 RETURNS json LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
   v_enlace public.enlace_compartido%ROWTYPE;
   v_archivo public.archivo%ROWTYPE;
+  v_carpeta public.carpeta%ROWTYPE;
   v_propietario TEXT;
+  v_permiso TEXT;
 BEGIN
   IF auth.uid() IS NULL THEN
     RAISE EXCEPTION 'Inicia sesión para abrir este enlace.';
@@ -498,9 +700,16 @@ BEGIN
     RAISE EXCEPTION 'Este enlace está pausado porque el plan de quien lo compartió no está activo.';
   END IF;
 
-  SELECT * INTO v_archivo FROM public.archivo WHERE id_archivo = v_enlace.id_archivo;
-  IF NOT FOUND OR v_archivo.eliminado THEN
-    RAISE EXCEPTION 'Este archivo ya no está disponible.';
+  IF v_enlace.id_archivo IS NOT NULL THEN
+    SELECT * INTO v_archivo FROM public.archivo WHERE id_archivo = v_enlace.id_archivo;
+    IF NOT FOUND OR v_archivo.eliminado THEN
+      RAISE EXCEPTION 'Este archivo ya no está disponible.';
+    END IF;
+  ELSE
+    SELECT * INTO v_carpeta FROM public.carpeta WHERE id_carpeta = v_enlace.id_carpeta;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'Esta carpeta ya no está disponible.';
+    END IF;
   END IF;
 
   IF v_enlace.id_usuario <> auth.uid() THEN
@@ -512,11 +721,20 @@ BEGIN
   SELECT trim(concat_ws(' ', nombre, apellido)) INTO v_propietario
   FROM public.usuario WHERE id_usuario = v_enlace.id_usuario;
 
+  -- Si el dueño bajó a un plan sin permisos avanzados, sus enlaces de editor quedan como lectura
+  v_permiso := CASE
+    WHEN v_enlace.permiso = 'editor' AND public.plan_permite_editor(v_enlace.id_usuario) THEN 'editor'
+    ELSE 'lector'
+  END;
+
   RETURN json_build_object(
     'es_dueno', v_enlace.id_usuario = auth.uid(),
-    'permiso', v_enlace.permiso,
+    'permiso', v_permiso,
     'propietario', v_propietario,
-    'archivo', row_to_json(v_archivo)
+    'id_propietario', v_enlace.id_usuario,
+    'tipo', CASE WHEN v_enlace.id_archivo IS NOT NULL THEN 'archivo' ELSE 'carpeta' END,
+    'archivo', CASE WHEN v_enlace.id_archivo IS NOT NULL THEN row_to_json(v_archivo) END,
+    'carpeta', CASE WHEN v_enlace.id_carpeta IS NOT NULL THEN row_to_json(v_carpeta) END
   );
 END;
 $$;
