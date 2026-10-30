@@ -343,3 +343,180 @@ ALTER TABLE public.archivo_version ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Usuario gestiona sus versiones" ON public.archivo_version;
 CREATE POLICY "Usuario gestiona sus versiones"
   ON public.archivo_version FOR ALL USING (auth.uid() = id_usuario);
+
+-- =============================================================================
+-- 12. COMPARTIR ARCHIVOS POR ENLACE
+-- Quien abre un enlace debe tener cuenta. Al abrirlo (canjear_enlace) queda
+-- registrado en acceso_compartido y desde ese momento puede ver y descargar el
+-- archivo. Solo un dueño con plan activo puede crear enlaces.
+-- =============================================================================
+
+-- ¿El usuario tiene una suscripción activa?
+CREATE OR REPLACE FUNCTION public.tiene_plan_activo(p_usuario UUID)
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.suscripcion WHERE id_usuario = p_usuario AND estado = 'activa'
+  );
+$$;
+
+-- El enlace en sí. id_carpeta y permiso 'editor' quedan listos para las siguientes fases.
+CREATE TABLE IF NOT EXISTS public.enlace_compartido (
+  id_enlace UUID NOT NULL DEFAULT gen_random_uuid(),
+  token CHARACTER VARYING NOT NULL
+    DEFAULT replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', ''),
+  id_usuario UUID NOT NULL, -- dueño
+  id_archivo UUID,
+  id_carpeta UUID,
+  permiso CHARACTER VARYING NOT NULL DEFAULT 'lector', -- 'lector' | 'editor'
+  fecha_expiracion TIMESTAMP WITH TIME ZONE,         -- null = no expira
+  activo BOOLEAN NOT NULL DEFAULT true,
+  fecha_creacion TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  CONSTRAINT enlace_compartido_pkey PRIMARY KEY (id_enlace),
+  CONSTRAINT enlace_compartido_token_key UNIQUE (token),
+  CONSTRAINT enlace_compartido_id_usuario_fkey FOREIGN KEY (id_usuario) REFERENCES public.usuario(id_usuario) ON DELETE CASCADE,
+  CONSTRAINT enlace_compartido_id_archivo_fkey FOREIGN KEY (id_archivo) REFERENCES public.archivo(id_archivo) ON DELETE CASCADE,
+  CONSTRAINT enlace_compartido_id_carpeta_fkey FOREIGN KEY (id_carpeta) REFERENCES public.carpeta(id_carpeta) ON DELETE CASCADE,
+  CONSTRAINT enlace_compartido_destino_check CHECK ((id_archivo IS NULL) <> (id_carpeta IS NULL)),
+  CONSTRAINT enlace_compartido_permiso_check CHECK (permiso IN ('lector', 'editor'))
+);
+
+-- Un solo enlace activo por archivo (al desactivarlo se puede crear otro con token nuevo)
+CREATE UNIQUE INDEX IF NOT EXISTS enlace_compartido_archivo_activo_idx
+  ON public.enlace_compartido (id_archivo) WHERE activo AND id_archivo IS NOT NULL;
+
+-- Quién ya abrió cada enlace
+CREATE TABLE IF NOT EXISTS public.acceso_compartido (
+  id_enlace UUID NOT NULL,
+  id_usuario UUID NOT NULL,
+  fecha_acceso TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  CONSTRAINT acceso_compartido_pkey PRIMARY KEY (id_enlace, id_usuario),
+  CONSTRAINT acceso_compartido_id_enlace_fkey FOREIGN KEY (id_enlace) REFERENCES public.enlace_compartido(id_enlace) ON DELETE CASCADE,
+  CONSTRAINT acceso_compartido_id_usuario_fkey FOREIGN KEY (id_usuario) REFERENCES public.usuario(id_usuario) ON DELETE CASCADE
+);
+
+-- Para encontrar rápido el archivo de un objeto de Storage (política storage_ver_compartido)
+CREATE INDEX IF NOT EXISTS archivo_ruta_storage_idx ON public.archivo (ruta_storage);
+
+ALTER TABLE public.enlace_compartido ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.acceso_compartido ENABLE ROW LEVEL SECURITY;
+
+-- Enlaces: solo el dueño los ve y administra; para crear uno necesita plan activo
+-- y que el archivo o la carpeta sean suyos. Desactivarlos no exige plan.
+DROP POLICY IF EXISTS "enlace_ver" ON public.enlace_compartido;
+DROP POLICY IF EXISTS "enlace_crear" ON public.enlace_compartido;
+DROP POLICY IF EXISTS "enlace_editar" ON public.enlace_compartido;
+DROP POLICY IF EXISTS "enlace_borrar" ON public.enlace_compartido;
+CREATE POLICY "enlace_ver" ON public.enlace_compartido
+  FOR SELECT USING (id_usuario = auth.uid());
+CREATE POLICY "enlace_crear" ON public.enlace_compartido
+  FOR INSERT WITH CHECK (
+    id_usuario = auth.uid()
+    AND public.tiene_plan_activo(auth.uid())
+    AND (id_archivo IS NULL OR EXISTS (
+      SELECT 1 FROM public.archivo a WHERE a.id_archivo = enlace_compartido.id_archivo AND a.id_usuario = auth.uid()
+    ))
+    AND (id_carpeta IS NULL OR EXISTS (
+      SELECT 1 FROM public.carpeta c WHERE c.id_carpeta = enlace_compartido.id_carpeta AND c.id_usuario = auth.uid()
+    ))
+  );
+CREATE POLICY "enlace_editar" ON public.enlace_compartido
+  FOR UPDATE USING (id_usuario = auth.uid()) WITH CHECK (id_usuario = auth.uid());
+CREATE POLICY "enlace_borrar" ON public.enlace_compartido
+  FOR DELETE USING (id_usuario = auth.uid());
+
+-- Accesos: cada quien ve los suyos y el dueño ve quién abrió sus enlaces.
+-- No hay INSERT desde el cliente: solo canjear_enlace() los registra.
+DROP POLICY IF EXISTS "acceso_ver" ON public.acceso_compartido;
+CREATE POLICY "acceso_ver" ON public.acceso_compartido
+  FOR SELECT USING (
+    id_usuario = auth.uid() OR EXISTS (
+      SELECT 1 FROM public.enlace_compartido e
+      WHERE e.id_enlace = acceso_compartido.id_enlace AND e.id_usuario = auth.uid()
+    )
+  );
+
+-- ¿El usuario con sesión puede ver este archivo por un enlace que ya abrió?
+-- El enlace debe seguir activo y vigente, el archivo fuera de la papelera y el dueño con plan.
+CREATE OR REPLACE FUNCTION public.tiene_acceso_compartido(p_id_archivo UUID)
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.acceso_compartido ac
+    JOIN public.enlace_compartido e ON e.id_enlace = ac.id_enlace
+    JOIN public.archivo a ON a.id_archivo = e.id_archivo
+    WHERE ac.id_usuario = auth.uid()
+      AND e.id_archivo = p_id_archivo
+      AND e.activo
+      AND (e.fecha_expiracion IS NULL OR e.fecha_expiracion > NOW())
+      AND a.eliminado = false
+      AND public.tiene_plan_activo(e.id_usuario)
+  );
+$$;
+
+-- Igual, pero a partir de la ruta del objeto en Storage
+CREATE OR REPLACE FUNCTION public.puede_leer_objeto_compartido(p_ruta TEXT)
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.archivo a
+    WHERE a.ruta_storage = p_ruta AND public.tiene_acceso_compartido(a.id_archivo)
+  );
+$$;
+
+-- Lectura (no edición) de archivos compartidos: se suma a archivo_propio y storage_ver
+DROP POLICY IF EXISTS "archivo_compartido_ver" ON public.archivo;
+CREATE POLICY "archivo_compartido_ver" ON public.archivo
+  FOR SELECT USING (public.tiene_acceso_compartido(id_archivo));
+
+DROP POLICY IF EXISTS "storage_ver_compartido" ON storage.objects;
+CREATE POLICY "storage_ver_compartido" ON storage.objects
+  FOR SELECT TO authenticated
+  USING (bucket_id = 'nimbox-files' AND public.puede_leer_objeto_compartido(name));
+
+-- Abre un enlace: lo valida, registra el acceso y devuelve el archivo.
+-- Los mensajes de RAISE EXCEPTION llegan tal cual al frontend.
+CREATE OR REPLACE FUNCTION public.canjear_enlace(p_token TEXT)
+RETURNS json LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_enlace public.enlace_compartido%ROWTYPE;
+  v_archivo public.archivo%ROWTYPE;
+  v_propietario TEXT;
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'Inicia sesión para abrir este enlace.';
+  END IF;
+
+  SELECT * INTO v_enlace FROM public.enlace_compartido WHERE token = p_token;
+  IF NOT FOUND OR NOT v_enlace.activo THEN
+    RAISE EXCEPTION 'Este enlace no existe o fue desactivado por su dueño.';
+  END IF;
+
+  IF v_enlace.fecha_expiracion IS NOT NULL AND v_enlace.fecha_expiracion <= NOW() THEN
+    RAISE EXCEPTION 'Este enlace ya expiró.';
+  END IF;
+
+  IF NOT public.tiene_plan_activo(v_enlace.id_usuario) THEN
+    RAISE EXCEPTION 'Este enlace está pausado porque el plan de quien lo compartió no está activo.';
+  END IF;
+
+  SELECT * INTO v_archivo FROM public.archivo WHERE id_archivo = v_enlace.id_archivo;
+  IF NOT FOUND OR v_archivo.eliminado THEN
+    RAISE EXCEPTION 'Este archivo ya no está disponible.';
+  END IF;
+
+  IF v_enlace.id_usuario <> auth.uid() THEN
+    INSERT INTO public.acceso_compartido (id_enlace, id_usuario)
+    VALUES (v_enlace.id_enlace, auth.uid())
+    ON CONFLICT (id_enlace, id_usuario) DO UPDATE SET fecha_acceso = NOW();
+  END IF;
+
+  SELECT trim(concat_ws(' ', nombre, apellido)) INTO v_propietario
+  FROM public.usuario WHERE id_usuario = v_enlace.id_usuario;
+
+  RETURN json_build_object(
+    'es_dueno', v_enlace.id_usuario = auth.uid(),
+    'permiso', v_enlace.permiso,
+    'propietario', v_propietario,
+    'archivo', row_to_json(v_archivo)
+  );
+END;
+$$;

@@ -9,6 +9,8 @@ import {
 import { filesService, getRetentionDays } from '../services/filesService.js';
 import { FilePreviewModal } from '../components/files/FilePreviewModal.jsx';
 import { VersionHistoryModal } from '../components/files/VersionHistoryModal.jsx';
+import { ShareLinkModal } from '../components/files/ShareLinkModal.jsx';
+import { sharingService } from '../services/sharingService.js';
 import { CreateFolderModal } from '../components/files/CreateFolderModal.jsx';
 import { MoveItemModal } from '../components/files/MoveItemModal.jsx';
 import { FolderCard } from '../components/files/FolderCard.jsx';
@@ -44,6 +46,9 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
   const [selectedVersionFile, setSelectedVersionFile] = useState(null);
   const [isVersionsOpen, setIsVersionsOpen] = useState(false);
 
+  const [selectedShareFile, setSelectedShareFile] = useState(null);
+  const [isShareOpen, setIsShareOpen] = useState(false);
+
   const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false);
   const [editingFolder, setEditingFolder] = useState(null);
 
@@ -68,14 +73,15 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
       filesService.purgeExpiredTrash(currentUser?.id, retentionDays)
         .catch(err => console.warn('No se pudo purgar la papelera:', err));
       
-      const [userFiles, userFolders, userAllFolders, path] = await Promise.all([
+      const [userFiles, userFolders, userAllFolders, path, sharedIds] = await Promise.all([
         filesService.getUserFiles(currentUser?.id),
         filesService.getUserFolders(currentUser?.id, currentFolderId),
         filesService.getAllUserFolders(currentUser?.id),
-        filesService.getFolderPath(currentFolderId)
+        filesService.getFolderPath(currentFolderId),
+        sharingService.getSharedFileIds()
       ]);
 
-      setFiles(userFiles);
+      setFiles(userFiles.map(f => ({ ...f, shared: sharedIds.has(f.id) })));
       setFolders(userFolders);
       setAllFolders(userAllFolders);
       setFolderPath(path);
@@ -292,11 +298,14 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
     }
   };
 
-  const handleToggleShare = async (id, currentShared, e) => {
+  const handleOpenShare = (file, e) => {
     e && e.stopPropagation();
-    setFiles(prev => prev.map(f => f.id === id ? { ...f, shared: !currentShared } : f));
-    await filesService.toggleShareFile(id, currentShared);
-    onNotification && onNotification(`Permisos de compartido actualizados.`, 'success');
+    setSelectedShareFile(file);
+    setIsShareOpen(true);
+  };
+
+  const handleShareChange = (fileId, shared) => {
+    setFiles(prev => prev.map(f => f.id === fileId ? { ...f, shared } : f));
   };
 
   const getFileIcon = (type, ext) => {
@@ -1164,7 +1173,8 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
                     <td style={{ padding: '14px 16px' }}>
                       <button
                         type="button"
-                        onClick={(e) => handleToggleShare(file.id, file.shared, e)}
+                        onClick={(e) => handleOpenShare(file, e)}
+                        title="Compartir por enlace"
                         style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 0 }}
                       >
                         {file.shared ? (
@@ -1429,6 +1439,14 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
                             </button>
                             <button
                               type="button"
+                              onClick={(e) => handleOpenShare(file, e)}
+                              style={{ background: 'none', border: 'none', color: file.shared ? 'var(--primary)' : 'var(--text-muted)', cursor: 'pointer', padding: '2px' }}
+                              title={file.shared ? 'Compartido por enlace' : 'Compartir por enlace'}
+                            >
+                              <Share2 size={15} />
+                            </button>
+                            <button
+                              type="button"
                               onClick={(e) => handleOpenVersions(file, e)}
                               style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px' }}
                               title="Historial de versiones"
@@ -1488,6 +1506,16 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
         isOpen={isPreviewOpen}
         onClose={() => setIsPreviewOpen(false)}
         onNotification={onNotification}
+      />
+
+      {/* MODAL DE COMPARTIR POR ENLACE */}
+      <ShareLinkModal
+        file={selectedShareFile}
+        isOpen={isShareOpen}
+        onClose={() => setIsShareOpen(false)}
+        currentUser={currentUser}
+        onNotification={onNotification}
+        onShareChange={handleShareChange}
       />
 
       {/* MODAL DE HISTORIAL DE VERSIONES */}

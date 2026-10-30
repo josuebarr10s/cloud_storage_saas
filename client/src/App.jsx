@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { LandingPage } from './views/LandingPage.jsx';
 import { DashboardView } from './views/DashboardView.jsx';
 import { AdminDashboardView } from './views/AdminDashboardView.jsx';
+import { SharedFileView } from './views/SharedFileView.jsx';
 
 import { RegisterModal } from './components/auth/RegisterModal.jsx';
 import { PaymentModal } from './components/payment/PaymentModal.jsx';
@@ -11,6 +12,7 @@ import { ResetPasswordModal } from './components/auth/ResetPasswordModal.jsx';
 import { Toast } from './components/Toast.jsx';
 
 import { authService } from './services/authService.js';
+import { takeShareTokenFromUrl, clearPendingShareToken } from './services/sharingService.js';
 import { USER_ROLES } from './constants/roles.js';
 import { PLAN_NAMES } from './constants/plans.js';
 
@@ -45,6 +47,8 @@ export default function App() {
   }
 
   const [isResetPasswordOpen, setIsResetPasswordOpen] = useState(isRecoveringRef.current);
+  // Enlace compartido pendiente (?share=TOKEN). Tiene prioridad sobre landing y dashboard mientras haya sesión.
+  const [shareToken, setShareToken] = useState(() => takeShareTokenFromUrl());
   const [toast, setToast] = useState(null);
 
   const showNotification = (message, type = 'info') => {
@@ -85,6 +89,10 @@ export default function App() {
       if (user) {
         setCurrentUser(user);
         setCurrentView(vistaPara(user));
+      } else if (shareToken) {
+        // Para abrir un enlace compartido se necesita cuenta
+        setIsLoginOpen(true);
+        showNotification('Inicia sesión o crea una cuenta para ver el archivo que te compartieron.', 'info');
       }
     }
     loadSession();
@@ -137,6 +145,7 @@ export default function App() {
     setCurrentUser(user);
     setCurrentView('landing'); 
     setIsRegisterOpen(false); 
+    if (shareToken) return;
     showNotification(`¡Cuenta creada! Elige un plan abajo para continuar.`, 'success');
   };
 
@@ -144,6 +153,7 @@ export default function App() {
     setCurrentUser(user);
     setIsLoginOpen(false);
     setCurrentView(vistaPara(user));
+    if (shareToken) return;
     
     if (esAdmin(user)) showNotification(`¡Hola, ${user.name}! Entraste al panel de administración.`, 'success');
     else if (user.plan !== 'Ninguno') showNotification(`¡Hola de nuevo, ${user.name}!`, 'success');
@@ -158,7 +168,15 @@ export default function App() {
     showNotification(`¡Pago exitoso! Plan ${planData.plan} activado.`, 'success');
   };
 
+  const handleExitShared = () => {
+    clearPendingShareToken();
+    setShareToken(null);
+    setCurrentView(vistaPara(currentUser));
+  };
+
   const handleLogout = async () => {
+    clearPendingShareToken();
+    setShareToken(null);
     await authService.signOut();
     setCurrentUser(null);
     setCurrentView('landing');
@@ -167,7 +185,9 @@ export default function App() {
 
   return (
     <div>
-      {currentView === 'dashboard' && currentUser ? (
+      {currentUser && shareToken ? (
+        <SharedFileView token={shareToken} currentUser={currentUser} onExit={handleExitShared} onLogout={handleLogout} onNotification={showNotification} />
+      ) : currentView === 'dashboard' && currentUser ? (
         esAdmin(currentUser) ? (
           <AdminDashboardView currentUser={currentUser} onLogout={handleLogout} onNotification={showNotification} />
         ) : (

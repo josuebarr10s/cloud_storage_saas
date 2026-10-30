@@ -798,10 +798,6 @@ export const filesService = {
     await supabase.from('archivo_version').delete().eq('id_version', version.id);
 
     return mapArchivo(updated[0]);
-  },
-
-  async toggleShareFile(fileId, currentSharedState) {
-    return true;
   }
 };
 
