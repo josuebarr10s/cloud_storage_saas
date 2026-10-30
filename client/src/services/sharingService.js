@@ -120,11 +120,20 @@ export const sharingService = {
   /**
    * Abre un enlace compartido: lo valida en la BD, registra el acceso y devuelve el archivo
    * @param {string} token
+   * @param {number} [retries]
    * @returns {Promise<{ isOwner: boolean, permission: string, ownerName: string, file: Object }>}
    */
-  async openSharedLink(token) {
+  async openSharedLink(token, retries = 3) {
     const { data, error } = await supabase.rpc('canjear_enlace', { p_token: token });
-    if (error) throw new Error(error.message || 'No se pudo abrir el enlace.');
+    if (error) {
+      // Justo después de registrarse o iniciar sesión, Supabase puede rechazar el token recién emitido
+      // durante unos segundos por desfase de reloj entre sus servidores ("JWT issued at future")
+      if (retries > 0 && /issued at future/i.test(error.message || '')) {
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        return this.openSharedLink(token, retries - 1);
+      }
+      throw new Error(error.message || 'No se pudo abrir el enlace.');
+    }
 
     return {
       isOwner: data.es_dueno,
