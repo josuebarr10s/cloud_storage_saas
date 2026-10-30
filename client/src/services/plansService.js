@@ -2,12 +2,10 @@ import supabase from '../lib/supabase.js';
 import { DEFAULT_PLANS } from '../constants/plans.js';
 import { STORAGE_CONSTANTS } from '../constants/storage.js';
 import { normalizeText } from '../utils/formatters.js';
-import { encodePaymentMethod } from '../utils/billing.js';
+import { encodePaymentMethod, DAYS_MONTHLY, DAYS_ANNUAL } from '../utils/billing.js';
 
 const UUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 const ANNUAL_DISCOUNT_FACTOR = 0.8;
-const DAYS_MONTHLY = 30;
-const DAYS_ANNUAL = 365;
 
 /**
  * Formatea la cuota de almacenamiento a partir de bytes
@@ -109,7 +107,7 @@ export const plansService = {
       }
 
       const fechaInicio = new Date();
-      const fechaFin = new Date();
+      const fechaFin = new Date(fechaInicio.getTime());
       const durationDays = billingCycle === 'annual' ? DAYS_ANNUAL : DAYS_MONTHLY;
       fechaFin.setDate(fechaFin.getDate() + durationDays);
 
@@ -152,8 +150,9 @@ export const plansService = {
           id_suscripcion: subRecord.id_suscripcion,
           monto: parseFloat(amountPaid || 12),
           metodo_pago: encodePaymentMethod(cardBrand, cardLast4),
-          referencia_transaccion: transactionId || `NMB-${Date.now()}`,
-          estado: 'completado'
+          referencia_transaccion: transactionId || `NMB-${fechaInicio.getTime()}`,
+          estado: 'completado',
+          fecha_pago: fechaInicio.toISOString()
         }]);
 
         if (pagoErr) {

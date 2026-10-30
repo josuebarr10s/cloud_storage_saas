@@ -5,7 +5,9 @@ import { normalizeText } from './formatters.js';
  * Al ser funciones puras son fáciles de probar y de reutilizar.
  */
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
+export const MS_PER_DAY = 24 * 60 * 60 * 1000;
+export const DAYS_MONTHLY = 30;
+export const DAYS_ANNUAL = 365;
 const ANNUAL_THRESHOLD_DAYS = 300; // una suscripción de más de 300 días se considera anual
 const MONTHS_SHORT = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 const MONTHS_LONG = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
@@ -136,8 +138,14 @@ export function escapeHtml(value) {
 /* Modelo de datos                                                     */
 /* ------------------------------------------------------------------ */
 
-/** Mensual o anual, según la duración real de la suscripción. */
+/** Mensual o anual, según el precio contratado respecto al plan o la duración de la suscripción. */
 export function billingCycleOf(sub) {
+  const planPrice = Number(sub?.plan?.precio);
+  const contracted = Number(sub?.precio_contratado);
+  if (planPrice > 0 && contracted > 0) {
+    // El cobro anual corresponde a 12 meses con 20% de descuento (9.6x el precio mensual)
+    return contracted >= planPrice * 6 ? 'annual' : 'monthly';
+  }
   const start = new Date(sub?.fecha_inicio).getTime();
   const end = new Date(sub?.fecha_fin).getTime();
   if (Number.isNaN(start) || Number.isNaN(end)) return 'monthly';
@@ -155,13 +163,19 @@ export function buildTransactions(subscriptions = []) {
   subscriptions.forEach((sub) => {
     const planName = sub.plan?.nombre || 'Plan';
     const cycle = billingCycleOf(sub);
+    const startTs = new Date(sub.fecha_inicio).getTime();
     (sub.pago || []).forEach((p) => {
-      const ts = new Date(p.fecha_pago || sub.fecha_inicio).getTime();
+      const rawPagoTs = new Date(p.fecha_pago).getTime();
+      // Si fecha_pago quedó antes de fecha_inicio por el DEFAULT NOW() del servidor, usar fecha_inicio
+      const effectiveDate = (!Number.isNaN(rawPagoTs) && (Number.isNaN(startTs) || rawPagoTs >= startTs - MS_PER_DAY))
+        ? p.fecha_pago
+        : sub.fecha_inicio;
+      const ts = new Date(effectiveDate).getTime();
       const statusKey = normalizeStatus(p.estado);
       rows.push({
         id: p.id_pago,
         ts: Number.isNaN(ts) ? 0 : ts,
-        date: p.fecha_pago || sub.fecha_inicio,
+        date: effectiveDate,
         amount: Number(p.monto) || 0,
         statusKey,
         reference: p.referencia_transaccion || `NMB-${String(p.id_pago || '').slice(0, 8).toUpperCase()}`,

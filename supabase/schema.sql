@@ -775,3 +775,115 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
     AND (e.id_carpeta IS NOT NULL OR a.eliminado = false)
   ORDER BY ac.fecha_acceso DESC;
 $$;
+
+
+-- =============================================================================
+-- 13. COBRO AUTOMÁTICO MENSUAL / ANUAL DE SUSCRIPCIONES
+-- Cuando una suscripción activa alcanza su fecha_fin, se renueva automáticamente
+-- por el siguiente ciclo (30 días mensual o 365 días anual), marcando el ciclo
+-- anterior como 'reemplazada' y registrando el pago correspondiente en public.pago.
+-- =============================================================================
+
+CREATE OR REPLACE FUNCTION public.procesar_renovaciones_suscripcion(
+  p_usuario UUID DEFAULT auth.uid(),
+  p_ahora TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+)
+RETURNS INTEGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_sub public.suscripcion%ROWTYPE;
+  v_plan_precio NUMERIC;
+  v_plan_bytes BIGINT;
+  v_es_anual BOOLEAN;
+  v_dias INTEGER;
+  v_inicio TIMESTAMP WITH TIME ZONE;
+  v_fin TIMESTAMP WITH TIME ZONE;
+  v_nuevo_id UUID;
+  v_metodo TEXT;
+  v_renovaciones INTEGER := 0;
+BEGIN
+  IF p_usuario IS NULL THEN
+    RETURN 0;
+  END IF;
+
+  IF auth.uid() IS NOT NULL AND auth.uid() <> p_usuario AND NOT public.es_admin() THEN
+    RAISE EXCEPTION 'No autorizado para procesar renovaciones de otro usuario.';
+  END IF;
+
+  SELECT * INTO v_sub
+  FROM public.suscripcion
+  WHERE id_usuario = p_usuario AND estado = 'activa'
+  ORDER BY fecha_fin DESC
+  LIMIT 1;
+
+  IF NOT FOUND OR v_sub.fecha_fin > p_ahora THEN
+    RETURN 0;
+  END IF;
+
+  SELECT precio, limite_almacenamiento_bytes INTO v_plan_precio, v_plan_bytes
+  FROM public.plan WHERE id_plan = v_sub.id_plan;
+
+  v_es_anual := CASE
+    WHEN COALESCE(v_plan_precio, 0) > 0 AND COALESCE(v_sub.precio_contratado, 0) >= v_plan_precio * 6 THEN true
+    WHEN EXTRACT(EPOCH FROM (v_sub.fecha_fin - v_sub.fecha_inicio)) / 86400 >= 300 THEN true
+    ELSE false
+  END;
+  v_dias := CASE WHEN v_es_anual THEN 365 ELSE 30 END;
+
+  SELECT COALESCE(p.metodo_pago, 'tarjeta_simulada') INTO v_metodo
+  FROM public.pago p
+  JOIN public.suscripcion s ON s.id_suscripcion = p.id_suscripcion
+  WHERE s.id_usuario = p_usuario
+  ORDER BY p.fecha_pago DESC
+  LIMIT 1;
+
+  v_metodo := COALESCE(v_metodo, 'tarjeta_simulada');
+  v_inicio := v_sub.fecha_fin;
+
+  WHILE v_inicio <= p_ahora AND v_renovaciones < 36 LOOP
+    v_renovaciones := v_renovaciones + 1;
+    v_fin := v_inicio + make_interval(days => v_dias);
+
+    INSERT INTO public.suscripcion (
+      id_usuario, id_plan, fecha_inicio, fecha_fin, estado, precio_contratado, limite_bytes_contratado
+    )
+    VALUES (
+      p_usuario,
+      v_sub.id_plan,
+      v_inicio,
+      v_fin,
+      CASE WHEN v_fin > p_ahora OR v_renovaciones = 36 THEN 'activa' ELSE 'reemplazada' END,
+      v_sub.precio_contratado,
+      COALESCE(v_sub.limite_bytes_contratado, v_plan_bytes, 10737418240)
+    )
+    RETURNING id_suscripcion INTO v_nuevo_id;
+
+    INSERT INTO public.pago (
+      id_suscripcion, monto, metodo_pago, referencia_transaccion, estado, fecha_pago
+    )
+    VALUES (
+      v_nuevo_id,
+      v_sub.precio_contratado,
+      v_metodo,
+      'NMB-' || (EXTRACT(EPOCH FROM v_inicio)::BIGINT * 1000)::TEXT || '-' || UPPER(SUBSTRING(REPLACE(v_nuevo_id::TEXT, '-', '') FROM 1 FOR 4)),
+      'completado',
+      v_inicio
+    );
+
+    v_inicio := v_fin;
+  END LOOP;
+
+  IF v_nuevo_id IS NOT NULL THEN
+    UPDATE public.suscripcion
+    SET estado = 'reemplazada'
+    WHERE id_usuario = p_usuario
+      AND estado = 'activa'
+      AND id_suscripcion <> v_nuevo_id;
+  END IF;
+
+  RETURN v_renovaciones;
+END;
+$$;

@@ -1,6 +1,7 @@
 /**
  * Patrón Strategy (Estrategia): Clasificación y tipado de archivos según su extensión.
- * Facilita extender soporte a nuevos tipos de archivos sin modificar código existente (Open/Closed Principle).
+ * Facilita extender soporte a nuevos tipos de archivos sin modificar código existente 
+ * (Open/Closed Principle).
  */
 
 class ImageCategoryStrategy {

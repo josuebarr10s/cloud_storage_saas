@@ -117,6 +117,19 @@ export const PaymentHistory = ({ currentUser, onChangePlan, onNotification, refr
   // Carga inicial y recarga cuando cambia el plan (p. ej. tras un pago nuevo)
   useEffect(() => { load(); }, [load, refreshKey]);
 
+  // Si la fecha de renovación se cumple mientras la vista está abierta, ejecuta el cobro automático y recarga
+  useEffect(() => {
+    const endIso = data?.subscription?.end;
+    if (!endIso) return undefined;
+    const msUntilRenewal = new Date(endIso).getTime() - Date.now();
+    if (Number.isNaN(msUntilRenewal)) return undefined;
+    const delay = Math.min(Math.max(1000, msUntilRenewal + 500), 2147483647);
+    const timer = setTimeout(() => {
+      if (mounted.current) load();
+    }, delay);
+    return () => clearTimeout(timer);
+  }, [data?.subscription?.end, load]);
+
   // Los planes solo se piden la primera vez que se abre el selector
   useEffect(() => {
     if (!isPlanPanelOpen || plans.length > 0) return;
@@ -160,7 +173,7 @@ export const PaymentHistory = ({ currentUser, onChangePlan, onNotification, refr
   const handleExport = () => {
     if (filtered.length === 0) return;
     // BOM para que Excel respete los acentos
-    downloadTextFile(`nimbox-pagos-${localDateKey(new Date())}.csv`, `﻿${transactionsToCsv(filtered)}`, 'text/csv;charset=utf-8');
+    downloadTextFile(`nimbox-pagos-${localDateKey(new Date())}.csv`, `\uFEFF${transactionsToCsv(filtered)}`, 'text/csv;charset=utf-8');
     notify(`Se exportaron ${filtered.length} ${filtered.length === 1 ? 'transacción' : 'transacciones'} a CSV.`, 'success');
   };
 
@@ -335,7 +348,7 @@ export const PaymentHistory = ({ currentUser, onChangePlan, onNotification, refr
               </div>
               <div style={{ marginTop: '14px' }}>
                 <span style={{ display: 'inline-block', fontSize: '0.78rem', fontWeight: 700, padding: '3px 10px', borderRadius: 'var(--radius-full)', background: sub.expired ? 'var(--danger-bg)' : sub.daysLeft <= 5 ? 'var(--warning-bg)' : 'var(--primary-light)', color: sub.expired ? 'var(--danger)' : sub.daysLeft <= 5 ? 'var(--warning-strong)' : 'var(--primary)' }}>
-                  {sub.expired ? 'Suscripción vencida' : sub.daysLeft === 0 ? 'Se renueva hoy' : sub.daysLeft === 1 ? 'Se renueva mañana' : `Se renueva en ${sub.daysLeft} días`}
+                  {sub.expired ? 'Procesando renovación...' : sub.daysLeft === 0 ? 'Cobro automático hoy' : sub.daysLeft === 1 ? 'Cobro automático mañana' : `Cobro automático en ${sub.daysLeft} días`}
                 </span>
               </div>
             </>
@@ -351,7 +364,7 @@ export const PaymentHistory = ({ currentUser, onChangePlan, onNotification, refr
         <div style={{ ...cardStyle, padding: '1.25rem 1.5rem' }}>
           <span style={labelStyle}>Plan actual</span>
           <div style={{ fontSize: '1.75rem', fontWeight: 800, margin: '6px 0 2px' }}>{sub?.planName || currentUser?.plan || 'Ninguno'}</div>
-          <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>{sub ? `Facturación ${cycleLabel(sub.cycle).toLowerCase()}` : 'Sin facturación activa'}</div>
+          <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>{sub ? `Facturación ${cycleLabel(sub.cycle).toLowerCase()} · Automática` : 'Sin facturación activa'}</div>
           {sub && (
             <div style={{ marginTop: '14px' }}>
               <div style={{ height: '8px', background: 'var(--bg-hover)', borderRadius: 'var(--radius-full)', overflow: 'hidden' }} role="progressbar" aria-valuenow={Math.round(sub.progress)} aria-valuemin={0} aria-valuemax={100} aria-label="Avance del periodo de facturación">

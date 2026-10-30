@@ -1,6 +1,7 @@
 import supabase from '../lib/supabase.js';
 import { mapAuthErrorMessage, AUTH_MESSAGES } from '../utils/authErrorHandler.js';
 import { UserFactory } from '../factories/entityFactory.js';
+import { billingService } from './billingService.js';
 
 const STORAGE_KEYS = Object.freeze({
   CURRENT_USER: 'nimbox_current_user',
@@ -64,6 +65,10 @@ export const authService = {
 
     let userProfile = null;
     try {
+      await billingService.processAutoRenewals(authData.user.id).catch((err) =>
+        console.warn('No se pudo verificar renovación automática al iniciar sesión:', err)
+      );
+
       const { data: dbUser } = await supabase
         .from('usuario')
         .select('*, suscripcion(*, plan(*))')
@@ -119,6 +124,10 @@ export const authService = {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) return null;
+
+      await billingService.processAutoRenewals(session.user.id).catch((err) =>
+        console.warn('No se pudo verificar renovación automática en sesión activa:', err)
+      );
 
       const { data: dbUser } = await supabase
         .from('usuario')
