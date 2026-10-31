@@ -368,9 +368,15 @@ CREATE POLICY "Usuario gestiona sus versiones"
 --   editor: además subir versiones nuevas; en una carpeta, también subir archivos,
 --           crear subcarpetas y mandar archivos a la papelera del dueño
 -- Todo lo que sube un editor queda a nombre del dueño y ocupa su espacio.
--- Crear enlaces exige plan activo; los de editor, plan Pro o Empresarial.
+-- Crear enlaces exige plan activo. Permisos avanzados (plan Pro o Empresarial):
+-- enlaces de editor, fecha de expiración y contraseña.
 -- Esta sección se puede volver a correr completa sin problema.
 -- =============================================================================
+
+-- crypt() y gen_salt() para guardar las contraseñas de los enlaces (en Supabase ya
+-- viene instalada en el esquema extensions)
+CREATE SCHEMA IF NOT EXISTS extensions;
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
 
 -- ¿El usuario tiene una suscripción activa?
 CREATE OR REPLACE FUNCTION public.tiene_plan_activo(p_usuario UUID)
@@ -380,7 +386,7 @@ RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS
   );
 $$;
 
--- ¿Su plan activo incluye permisos avanzados (Pro o Empresarial)?
+-- ¿Su plan activo incluye permisos avanzados (Pro o Empresarial): editor, expiración y contraseña?
 CREATE OR REPLACE FUNCTION public.plan_permite_editor(p_usuario UUID)
 RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
   SELECT EXISTS (
@@ -418,6 +424,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS enlace_compartido_archivo_activo_idx
   ON public.enlace_compartido (id_archivo) WHERE activo AND id_archivo IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS enlace_compartido_carpeta_activo_idx
   ON public.enlace_compartido (id_carpeta) WHERE activo AND id_carpeta IS NOT NULL;
+
+-- Contraseña opcional del enlace (bcrypt). tiene_password evita leer el hash desde el cliente.
+ALTER TABLE public.enlace_compartido ADD COLUMN IF NOT EXISTS password_hash TEXT;
+ALTER TABLE public.enlace_compartido ADD COLUMN IF NOT EXISTS tiene_password BOOLEAN
+  GENERATED ALWAYS AS (password_hash IS NOT NULL) STORED;
 
 -- Quién ya abrió cada enlace
 CREATE TABLE IF NOT EXISTS public.acceso_compartido (
@@ -672,10 +683,61 @@ CREATE TRIGGER actualizar_espacio_version
   AFTER INSERT OR DELETE ON public.archivo_version
   FOR EACH ROW EXECUTE FUNCTION public.actualizar_espacio_usado();
 
+-- Expiración y contraseña de un enlace propio (permisos avanzados).
+-- p_fecha_expiracion: null = no expira. p_password: null = no cambiarla.
+-- Al poner una contraseña nueva, quien ya había abierto el enlace debe escribirla otra vez.
+-- Quitar la expiración o la contraseña no exige plan (por si el dueño bajó de plan).
+CREATE OR REPLACE FUNCTION public.configurar_enlace(
+  p_token TEXT,
+  p_fecha_expiracion TIMESTAMP WITH TIME ZONE,
+  p_password TEXT DEFAULT NULL,
+  p_quitar_password BOOLEAN DEFAULT false
+)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions AS $$
+DECLARE
+  v_enlace public.enlace_compartido%ROWTYPE;
+BEGIN
+  SELECT * INTO v_enlace FROM public.enlace_compartido
+  WHERE token = p_token AND id_usuario = auth.uid() AND activo;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'No se encontró el enlace.';
+  END IF;
+
+  IF (p_fecha_expiracion IS NOT NULL OR p_password IS NOT NULL)
+     AND NOT public.plan_permite_editor(auth.uid()) THEN
+    RAISE EXCEPTION 'La expiración y la contraseña son para los planes Pro y Empresarial.';
+  END IF;
+
+  IF p_fecha_expiracion IS NOT NULL AND p_fecha_expiracion <= NOW() THEN
+    RAISE EXCEPTION 'La fecha de expiración debe ser posterior a hoy.';
+  END IF;
+
+  IF p_password IS NOT NULL AND length(p_password) < 4 THEN
+    RAISE EXCEPTION 'La contraseña debe tener al menos 4 caracteres.';
+  END IF;
+
+  UPDATE public.enlace_compartido
+  SET fecha_expiracion = p_fecha_expiracion,
+      password_hash = CASE
+        WHEN p_quitar_password THEN NULL
+        WHEN p_password IS NOT NULL THEN crypt(p_password, gen_salt('bf'))
+        ELSE password_hash
+      END
+  WHERE id_enlace = v_enlace.id_enlace;
+
+  IF p_password IS NOT NULL AND NOT p_quitar_password THEN
+    DELETE FROM public.acceso_compartido WHERE id_enlace = v_enlace.id_enlace;
+  END IF;
+END;
+$$;
+
 -- Abre un enlace: lo valida, registra el acceso y devuelve el archivo o la carpeta con el
--- permiso efectivo. Los mensajes de RAISE EXCEPTION llegan tal cual al frontend.
-CREATE OR REPLACE FUNCTION public.canjear_enlace(p_token TEXT)
-RETURNS json LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+-- permiso efectivo. Los mensajes de RAISE EXCEPTION llegan tal cual al frontend; los de la
+-- contraseña llevan su propio código (NB001 falta, NB002 incorrecta) para pedirla en pantalla.
+-- La versión anterior recibía solo p_token: se borra para que no queden dos funciones con el mismo nombre.
+DROP FUNCTION IF EXISTS public.canjear_enlace(TEXT);
+CREATE OR REPLACE FUNCTION public.canjear_enlace(p_token TEXT, p_password TEXT DEFAULT NULL)
+RETURNS json LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions AS $$
 DECLARE
   v_enlace public.enlace_compartido%ROWTYPE;
   v_archivo public.archivo%ROWTYPE;
@@ -698,6 +760,20 @@ BEGIN
 
   IF NOT public.tiene_plan_activo(v_enlace.id_usuario) THEN
     RAISE EXCEPTION 'Este enlace está pausado porque el plan de quien lo compartió no está activo.';
+  END IF;
+
+  -- La contraseña se pide solo la primera vez: después basta con el acceso registrado
+  IF v_enlace.password_hash IS NOT NULL
+     AND v_enlace.id_usuario <> auth.uid()
+     AND NOT EXISTS (
+       SELECT 1 FROM public.acceso_compartido
+       WHERE id_enlace = v_enlace.id_enlace AND id_usuario = auth.uid()
+     ) THEN
+    IF COALESCE(p_password, '') = '' THEN
+      RAISE EXCEPTION 'Este enlace está protegido con contraseña.' USING ERRCODE = 'NB001';
+    ELSIF crypt(p_password, v_enlace.password_hash) <> v_enlace.password_hash THEN
+      RAISE EXCEPTION 'La contraseña no es correcta.' USING ERRCODE = 'NB002';
+    END IF;
   END IF;
 
   IF v_enlace.id_archivo IS NOT NULL THEN
@@ -732,6 +808,7 @@ BEGIN
     'permiso', v_permiso,
     'propietario', v_propietario,
     'id_propietario', v_enlace.id_usuario,
+    'fecha_expiracion', v_enlace.fecha_expiracion,
     'tipo', CASE WHEN v_enlace.id_archivo IS NOT NULL THEN 'archivo' ELSE 'carpeta' END,
     'archivo', CASE WHEN v_enlace.id_archivo IS NOT NULL THEN row_to_json(v_archivo) END,
     'carpeta', CASE WHEN v_enlace.id_carpeta IS NOT NULL THEN row_to_json(v_carpeta) END
