@@ -19,10 +19,10 @@ export const DEFAULT_PLANS = Object.freeze([
     storageQuota: '10 GB',
     features: [
       '10 GB de almacenamiento',
-      'Acceso desde 2 dispositivos',
-      'Compartir por enlace',
-      'Soporte por email',
-      'Historial de versiones (7 días)'
+      'Carpetas, vista previa y búsqueda',
+      'Historial de versiones',
+      'Papelera de 7 días',
+      'Compartir por enlace (solo lectura)'
     ],
     buttonText: 'Elegir Básico'
   },
@@ -37,12 +37,10 @@ export const DEFAULT_PLANS = Object.freeze([
     storageQuota: '500 GB',
     features: [
       '500 GB de almacenamiento',
-      'Dispositivos ilimitados',
-      'Compartir con permisos avanzados',
-      'Soporte prioritario 24/7',
-      'Historial de versiones 30 días',
-      'Colaboración en equipo',
-      'Integraciones con terceros'
+      'Todo lo del plan Básico',
+      'Papelera de 30 días',
+      'Enlaces de editor para colaborar',
+      'Enlaces con contraseña y vencimiento'
     ],
     buttonText: 'Elegir Pro'
   },
@@ -53,17 +51,14 @@ export const DEFAULT_PLANS = Object.freeze([
     precio: 49,
     precioAnual: 39.2,
     popular: false,
-    storageQuota: 'Ilimitado',
+    storageQuota: '2 TB',
     features: [
-      'Almacenamiento Ilimitado',
-      'SSO y control de acceso',
-      'SLA garantizado 99.99%',
-      'Soporte dedicado',
-      'Historial de versiones ilimitado',
-      'Auditoría y cumplimiento',
-      'API privada y webhooks',
-      'Facturación personalizada'
+      '2 TB de almacenamiento',
+      'Todo lo del plan Pro',
+      'Papelera sin límite de tiempo',
+      'Enlaces solo para correos invitados',
+      'Ver quién abrió cada enlace'
     ],
-    buttonText: 'Contactar ventas'
+    buttonText: 'Elegir Empresarial'
   }
 ]);

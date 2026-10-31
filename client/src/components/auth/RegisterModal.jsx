@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, ShieldCheck, Eye, EyeOff, ArrowRight, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { authService } from '../../services/authService.js';
 import { getPasswordRequirements, getPasswordStrength, PASSWORD_REQUIREMENT_LABELS } from '../../utils/passwordRules.js';
+import { LegalModal } from '../legal/LegalModal.jsx';
 
 export const RegisterModal = ({ isOpen, onClose, onRegisterSuccess }) => {
   const [fullName, setFullName] = useState('');
@@ -10,7 +11,9 @@ export const RegisterModal = ({ isOpen, onClose, onRegisterSuccess }) => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [agreeTerms, setAgreeTerms] = useState(true);
+  // Se aceptan de forma explícita: la casilla empieza sin marcar
+  const [agreeTerms, setAgreeTerms] = useState(false);
+  const [legalTab, setLegalTab] = useState(null); // 'terms' | 'privacy' | null
   
   const [errors, setErrors] = useState({});
   const [isRegistering, setIsRegistering] = useState(false);
@@ -21,7 +24,8 @@ export const RegisterModal = ({ isOpen, onClose, onRegisterSuccess }) => {
       setEmail('');
       setPassword('');
       setConfirmPassword('');
-      setAgreeTerms(true);
+      setAgreeTerms(false);
+      setLegalTab(null);
       setErrors({});
       setIsRegistering(false);
     }
@@ -48,7 +52,7 @@ export const RegisterModal = ({ isOpen, onClose, onRegisterSuccess }) => {
       errs.password = 'La contraseña no cumple los requisitos de abajo';
     }
     if (!requirements.match) errs.confirmPassword = 'Las contraseñas no coinciden';
-    if (!agreeTerms) errs.agreeTerms = 'Debes aceptar los términos y condiciones';
+    if (!agreeTerms) errs.agreeTerms = 'Debes aceptar los términos de servicio y la política de privacidad';
     
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -186,8 +190,17 @@ export const RegisterModal = ({ isOpen, onClose, onRegisterSuccess }) => {
 
             <div style={{ marginTop: '5px' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', cursor: 'pointer', color: 'var(--text-muted)' }}>
-                <input type="checkbox" checked={agreeTerms} onChange={(e) => setAgreeTerms(e.target.checked)} style={{ width: '16px', height: '16px', cursor: 'pointer' }} />
-                Acepto los términos de servicio y políticas de privacidad.
+                <input type="checkbox" checked={agreeTerms} onChange={(e) => setAgreeTerms(e.target.checked)} style={{ width: '16px', height: '16px', cursor: 'pointer', flexShrink: 0 }} />
+                <span>
+                  Acepto los{' '}
+                  <button type="button" onClick={() => setLegalTab('terms')} style={{ background: 'none', border: 'none', padding: 0, color: 'var(--primary)', fontWeight: 600, cursor: 'pointer', font: 'inherit' }}>
+                    términos de servicio
+                  </button>{' '}
+                  y la{' '}
+                  <button type="button" onClick={() => setLegalTab('privacy')} style={{ background: 'none', border: 'none', padding: 0, color: 'var(--primary)', fontWeight: 600, cursor: 'pointer', font: 'inherit' }}>
+                    política de privacidad
+                  </button>.
+                </span>
               </label>
               {errors.agreeTerms && <span style={{ color: 'var(--danger)', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{errors.agreeTerms}</span>}
             </div>
@@ -198,6 +211,8 @@ export const RegisterModal = ({ isOpen, onClose, onRegisterSuccess }) => {
           </form>
         </div>
       </div>
+
+      <LegalModal isOpen={Boolean(legalTab)} initialTab={legalTab || 'terms'} onClose={() => setLegalTab(null)} />
     </div>
   );
 };

@@ -36,8 +36,12 @@ INSERT INTO public.plan (id_plan, nombre, descripcion, precio, limite_almacenami
 VALUES 
 ('11111111-1111-1111-1111-111111111111', 'Básico', 'Para uso personal y organización', 5.00, 10737418240, 30, true),
 ('22222222-2222-2222-2222-222222222222', 'Pro', 'Para profesionales y pequeños equipos', 12.00, 536870912000, 30, true),
-('33333333-3333-3333-3333-333333333333', 'Empresarial', 'Para organizaciones exigentes', 49.00, 10995116277760, 365, true)
+('33333333-3333-3333-3333-333333333333', 'Empresarial', 'Para organizaciones exigentes', 49.00, 2199023255552, 365, true)
 ON CONFLICT (id_plan) DO NOTHING;
+
+-- El plan Empresarial es de 2 TB (la primera versión de esta semilla decía 10 TB)
+UPDATE public.plan SET limite_almacenamiento_bytes = 2199023255552
+WHERE id_plan = '33333333-3333-3333-3333-333333333333' AND limite_almacenamiento_bytes <> 2199023255552;
 
 
 -- 3. TABLA USUARIO
@@ -1070,3 +1074,73 @@ BEGIN
   RETURN v_renovaciones;
 END;
 $$;
+
+
+-- =============================================================================
+-- 14. CONTROL DE CUOTA (RF-15)
+-- No se puede subir más de lo que permite el plan: cuenta el espacio de los archivos
+-- (incluida la papelera) y de sus versiones anteriores. La app pregunta antes de subir
+-- (espacio_disponible) y la BD lo vuelve a revisar al guardar (trigger validar_cuota).
+-- =============================================================================
+
+-- Bytes que ocupa un usuario: archivos (también los de la papelera) y versiones anteriores
+CREATE OR REPLACE FUNCTION public.espacio_usado_real(p_usuario UUID)
+RETURNS BIGINT LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT COALESCE((SELECT SUM(tamano) FROM public.archivo WHERE id_usuario = p_usuario), 0)
+       + COALESCE((SELECT SUM(tamano) FROM public.archivo_version WHERE id_usuario = p_usuario), 0);
+$$;
+
+-- Bytes libres de un usuario. La consulta el dueño, quien edita por un enlace suyo o el admin.
+CREATE OR REPLACE FUNCTION public.espacio_disponible(p_usuario UUID)
+RETURNS BIGINT LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF auth.uid() IS NULL OR (
+    auth.uid() <> p_usuario
+    AND NOT public.puede_subir_como(p_usuario::text)
+    AND NOT public.es_admin()
+  ) THEN
+    RAISE EXCEPTION 'No autorizado para consultar el espacio de otro usuario.';
+  END IF;
+
+  RETURN COALESCE((SELECT capacidad_total_bytes FROM public.almacenamiento WHERE id_usuario = p_usuario), 0)
+       - public.espacio_usado_real(p_usuario);
+END;
+$$;
+
+-- Rechaza lo que no quepa en el plan del dueño: un archivo nuevo, una versión que pasa al
+-- historial o un archivo que crece. Al subir una versión nueva primero se guarda la anterior en
+-- archivo_version y después cambia el tamaño del archivo, así que cada paso se revisa por separado.
+CREATE OR REPLACE FUNCTION public.validar_cuota() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_extra BIGINT;
+  v_capacidad BIGINT;
+  v_usado BIGINT;
+BEGIN
+  v_extra := NEW.tamano - CASE WHEN TG_OP = 'UPDATE' THEN OLD.tamano ELSE 0 END;
+  IF v_extra <= 0 THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT COALESCE(capacidad_total_bytes, 0) INTO v_capacidad
+  FROM public.almacenamiento WHERE id_usuario = NEW.id_usuario;
+  v_usado := public.espacio_usado_real(NEW.id_usuario);
+
+  IF v_usado + v_extra > COALESCE(v_capacidad, 0) THEN
+    RAISE EXCEPTION 'No hay espacio suficiente: se necesitan % y quedan %. Libera espacio vaciando la papelera o cambia a un plan con más capacidad.',
+      pg_size_pretty(v_extra), pg_size_pretty(GREATEST(COALESCE(v_capacidad, 0) - v_usado, 0))
+      USING ERRCODE = 'NB010';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS validar_cuota_archivo ON public.archivo;
+CREATE TRIGGER validar_cuota_archivo
+  BEFORE INSERT OR UPDATE OF tamano ON public.archivo
+  FOR EACH ROW EXECUTE FUNCTION public.validar_cuota();
+
+DROP TRIGGER IF EXISTS validar_cuota_version ON public.archivo_version;
+CREATE TRIGGER validar_cuota_version
+  BEFORE INSERT ON public.archivo_version
+  FOR EACH ROW EXECUTE FUNCTION public.validar_cuota();

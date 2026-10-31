@@ -38,7 +38,7 @@ export const PricingSection = ({ onChoosePlan }) => {
         <Reveal style={{ textAlign: 'center', maxWidth: '750px', margin: '0 auto 3.5rem auto' }}>
           <h2 className="section-title">Un plan para cada etapa</h2>
           <p className="section-subtitle" style={{ marginBottom: '2rem' }}>
-            Empieza sin tarjeta de crédito. Escala cuando lo necesites.
+            Elige el espacio que necesitas y cambia de plan cuando quieras.
           </p>
 
           {/* Billing Switch */}

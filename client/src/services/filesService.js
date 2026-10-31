@@ -44,6 +44,33 @@ async function recalcularAlmacenamiento(userId) {
   }
 }
 
+// Código que devuelve la BD cuando un archivo no cabe en el plan (trigger validar_cuota)
+const QUOTA_ERROR_CODE = 'NB010';
+
+/**
+ * Revisa antes de subir que el archivo quepa en el plan del dueño (RF-15), para no subir
+ * el binario en balde. La BD lo vuelve a revisar al guardar; si no se puede consultar, se sigue.
+ */
+async function asegurarEspacio(ownerId, bytesNecesarios) {
+  const { data: disponible, error } = await supabase.rpc('espacio_disponible', { p_usuario: ownerId });
+  if (error) {
+    console.warn('No se pudo consultar el espacio disponible:', error.message);
+    return;
+  }
+  if (bytesNecesarios > disponible) {
+    throw new Error(
+      `No hay espacio suficiente: se necesitan ${formatBytes(bytesNecesarios)} y quedan ${formatBytes(Math.max(0, disponible))}. ` +
+      'Libera espacio vaciando la papelera o cambia a un plan con más capacidad.'
+    );
+  }
+}
+
+// Si el registro no se pudo guardar, el binario ya subido no le sirve a nadie
+async function quitarBinarioHuerfano(ruta) {
+  const { error } = await supabase.storage.from(BUCKET).remove([ruta]);
+  if (error) console.warn('No se pudo borrar el archivo subido sin registro:', error.message);
+}
+
 /**
  * Sube el binario a Storage dentro de la carpeta del dueño ({ownerId}/...).
  * El timestamp en la ruta evita sobrescribir versiones anteriores.
@@ -84,7 +111,7 @@ async function reemplazarVersionActual(existente, cambios) {
   }]);
 
   if (versionError) {
-    throw new Error(`No se pudo guardar la versión anterior: ${versionError.message}`);
+    throw new Error(versionError.code === QUOTA_ERROR_CODE ? versionError.message : `No se pudo guardar la versión anterior: ${versionError.message}`);
   }
 
   const { data: updated, error: updateError } = await supabase
@@ -94,7 +121,7 @@ async function reemplazarVersionActual(existente, cambios) {
     .select();
 
   if (updateError) {
-    throw new Error(`No se pudo actualizar el archivo: ${updateError.message}`);
+    throw new Error(updateError.code === QUOTA_ERROR_CODE ? updateError.message : `No se pudo actualizar el archivo: ${updateError.message}`);
   }
 
   return updated?.[0];
@@ -450,12 +477,7 @@ export const filesService = {
 
     const { type } = detectCategoryAndType(file.name);
 
-    // 1. Subir binario a Supabase Storage
-    const uploadedPath = await subirBinario(activeUserId, file);
-
-    const ahora = new Date().toISOString();
-
-    // 2. ¿Ya existe un archivo activo con el mismo nombre EN ESTA MISMA CARPETA? -> nueva versión
+    // 1. ¿Ya existe un archivo activo con el mismo nombre EN ESTA MISMA CARPETA? -> nueva versión
     let busqueda = supabase
       .from('archivo')
       .select('*')
@@ -473,42 +495,54 @@ export const filesService = {
 
     const existente = coincidencias?.[0] || null;
 
+    // 2. ¿Cabe en el plan? En una versión nueva la anterior también se queda en el historial
+    await asegurarEspacio(activeUserId, Math.max(file.size, Number(existente?.tamano || 0)));
+
+    // 3. Subir binario a Supabase Storage
+    const uploadedPath = await subirBinario(activeUserId, file);
+    const ahora = new Date().toISOString();
+
     let savedRecord = null;
     let isNewVersion = false;
 
-    if (existente) {
-      // 2a. La versión actual pasa al historial y el registro apunta al archivo nuevo
-      savedRecord = await reemplazarVersionActual(existente, {
-        ruta_storage: uploadedPath,
-        tamano: file.size,
-        tipo: type
-      });
-      isNewVersion = true;
-    } else {
-      // 2b. Archivo nuevo: insertar registro en public.archivo
-      const { data: dbData, error: dbError } = await supabase
-        .from('archivo')
-        .insert([{
-          id_usuario: activeUserId,
-          id_carpeta: currentFolderId || null,
-          nombre: file.name,
-          tipo: type,
-          tamano: file.size,
+    try {
+      if (existente) {
+        // 4a. La versión actual pasa al historial y el registro apunta al archivo nuevo
+        savedRecord = await reemplazarVersionActual(existente, {
           ruta_storage: uploadedPath,
-          fecha_subida: ahora,
-          fecha_modificacion: ahora
-        }])
-        .select();
+          tamano: file.size,
+          tipo: type
+        });
+        isNewVersion = true;
+      } else {
+        // 4b. Archivo nuevo: insertar registro en public.archivo
+        const { data: dbData, error: dbError } = await supabase
+          .from('archivo')
+          .insert([{
+            id_usuario: activeUserId,
+            id_carpeta: currentFolderId || null,
+            nombre: file.name,
+            tipo: type,
+            tamano: file.size,
+            ruta_storage: uploadedPath,
+            fecha_subida: ahora,
+            fecha_modificacion: ahora
+          }])
+          .select();
 
-      if (dbError) {
-        console.error('Error al insertar registro en public.archivo:', dbError.message, dbError);
-        throw new Error(`Guardado en base de datos falló: ${dbError.message}`);
+        if (dbError) {
+          console.error('Error al insertar registro en public.archivo:', dbError.message, dbError);
+          throw new Error(dbError.code === QUOTA_ERROR_CODE ? dbError.message : `Guardado en base de datos falló: ${dbError.message}`);
+        }
+
+        savedRecord = dbData?.[0];
       }
-
-      savedRecord = dbData?.[0];
+    } catch (err) {
+      await quitarBinarioHuerfano(uploadedPath);
+      throw err;
     }
 
-    // 3. Actualizar espacio usado
+    // 5. Actualizar espacio usado
     await recalcularAlmacenamiento(activeUserId);
 
     return {
@@ -526,12 +560,18 @@ export const filesService = {
    * @param {string} ownerId dueño del archivo: el binario se guarda en su carpeta de Storage
    */
   async uploadNewVersion(file, newFile, ownerId) {
+    await asegurarEspacio(ownerId, Math.max(newFile.size, file.size_bytes || 0));
     const uploadedPath = await subirBinario(ownerId, newFile);
-    const updated = await reemplazarVersionActual(
-      { id_archivo: file.id, id_usuario: ownerId, tamano: file.size_bytes, ruta_storage: file.file_path, nombre: file.name },
-      { ruta_storage: uploadedPath, tamano: newFile.size }
-    );
-    return mapArchivo(updated);
+    try {
+      const updated = await reemplazarVersionActual(
+        { id_archivo: file.id, id_usuario: ownerId, tamano: file.size_bytes, ruta_storage: file.file_path, nombre: file.name },
+        { ruta_storage: uploadedPath, tamano: newFile.size }
+      );
+      return mapArchivo(updated);
+    } catch (err) {
+      await quitarBinarioHuerfano(uploadedPath);
+      throw err;
+    }
   },
 
   /**

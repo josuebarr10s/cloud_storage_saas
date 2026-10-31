@@ -12,6 +12,7 @@ import { VersionHistoryModal } from '../components/files/VersionHistoryModal.jsx
 import { ShareLinkModal } from '../components/files/ShareLinkModal.jsx';
 import { SharedWithMeList } from '../components/files/SharedWithMeList.jsx';
 import { RenameModal } from '../components/files/RenameModal.jsx';
+import { ActionsMenu } from '../components/files/ActionsMenu.jsx';
 import { sharingService } from '../services/sharingService.js';
 import { CreateFolderModal } from '../components/files/CreateFolderModal.jsx';
 import { MoveItemModal } from '../components/files/MoveItemModal.jsx';
@@ -132,7 +133,9 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
 
   // Límite real del plan (viene de authService); si no está, se estima por el nombre del plan
   const quotaBytes = currentUser?.storageQuotaBytes
-    || (planName.toLowerCase().includes('básico') ? 10 * 1024 ** 3 : 500 * 1024 ** 3);
+    || (planName.toLowerCase().includes('básico') ? 10 * 1024 ** 3
+      : planName.toLowerCase().includes('empresa') ? 2 * 1024 ** 4
+      : 500 * 1024 ** 3);
   const percentUsed = Math.min(100, Math.max(0.1, ((totalBytes / quotaBytes) * 100).toFixed(1)));
 
   // Subida de uno o varios archivos (botón o arrastrar y soltar) a la carpeta indicada
@@ -358,6 +361,26 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
     setIsShareOpen(true);
   };
 
+  // Acciones que no caben en la tarjeta o fila del archivo: van en el menú de tres puntos
+  const getFileMenuItems = (file) => [
+    { label: 'Vista previa', icon: Eye, onClick: () => handleOpenPreview(file) },
+    { label: 'Cambiar nombre', icon: Edit2, onClick: () => setFileToRename(file) },
+    { label: 'Mover a otra carpeta', icon: ArrowRight, onClick: () => handleOpenMoveModal(file) },
+    { label: 'Historial de versiones', icon: Clock, onClick: () => handleOpenVersions(file) },
+    { label: 'Mover a la papelera', icon: Trash2, onClick: () => handleDeleteFile(file.id, file.name, file.file_path), danger: true, separatorBefore: true }
+  ];
+
+  const listIconButtonStyle = {
+    padding: '7px 9px',
+    borderRadius: 'var(--radius-sm)',
+    color: 'var(--text-muted)',
+    background: 'var(--bg-subtle)',
+    border: '1px solid var(--border-color)',
+    cursor: 'pointer',
+    display: 'inline-flex',
+    alignItems: 'center'
+  };
+
   const handleShareChange = (item, shared) => {
     const marcar = (prev) => prev.map(i => i.id === item.id ? { ...i, shared } : i);
     if (item.isFolder) setFolders(marcar);
@@ -571,7 +594,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
               ¡Bienvenido a tu nube, {currentUser?.name || 'Cliente'}!
             </h2>
             <p style={{ opacity: 0.85, fontSize: '0.9rem', maxWidth: '520px' }}>
-              Tu cuenta está suscrita al <strong>Plan {planName}</strong> con <strong>{storageQuota}</strong> de capacidad disponible para almacenar, sincronizar, previsualizar y compartir.
+              Tu cuenta está suscrita al <strong>Plan {planName}</strong> con <strong>{storageQuota}</strong> de capacidad disponible para almacenar, organizar, previsualizar y compartir.
             </p>
           </div>
 
@@ -1284,105 +1307,21 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }} onClick={(e) => e.stopPropagation()}>
                         <button
                           type="button"
-                          onClick={() => handleOpenPreview(file)}
-                          style={{
-                            padding: '7px 10px',
-                            borderRadius: 'var(--radius-sm)',
-                            color: 'var(--primary)',
-                            background: 'var(--primary-light)',
-                            border: '1px solid rgba(99, 102, 241, 0.3)',
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '5px',
-                            fontSize: '0.8rem',
-                            fontWeight: 700
-                          }}
-                          title="Vista previa del archivo"
-                        >
-                          <Eye size={16} />
-                          <span>Ver</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setFileToRename(file)}
-                          style={{
-                            padding: '7px 9px',
-                            borderRadius: 'var(--radius-sm)',
-                            color: 'var(--text-muted)',
-                            background: 'var(--bg-subtle)',
-                            border: '1px solid var(--border-color)',
-                            cursor: 'pointer'
-                          }}
-                          title="Cambiar nombre"
-                        >
-                          <Edit2 size={16} />
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleOpenMoveModal(file)}
-                          style={{
-                            padding: '7px 9px',
-                            borderRadius: 'var(--radius-sm)',
-                            color: 'var(--text-muted)',
-                            background: 'var(--bg-subtle)',
-                            border: '1px solid var(--border-color)',
-                            cursor: 'pointer'
-                          }}
-                          title="Mover a otra carpeta"
-                        >
-                          <ArrowRight size={16} />
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={(e) => handleOpenVersions(file, e)}
-                          style={{
-                            padding: '7px 9px',
-                            borderRadius: 'var(--radius-sm)',
-                            color: 'var(--text-muted)',
-                            background: 'var(--bg-subtle)',
-                            border: '1px solid var(--border-color)',
-                            cursor: 'pointer'
-                          }}
-                          title="Historial de versiones"
-                        >
-                          <Clock size={16} />
-                        </button>
-
-                        <button
-                          type="button"
                           onClick={() => handleDownloadFile(file)}
-                          style={{
-                            padding: '7px 9px',
-                            borderRadius: 'var(--radius-sm)',
-                            color: 'var(--text-muted)',
-                            background: 'var(--bg-subtle)',
-                            border: '1px solid var(--border-color)',
-                            cursor: 'pointer'
-                          }}
+                          style={listIconButtonStyle}
                           title="Descargar archivo"
                         >
                           <Download size={16} />
                         </button>
-
                         <button
                           type="button"
-                          onClick={(e) => handleDeleteFile(file.id, file.name, file.file_path, e)}
-                          style={{
-                            padding: '7px 9px',
-                            borderRadius: 'var(--radius-sm)',
-                            color: 'var(--danger)',
-                            background: 'rgba(239, 68, 68, 0.08)',
-                            border: '1px solid rgba(239, 68, 68, 0.2)',
-                            cursor: 'pointer'
-                          }}
-                          title="Mover a la papelera"
+                          onClick={(e) => handleOpenShare(file, e)}
+                          style={{ ...listIconButtonStyle, color: file.shared ? 'var(--primary)' : 'var(--text-muted)' }}
+                          title={file.shared ? 'Compartido por enlace' : 'Compartir por enlace'}
                         >
-                          <Trash2 size={16} />
+                          <Share2 size={16} />
                         </button>
+                        <ActionsMenu items={getFileMenuItems(file)} buttonStyle={listIconButtonStyle} />
                       </div>
                     </td>
                   </tr>
@@ -1537,39 +1476,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
                             <Eye size={13} /> Vista previa
                           </button>
 
-                          <div style={{ display: 'flex', gap: '6px' }}>
-                            <button
-                              type="button"
-                              onClick={() => setFileToRename(file)}
-                              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px' }}
-                              title="Cambiar nombre"
-                            >
-                              <Edit2 size={15} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleOpenMoveModal(file)}
-                              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px' }}
-                              title="Mover a otra carpeta"
-                            >
-                              <ArrowRight size={15} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => handleOpenShare(file, e)}
-                              style={{ background: 'none', border: 'none', color: file.shared ? 'var(--primary)' : 'var(--text-muted)', cursor: 'pointer', padding: '2px' }}
-                              title={file.shared ? 'Compartido por enlace' : 'Compartir por enlace'}
-                            >
-                              <Share2 size={15} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => handleOpenVersions(file, e)}
-                              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px' }}
-                              title="Historial de versiones"
-                            >
-                              <Clock size={15} />
-                            </button>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <button
                               type="button"
                               onClick={() => handleDownloadFile(file)}
@@ -1580,12 +1487,13 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
                             </button>
                             <button
                               type="button"
-                              onClick={(e) => handleDeleteFile(file.id, file.name, file.file_path, e)}
-                              style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '2px' }}
-                              title="Mover a la papelera"
+                              onClick={(e) => handleOpenShare(file, e)}
+                              style={{ background: 'none', border: 'none', color: file.shared ? 'var(--primary)' : 'var(--text-muted)', cursor: 'pointer', padding: '2px' }}
+                              title={file.shared ? 'Compartido por enlace' : 'Compartir por enlace'}
                             >
-                              <Trash2 size={15} />
+                              <Share2 size={15} />
                             </button>
+                            <ActionsMenu items={getFileMenuItems(file)} iconSize={15} />
                           </div>
                         </div>
                       </div>

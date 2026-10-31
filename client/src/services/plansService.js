@@ -42,7 +42,7 @@ function mapPlanRecord(p) {
     badge: isPro ? 'Recomendado' : null,
     storageQuota: formatPlanStorageQuota(bytes),
     features: isPro ? DEFAULT_PLANS[1].features : isEmp ? DEFAULT_PLANS[2].features : DEFAULT_PLANS[0].features,
-    buttonText: isPro ? 'Elegir Pro' : isEmp ? 'Contactar ventas' : 'Elegir Básico'
+    buttonText: isPro ? 'Elegir Pro' : isEmp ? 'Elegir Empresarial' : 'Elegir Básico'
   };
 }
 
