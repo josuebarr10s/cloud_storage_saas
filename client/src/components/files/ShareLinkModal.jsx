@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Share2, Copy, Check, Loader2, Link2, Link2Off, Eye, Edit2, Shield, Lock } from 'lucide-react';
-import { sharingService, buildShareUrl, canUseAdvancedSharing, SHARE_PERMISSIONS } from '../../services/sharingService.js';
+import { sharingService, buildShareUrl, canUseAdvancedSharing, canUseEnterpriseSharing, SHARE_PERMISSIONS } from '../../services/sharingService.js';
+import { LinkAccessControl } from './LinkAccessControl.jsx';
 
 const MIN_PASSWORD_LENGTH = 4;
 
@@ -23,7 +24,7 @@ const formatLongDate = (iso) =>
  * item: archivo o carpeta ya mapeados (id, name, isFolder)
  */
 export const ShareLinkModal = ({ item, isOpen, onClose, currentUser, onNotification, onShareChange }) => {
-  const [link, setLink] = useState(null); // { token, permission, expiresAt, hasPassword } | null
+  const [link, setLink] = useState(null); // { token, permission, expiresAt, hasPassword, allowedEmails } | null
   const [permission, setPermission] = useState(SHARE_PERMISSIONS.VIEWER);
   const [expiryDate, setExpiryDate] = useState(''); // YYYY-MM-DD, vacío = no vence
   const [password, setPassword] = useState('');
@@ -34,6 +35,8 @@ export const ShareLinkModal = ({ item, isOpen, onClose, currentUser, onNotificat
 
   // Permisos avanzados: editor, expiración y contraseña (Pro y Empresarial)
   const advancedAllowed = canUseAdvancedSharing(currentUser?.plan);
+  // Invitar por correo y ver quién abrió el enlace (Empresarial)
+  const enterpriseAllowed = canUseEnterpriseSharing(currentUser?.plan);
 
   // Consultar si ya tiene un enlace activo cada vez que se abre el modal
   useEffect(() => {
@@ -313,6 +316,37 @@ export const ShareLinkModal = ({ item, isOpen, onClose, currentUser, onNotificat
             </div>
           ) : (
             <>
+              {/* Enlace para copiar (arriba, para no tener que bajar a buscarlo) */}
+              {link && (
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    type="text"
+                    readOnly
+                    value={shareUrl}
+                    onFocus={(e) => e.target.select()}
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      padding: '9px 12px',
+                      borderRadius: 'var(--radius-md)',
+                      border: '1px solid var(--border-color)',
+                      background: 'var(--bg-subtle)',
+                      color: 'var(--text-main)',
+                      fontSize: '0.82rem'
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleCopy}
+                    className="btn-primary"
+                    style={{ ...buttonBase, cursor: 'pointer', opacity: 1 }}
+                  >
+                    {copied ? <Check size={15} /> : <Copy size={15} />}
+                    {copied ? 'Copiado' : 'Copiar'}
+                  </button>
+                </div>
+              )}
+
               {/* Permiso */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)' }}>
@@ -438,40 +472,19 @@ export const ShareLinkModal = ({ item, isOpen, onClose, currentUser, onNotificat
                 )}
               </div>
 
+              <LinkAccessControl
+                link={link}
+                enabled={enterpriseAllowed}
+                onNotification={onNotification}
+                onEmailsChange={(allowedEmails) => setLink({ ...link, allowedEmails })}
+              />
+
               <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: 0 }}>
                 Quien abra el enlace debe iniciar sesión en Nimbox. Lo que suba un editor ocupa tu espacio.
               </p>
 
               {link ? (
                 <>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <input
-                      type="text"
-                      readOnly
-                      value={shareUrl}
-                      onFocus={(e) => e.target.select()}
-                      style={{
-                        flex: 1,
-                        minWidth: 0,
-                        padding: '9px 12px',
-                        borderRadius: 'var(--radius-md)',
-                        border: '1px solid var(--border-color)',
-                        background: 'var(--bg-subtle)',
-                        color: 'var(--text-main)',
-                        fontSize: '0.82rem'
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={handleCopy}
-                      className="btn-primary"
-                      style={{ ...buttonBase, cursor: 'pointer', opacity: 1 }}
-                    >
-                      {copied ? <Check size={15} /> : <Copy size={15} />}
-                      {copied ? 'Copiado' : 'Copiar'}
-                    </button>
-                  </div>
-
                   <button
                     type="button"
                     onClick={handleDeactivate}

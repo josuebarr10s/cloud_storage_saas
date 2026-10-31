@@ -159,11 +159,14 @@ export const VersionHistoryModal = ({ file, isOpen, onClose, currentUser, onNoti
         <div style={{ padding: '1.25rem 1.5rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {/* Versión actual */}
           <div style={{ ...rowStyle, background: 'var(--primary-light)', borderColor: 'var(--primary)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <CheckCircle size={18} color="var(--primary)" />
-              <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+              <CheckCircle size={18} color="var(--primary)" style={{ flexShrink: 0 }} />
+              <div style={{ minWidth: 0 }}>
                 <span style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text-main)', display: 'block' }}>
                   Versión actual
+                </span>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-main)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={currentFile.name}>
+                  {currentFile.name}
                 </span>
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                   {currentFile.size} · {currentFile.updated}
@@ -189,19 +192,27 @@ export const VersionHistoryModal = ({ file, isOpen, onClose, currentUser, onNoti
           ) : (
             versions.map((version, index) => (
               <div key={version.id} style={rowStyle}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <Clock size={18} color="var(--text-muted)" />
-                  <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                  <Clock size={18} color="var(--text-muted)" style={{ flexShrink: 0 }} />
+                  <div style={{ minWidth: 0 }}>
                     <span style={{ fontWeight: 600, fontSize: '0.88rem', color: 'var(--text-main)', display: 'block' }}>
                       Versión {versions.length - index}
                     </span>
+                    {version.name && (
+                      <span
+                        style={{ fontSize: '0.78rem', color: 'var(--text-main)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                        title={version.name}
+                      >
+                        {version.name}
+                      </span>
+                    )}
                     <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                       {version.size} · {version.date}
                     </span>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '6px' }}>
+                <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
                   <button
                     type="button"
                     onClick={() => handleDownloadVersion(version)}

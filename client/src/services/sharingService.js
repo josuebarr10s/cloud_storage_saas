@@ -35,6 +35,16 @@ export function canUseAdvancedSharing(planName = '') {
 }
 
 /**
+ * Limitar enlaces a ciertos correos y ver quién los abrió es solo del plan Empresarial.
+ * La BD lo vuelve a revisar (configurar_correos_enlace y accesos_enlace).
+ * @param {string} planName
+ * @returns {boolean}
+ */
+export function canUseEnterpriseSharing(planName = '') {
+  return normalizeText(planName).includes('empresa');
+}
+
+/**
  * Construye la URL pública de un enlace compartido
  * @param {string} token
  * @returns {string}
@@ -69,13 +79,14 @@ export function clearPendingShareToken() {
 // Un enlace apunta a un archivo (id_archivo) o a una carpeta (id_carpeta)
 const targetColumn = (item) => (item.isFolder ? 'id_carpeta' : 'id_archivo');
 
-const LINK_COLUMNS = 'token, permiso, fecha_expiracion, tiene_password';
+const LINK_COLUMNS = 'token, permiso, fecha_expiracion, tiene_password, correos_permitidos';
 
 const mapLink = (row) => ({
   token: row.token,
   permission: row.permiso,
   expiresAt: row.fecha_expiracion,
   hasPassword: Boolean(row.tiene_password),
+  allowedEmails: row.correos_permitidos || [],
 });
 
 /**
@@ -144,6 +155,33 @@ export const sharingService = {
       p_quitar_password: removePassword,
     });
     if (error) throw new Error(error.message || 'No se pudo guardar la configuración del enlace.');
+  },
+
+  /**
+   * Limita el enlace a ciertos correos (Empresarial). Lista vacía = cualquiera con el enlace.
+   * Quien ya había entrado y no está en la lista pierde el acceso.
+   * @param {string} token
+   * @param {string[]} emails
+   */
+  async setAllowedEmails(token, emails) {
+    const { error } = await supabase.rpc('configurar_correos_enlace', { p_token: token, p_correos: emails });
+    if (error) throw new Error(error.message || 'No se pudieron guardar los invitados.');
+  },
+
+  /**
+   * Quién abrió el enlace, cuándo fue la última vez y cuántas veces (Empresarial)
+   * @param {string} token
+   * @returns {Promise<Array<{ name: string, email: string, lastAccess: string, times: number }>>}
+   */
+  async getLinkAccesses(token) {
+    const { data, error } = await supabase.rpc('accesos_enlace', { p_token: token });
+    if (error) throw new Error(error.message || 'No se pudo consultar quién abrió el enlace.');
+    return (data || []).map(a => ({
+      name: a.usuario_nombre || a.usuario_correo,
+      email: a.usuario_correo,
+      lastAccess: formatDate(a.ultimo_acceso),
+      times: a.veces_abierto,
+    }));
   },
 
   /**

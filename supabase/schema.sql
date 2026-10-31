@@ -354,6 +354,9 @@ CREATE TABLE IF NOT EXISTS public.archivo_version (
     REFERENCES public.archivo(id_archivo) ON DELETE CASCADE
 );
 
+-- Nombre que tenía el archivo en esa versión (se puede renombrar entre versiones)
+ALTER TABLE public.archivo_version ADD COLUMN IF NOT EXISTS nombre CHARACTER VARYING;
+
 ALTER TABLE public.archivo_version ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Usuario gestiona sus versiones" ON public.archivo_version;
 CREATE POLICY "Usuario gestiona sus versiones"
@@ -369,7 +372,8 @@ CREATE POLICY "Usuario gestiona sus versiones"
 --           crear subcarpetas y mandar archivos a la papelera del dueño
 -- Todo lo que sube un editor queda a nombre del dueño y ocupa su espacio.
 -- Crear enlaces exige plan activo. Permisos avanzados (plan Pro o Empresarial):
--- enlaces de editor, fecha de expiración y contraseña.
+-- enlaces de editor, fecha de expiración y contraseña. Solo Empresarial: limitar el
+-- enlace a ciertos correos y ver quién lo abrió.
 -- Esta sección se puede volver a correr completa sin problema.
 -- =============================================================================
 
@@ -395,6 +399,18 @@ RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS
     JOIN public.plan p ON p.id_plan = s.id_plan
     WHERE s.id_usuario = p_usuario AND s.estado = 'activa'
       AND (lower(p.nombre) LIKE '%pro%' OR lower(p.nombre) LIKE '%empresa%')
+  );
+$$;
+
+-- ¿Su plan activo es Empresarial? Limitar enlaces a correos y ver quién los abrió.
+CREATE OR REPLACE FUNCTION public.plan_empresarial(p_usuario UUID)
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.suscripcion s
+    JOIN public.plan p ON p.id_plan = s.id_plan
+    WHERE s.id_usuario = p_usuario AND s.estado = 'activa'
+      AND lower(p.nombre) LIKE '%empresa%'
   );
 $$;
 
@@ -430,6 +446,9 @@ ALTER TABLE public.enlace_compartido ADD COLUMN IF NOT EXISTS password_hash TEXT
 ALTER TABLE public.enlace_compartido ADD COLUMN IF NOT EXISTS tiene_password BOOLEAN
   GENERATED ALWAYS AS (password_hash IS NOT NULL) STORED;
 
+-- Correos que pueden abrir el enlace (Empresarial). Vacío = cualquiera con cuenta que tenga el enlace.
+ALTER TABLE public.enlace_compartido ADD COLUMN IF NOT EXISTS correos_permitidos TEXT[] NOT NULL DEFAULT '{}';
+
 -- Quién ya abrió cada enlace
 CREATE TABLE IF NOT EXISTS public.acceso_compartido (
   id_enlace UUID NOT NULL,
@@ -439,6 +458,9 @@ CREATE TABLE IF NOT EXISTS public.acceso_compartido (
   CONSTRAINT acceso_compartido_id_enlace_fkey FOREIGN KEY (id_enlace) REFERENCES public.enlace_compartido(id_enlace) ON DELETE CASCADE,
   CONSTRAINT acceso_compartido_id_usuario_fkey FOREIGN KEY (id_usuario) REFERENCES public.usuario(id_usuario) ON DELETE CASCADE
 );
+
+-- Cuántas veces abrió el enlace cada persona (auditoría del plan Empresarial)
+ALTER TABLE public.acceso_compartido ADD COLUMN IF NOT EXISTS veces INTEGER NOT NULL DEFAULT 1;
 
 -- Para encontrar rápido el archivo de un objeto de Storage (política storage_ver_compartido)
 CREATE INDEX IF NOT EXISTS archivo_ruta_storage_idx ON public.archivo (ruta_storage);
@@ -731,9 +753,82 @@ BEGIN
 END;
 $$;
 
+-- Limitar un enlace propio a ciertos correos (Empresarial). Lista vacía = sin límite (no exige plan).
+-- Quien ya había entrado y no está en la lista pierde el acceso.
+CREATE OR REPLACE FUNCTION public.configurar_correos_enlace(p_token TEXT, p_correos TEXT[])
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_enlace public.enlace_compartido%ROWTYPE;
+  v_correos TEXT[];
+BEGIN
+  SELECT * INTO v_enlace FROM public.enlace_compartido
+  WHERE token = p_token AND id_usuario = auth.uid() AND activo;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'No se encontró el enlace.';
+  END IF;
+
+  SELECT COALESCE(array_agg(DISTINCT lower(trim(c))) FILTER (WHERE trim(c) <> ''), '{}')
+  INTO v_correos
+  FROM unnest(COALESCE(p_correos, '{}')) AS c;
+
+  IF cardinality(v_correos) > 0 AND NOT public.plan_empresarial(auth.uid()) THEN
+    RAISE EXCEPTION 'Limitar el enlace a ciertos correos es del plan Empresarial.';
+  END IF;
+
+  IF cardinality(v_correos) > 100 THEN
+    RAISE EXCEPTION 'Puedes invitar hasta 100 correos por enlace.';
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM unnest(v_correos) AS c WHERE c !~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$') THEN
+    RAISE EXCEPTION 'Revisa los correos: hay uno que no es válido.';
+  END IF;
+
+  UPDATE public.enlace_compartido SET correos_permitidos = v_correos WHERE id_enlace = v_enlace.id_enlace;
+
+  IF cardinality(v_correos) > 0 THEN
+    DELETE FROM public.acceso_compartido ac
+    USING auth.users u
+    WHERE ac.id_enlace = v_enlace.id_enlace
+      AND u.id = ac.id_usuario
+      AND lower(u.email) <> ALL (v_correos);
+  END IF;
+END;
+$$;
+
+-- Quién abrió un enlace propio, cuándo fue la última vez y cuántas veces (Empresarial)
+CREATE OR REPLACE FUNCTION public.accesos_enlace(p_token TEXT)
+RETURNS TABLE (usuario_nombre TEXT, usuario_correo TEXT, ultimo_acceso TIMESTAMP WITH TIME ZONE, veces_abierto INTEGER)
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.enlace_compartido e WHERE e.token = p_token AND e.id_usuario = auth.uid()
+  ) THEN
+    RAISE EXCEPTION 'No se encontró el enlace.';
+  END IF;
+
+  IF NOT public.plan_empresarial(auth.uid()) THEN
+    RAISE EXCEPTION 'Ver quién abrió tus enlaces es del plan Empresarial.';
+  END IF;
+
+  RETURN QUERY
+  SELECT
+    trim(concat_ws(' ', us.nombre, us.apellido))::text,
+    u.email::text,
+    ac.fecha_acceso,
+    ac.veces
+  FROM public.acceso_compartido ac
+  JOIN public.enlace_compartido e ON e.id_enlace = ac.id_enlace
+  JOIN auth.users u ON u.id = ac.id_usuario
+  LEFT JOIN public.usuario us ON us.id_usuario = ac.id_usuario
+  WHERE e.token = p_token
+  ORDER BY ac.fecha_acceso DESC;
+END;
+$$;
+
 -- Abre un enlace: lo valida, registra el acceso y devuelve el archivo o la carpeta con el
 -- permiso efectivo. Los mensajes de RAISE EXCEPTION llegan tal cual al frontend; los de la
--- contraseña llevan su propio código (NB001 falta, NB002 incorrecta) para pedirla en pantalla.
+-- contraseña llevan su propio código (NB001 falta, NB002 incorrecta) para pedirla en pantalla,
+-- y NB003 indica que el correo de la cuenta no está entre los invitados.
 -- La versión anterior recibía solo p_token: se borra para que no queden dos funciones con el mismo nombre.
 DROP FUNCTION IF EXISTS public.canjear_enlace(TEXT);
 CREATE OR REPLACE FUNCTION public.canjear_enlace(p_token TEXT, p_password TEXT DEFAULT NULL)
@@ -744,6 +839,7 @@ DECLARE
   v_carpeta public.carpeta%ROWTYPE;
   v_propietario TEXT;
   v_permiso TEXT;
+  v_correo TEXT;
 BEGIN
   IF auth.uid() IS NULL THEN
     RAISE EXCEPTION 'Inicia sesión para abrir este enlace.';
@@ -760,6 +856,15 @@ BEGIN
 
   IF NOT public.tiene_plan_activo(v_enlace.id_usuario) THEN
     RAISE EXCEPTION 'Este enlace está pausado porque el plan de quien lo compartió no está activo.';
+  END IF;
+
+  -- Enlace limitado a ciertos correos: se revisa antes de pedir la contraseña
+  IF cardinality(v_enlace.correos_permitidos) > 0 AND v_enlace.id_usuario <> auth.uid() THEN
+    SELECT lower(email) INTO v_correo FROM auth.users WHERE id = auth.uid();
+    IF v_correo IS NULL OR NOT (v_correo = ANY (v_enlace.correos_permitidos)) THEN
+      RAISE EXCEPTION 'Este enlace es solo para personas invitadas y tu cuenta (%) no está en la lista. Pídele acceso a quien te lo compartió.',
+        COALESCE(v_correo, 'sin correo') USING ERRCODE = 'NB003';
+    END IF;
   END IF;
 
   -- La contraseña se pide solo la primera vez: después basta con el acceso registrado
@@ -791,7 +896,8 @@ BEGIN
   IF v_enlace.id_usuario <> auth.uid() THEN
     INSERT INTO public.acceso_compartido (id_enlace, id_usuario)
     VALUES (v_enlace.id_enlace, auth.uid())
-    ON CONFLICT (id_enlace, id_usuario) DO UPDATE SET fecha_acceso = NOW();
+    ON CONFLICT (id_enlace, id_usuario)
+    DO UPDATE SET fecha_acceso = NOW(), veces = public.acceso_compartido.veces + 1;
   END IF;
 
   SELECT trim(concat_ws(' ', nombre, apellido)) INTO v_propietario

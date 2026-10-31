@@ -79,7 +79,8 @@ async function reemplazarVersionActual(existente, cambios) {
     id_archivo: existente.id_archivo,
     id_usuario: existente.id_usuario,
     tamano: existente.tamano,
-    ruta_storage: existente.ruta_storage
+    ruta_storage: existente.ruta_storage,
+    nombre: existente.nombre
   }]);
 
   if (versionError) {
@@ -527,7 +528,7 @@ export const filesService = {
   async uploadNewVersion(file, newFile, ownerId) {
     const uploadedPath = await subirBinario(ownerId, newFile);
     const updated = await reemplazarVersionActual(
-      { id_archivo: file.id, id_usuario: ownerId, tamano: file.size_bytes, ruta_storage: file.file_path },
+      { id_archivo: file.id, id_usuario: ownerId, tamano: file.size_bytes, ruta_storage: file.file_path, nombre: file.name },
       { ruta_storage: uploadedPath, tamano: newFile.size }
     );
     return mapArchivo(updated);
@@ -817,6 +818,7 @@ export const filesService = {
 
     return (data || []).map(v => ({
       id: v.id_version,
+      name: v.nombre || null,
       size_bytes: parseInt(v.tamano || 0, 10),
       size: formatBytes(parseInt(v.tamano || 0, 10)),
       date: formatDate(v.fecha_creacion),
@@ -825,7 +827,8 @@ export const filesService = {
   },
 
   /**
-   * Restaurar una versión antigua: la actual pasa al historial y la elegida pasa a ser la actual.
+   * Restaurar una versión antigua: la actual pasa al historial y la elegida pasa a ser la actual,
+   * con el nombre que tenía en esa versión (si se guardó).
    * Devuelve el archivo actualizado para refrescar la lista del Dashboard.
    */
   async restoreVersion(userId, file, version) {
@@ -836,7 +839,8 @@ export const filesService = {
       id_archivo: file.id,
       id_usuario: activeUserId,
       tamano: file.size_bytes,
-      ruta_storage: file.file_path
+      ruta_storage: file.file_path,
+      nombre: file.name
     }]);
 
     if (insertError) {
@@ -849,6 +853,7 @@ export const filesService = {
       .update({
         ruta_storage: version.file_path,
         tamano: version.size_bytes,
+        nombre: version.name || file.name,
         fecha_modificacion: new Date().toISOString()
       })
       .eq('id_archivo', file.id)
