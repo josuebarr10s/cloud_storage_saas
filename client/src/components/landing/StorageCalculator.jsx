@@ -9,75 +9,13 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { plansService } from '../../services/plansService.js';
+import { DEFAULT_PLANS } from '../../constants/plans.js';
 import { Reveal } from './Reveal.jsx';
 
-const FALLBACK_PLANS = [
-  {
-    id_plan: '11111111-1111-1111-1111-111111111111',
-    nombre: 'Básico',
-    name: 'Básico',
-    descripcion: 'Para uso personal y organización esencial. 10 GB de almacenamiento y acceso desde 2 dispositivos.',
-    desc: 'Para uso personal y organización esencial. 10 GB de almacenamiento y acceso desde 2 dispositivos.',
-    precio: 5,
-    price: 5,
-    precioAnual: 4.0,
-    storageQuota: '10 GB',
-    period: 'USD / mes',
-    badge: 'Uso Personal',
-    features: [
-      '10 GB de almacenamiento seguro',
-      'Acceso desde 2 dispositivos',
-      'Compartir por enlace',
-      'Soporte por email',
-      'Historial de versiones (7 días)'
-    ]
-  },
-  {
-    id_plan: '22222222-2222-2222-2222-222222222222',
-    nombre: 'Pro',
-    name: 'Pro',
-    descripcion: 'Para profesionales y pequeños equipos. 500 GB de almacenamiento, dispositivos ilimitados y soporte 24/7.',
-    desc: 'Para profesionales y pequeños equipos. 500 GB de almacenamiento, dispositivos ilimitados y soporte 24/7.',
-    precio: 12,
-    price: 12,
-    precioAnual: 9.6,
-    storageQuota: '500 GB',
-    popular: true,
-    period: 'USD / mes',
-    badge: 'Recomendado',
-    features: [
-      '500 GB de almacenamiento en la nube',
-      'Dispositivos ilimitados',
-      'Compartir con permisos avanzados',
-      'Soporte prioritario 24/7',
-      'Historial de versiones 30 días'
-    ]
-  },
-  {
-    id_plan: '33333333-3333-3333-3333-333333333333',
-    nombre: 'Empresarial',
-    name: 'Empresarial',
-    descripcion: 'Para organizaciones exigentes. Almacenamiento masivo, SSO, SLA 99.99% y soporte dedicado.',
-    desc: 'Para organizaciones exigentes. Almacenamiento masivo, SSO, SLA 99.99% y soporte dedicado.',
-    precio: 49,
-    price: 49,
-    precioAnual: 39.2,
-    storageQuota: 'Ilimitado',
-    period: 'USD / mes',
-    badge: 'Ilimitado / 2 TB+',
-    features: [
-      'Almacenamiento Ilimitado',
-      'SSO y control de acceso',
-      'SLA garantizado 99.99%',
-      'Soporte dedicado 24/7',
-      'Historial de versiones ilimitado'
-    ]
-  }
-];
 
 export const StorageCalculator = ({ onSelectPlan }) => {
   const [storageGB, setStorageGB] = useState(250);
-  const [plans, setPlans] = useState(FALLBACK_PLANS);
+  const [plans, setPlans] = useState(DEFAULT_PLANS);
 
   useEffect(() => {
     async function load() {
@@ -100,12 +38,12 @@ export const StorageCalculator = ({ onSelectPlan }) => {
   const docsCount = Math.round(storageGB * 500); // 2MB por documento
 
   // Determinación de plan recomendado
-  let recommendedPlan = plans[0] || FALLBACK_PLANS[0];
+  let recommendedPlan = plans[0] || DEFAULT_PLANS[0];
 
   if (storageGB > 10 && storageGB <= 500) {
-    recommendedPlan = plans[1] || FALLBACK_PLANS[1];
+    recommendedPlan = plans[1] || DEFAULT_PLANS[1];
   } else if (storageGB > 500) {
-    recommendedPlan = plans[2] || FALLBACK_PLANS[2];
+    recommendedPlan = plans[2] || DEFAULT_PLANS[2];
   }
 
   const presets = [
@@ -195,20 +133,20 @@ export const StorageCalculator = ({ onSelectPlan }) => {
               <input
                 type="range"
                 min="10"
-                max="2500"
+                max="2000"
                 step="10"
                 value={storageGB}
                 onChange={(e) => setStorageGB(Number(e.target.value))}
                 className="nimbox-range"
                 aria-label="Capacidad de almacenamiento en GB"
                 style={{
-                  background: `linear-gradient(to right, var(--primary) 0%, var(--accent-violet) ${(storageGB / 2500) * 100}%, var(--border-color) ${(storageGB / 2500) * 100}%, var(--border-color) 100%)`,
+                  background: `linear-gradient(to right, var(--primary) 0%, var(--accent-violet) ${(storageGB / 2000) * 100}%, var(--border-color) ${(storageGB / 2000) * 100}%, var(--border-color) 100%)`,
                 }}
               />
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', fontSize: '0.72rem', color: 'var(--text-light)', marginTop: '10px' }}>
                 <span>10 GB (Básico - $5)</span>
                 <span>500 GB (Pro - $12)</span>
-                <span>2 TB+ (Empresarial - $49)</span>
+                <span>2 TB (Empresarial - $49)</span>
               </div>
             </div>
 
@@ -289,7 +227,7 @@ export const StorageCalculator = ({ onSelectPlan }) => {
                 Plan {recommendedPlan.nombre || recommendedPlan.name}
               </h3>
               <p style={{ fontSize: '0.9rem', color: 'var(--accent-indigo-bg)', marginBottom: '1.75rem', lineHeight: 1.5 }}>
-                {recommendedPlan.descripcion || recommendedPlan.desc || 'Almacenamiento seguro en la nube con sincronización instantánea.'}
+                {recommendedPlan.descripcion || recommendedPlan.desc || 'Almacenamiento en la nube para tus archivos.'}
               </p>
 
               <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginBottom: '2rem' }}>

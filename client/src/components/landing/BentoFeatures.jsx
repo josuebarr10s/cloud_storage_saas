@@ -34,7 +34,7 @@ const cardText = { color: 'var(--text-muted)', fontSize: '0.875rem', lineHeight:
 
 export const BentoFeatures = () => {
   const [demoProtectedLink, setDemoProtectedLink] = useState(true);
-  const [demoExpiry, setDemoExpiry] = useState('24h');
+  const [demoExpiry, setDemoExpiry] = useState('7 días');
   const [demoSearchTag, setDemoSearchTag] = useState('todos');
 
   return (
@@ -47,7 +47,7 @@ export const BentoFeatures = () => {
           </div>
           <h2 className="section-title">Gestión inteligente de archivos en la nube</h2>
           <p className="section-subtitle">
-            Diseñado bajo estándares de ingeniería de software para brindar alta disponibilidad, velocidad y privacidad total.
+            Organiza, previsualiza y comparte tus archivos desde el navegador, con tu espacio separado del de los demás.
           </p>
         </Reveal>
 
@@ -61,23 +61,8 @@ export const BentoFeatures = () => {
                 Arquitectura STaaS de Almacenamiento
               </h3>
               <p style={{ ...cardText, fontSize: '0.95rem', maxWidth: '580px', lineHeight: 1.6 }}>
-                Separamos eficientemente los metadatos relacionales (PostgreSQL) del almacenamiento de objetos de alta velocidad para lograr descargas y subidas instantáneas con cero bloqueos.
+                La información de cada archivo (nombre, tamaño, carpeta) vive en PostgreSQL y el contenido en Supabase Storage. Así la base de datos no se satura y cada usuario solo puede ver lo suyo.
               </p>
-            </div>
-
-            {/* Subida en paralelo animada */}
-            <div style={{ marginTop: '1.75rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '8px' }}>
-                <span>Subida en paralelo por fragmentos</span>
-                <span style={{ color: 'var(--primary)' }}>8 chunks</span>
-              </div>
-              <div className="chunk-bars" aria-hidden="true">
-                {Array.from({ length: 8 }).map((_, i) => (
-                  <div key={i} className="chunk-bar">
-                    <span style={{ '--d': `${i * 140}ms` }} />
-                  </div>
-                ))}
-              </div>
             </div>
 
             {/* Visual stats */}
@@ -95,16 +80,16 @@ export const BentoFeatures = () => {
               }}
             >
               <div>
-                <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Carga Paralela</p>
-                <p style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--success)', marginTop: '2px' }}>Multi-Chunk</p>
+                <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Metadatos</p>
+                <p style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--success)', marginTop: '2px' }}>PostgreSQL</p>
               </div>
               <div>
-                <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Cifrado de Objetos</p>
-                <p style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--primary)', marginTop: '2px' }}>AES-256</p>
+                <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Archivos</p>
+                <p style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--primary)', marginTop: '2px' }}>Supabase Storage</p>
               </div>
               <div>
-                <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Disponibilidad SLA</p>
-                <p style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--accent-sky)', marginTop: '2px' }}>99.99%</p>
+                <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Acceso</p>
+                <p style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--accent-sky)', marginTop: '2px' }}>Solo el dueño</p>
               </div>
             </div>
           </Reveal>
@@ -113,22 +98,22 @@ export const BentoFeatures = () => {
           <Reveal className="card-white spotlight bento-card bento-span-4" delay={120} onMouseMove={trackSpotlight}>
             <div>
               <IconTile icon={Share2} color="var(--accent-sky)" bg="var(--accent-sky-bg)" />
-              <h3 style={cardTitle}>Enlaces con PIN y Caducidad</h3>
+              <h3 style={cardTitle}>Compartir por enlace</h3>
               <p style={{ ...cardText, marginBottom: '1.25rem' }}>
-                Comparte enlaces públicos o protégelos con contraseña y fecha de expiración para máxima seguridad.
+                Comparte archivos y carpetas con otras cuentas de Nimbox. En Pro y Empresarial, ponles contraseña y fecha de vencimiento.
               </p>
             </div>
 
             <div style={{ background: 'var(--bg-subtle)', padding: '12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-strong)', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 500 }}>
-                  <Lock size={13} color="var(--accent-sky)" /> Proteger con PIN
+                  <Lock size={13} color="var(--accent-sky)" /> Proteger con contraseña
                 </span>
                 <button
                   onClick={() => setDemoProtectedLink(!demoProtectedLink)}
                   role="switch"
                   aria-checked={demoProtectedLink}
-                  aria-label="Proteger con PIN"
+                  aria-label="Proteger con contraseña"
                   style={{
                     width: '36px',
                     height: '20px',
@@ -156,9 +141,9 @@ export const BentoFeatures = () => {
               </div>
 
               <div>
-                <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Caducidad:</p>
+                <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Vence:</p>
                 <div style={{ display: 'flex', gap: '4px' }}>
-                  {['1h', '24h', '7 días', 'Nunca'].map((time) => (
+                  {['1 día', '7 días', '30 días', 'Nunca'].map((time) => (
                     <button
                       key={time}
                       onClick={() => setDemoExpiry(time)}
@@ -187,7 +172,7 @@ export const BentoFeatures = () => {
               <IconTile icon={RefreshCw} color="var(--accent-violet)" bg="var(--accent-violet-bg)" />
               <h3 style={cardTitle}>Historial de Versiones</h3>
               <p style={cardText}>
-                Restaura versiones anteriores de tus documentos y recupera archivos eliminados de la papelera hasta por 30 días.
+                Restaura versiones anteriores de tus documentos y recupera archivos de la papelera: 7 días en Básico, 30 en Pro y sin límite en Empresarial.
               </p>
             </div>
 
@@ -224,7 +209,7 @@ export const BentoFeatures = () => {
               <IconTile icon={Search} color="var(--primary)" bg="var(--primary-light)" />
               <h3 style={cardTitle}>Búsqueda Instantánea</h3>
               <p style={cardText}>
-                Localiza archivos en milisegundos con filtros por extensión, fecha o carpetas específicas.
+                Encuentra archivos por nombre, fíltralos por tipo y ordénalos por fecha, tamaño o nombre.
               </p>
             </div>
 
@@ -280,7 +265,7 @@ export const BentoFeatures = () => {
 
             <div style={{ marginTop: '1.25rem', padding: '10px 12px', background: 'var(--warning-bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--warning-bg)', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Eye size={15} color="var(--warning-hover)" />
-              <span style={{ fontSize: '0.75rem', color: 'var(--warning-text)', fontWeight: 500 }}>Streaming directo con soporte H.264</span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--warning-text)', fontWeight: 500 }}>Imágenes, PDF, video, audio y texto en el navegador</span>
             </div>
           </Reveal>
         </div>

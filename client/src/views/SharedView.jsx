@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Eye, Download, Upload, ArrowLeft, Loader2, AlertCircle, LogOut, Lock, User, Info, Edit2, Folder
+  Eye, Download, Upload, ArrowLeft, Loader2, AlertCircle, LogOut, Lock, User, Info, Edit2, Folder, Clock, KeyRound
 } from 'lucide-react';
-import { sharingService, SHARE_PERMISSIONS } from '../services/sharingService.js';
+import { sharingService, SHARE_PERMISSIONS, SHARE_ERRORS } from '../services/sharingService.js';
 import { filesService } from '../services/filesService.js';
 import { FilePreviewModal } from '../components/files/FilePreviewModal.jsx';
 import { SharedFolderBrowser, getFileIconByType } from '../components/files/SharedFolderBrowser.jsx';
@@ -33,28 +33,51 @@ export const SharedView = ({ token, currentUser, hasPlan, onExit, onLogout, onNo
   const [isDownloading, setIsDownloading] = useState(false);
   const [isUploadingVersion, setIsUploadingVersion] = useState(false);
   const [isRenameOpen, setIsRenameOpen] = useState(false);
+  // Enlace con contraseña: se pide antes de mostrar nada
+  const [needsPassword, setNeedsPassword] = useState(false);
+  const [password, setPassword] = useState('');
+  const [passwordError, setPasswordError] = useState(null);
+  const [isCheckingPassword, setIsCheckingPassword] = useState(false);
   const versionInputRef = useRef(null);
 
-  useEffect(() => {
-    async function openLink() {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const result = await sharingService.openSharedLink(token);
-        if (result.isOwner) {
-          onNotification && onNotification('Este enlace es de algo que tú compartiste.', 'info');
-          onExit();
-          return;
-        }
-        setShared(result);
-      } catch (err) {
+  const openLink = async (pass = null) => {
+    try {
+      const result = await sharingService.openSharedLink(token, pass);
+      if (result.isOwner) {
+        onNotification && onNotification('Este enlace es de algo que tú compartiste.', 'info');
+        onExit();
+        return;
+      }
+      setNeedsPassword(false);
+      setShared(result);
+    } catch (err) {
+      if (err.code === SHARE_ERRORS.PASSWORD_REQUIRED || err.code === SHARE_ERRORS.PASSWORD_INCORRECT) {
+        setNeedsPassword(true);
+        setPasswordError(err.code === SHARE_ERRORS.PASSWORD_INCORRECT ? err.message : null);
+      } else {
+        setNeedsPassword(false);
         setError(err.message);
-      } finally {
-        setIsLoading(false);
       }
     }
-    openLink();
+  };
+
+  useEffect(() => {
+    async function load() {
+      setIsLoading(true);
+      setError(null);
+      await openLink();
+      setIsLoading(false);
+    }
+    load();
   }, [token]);
+
+  const handleSubmitPassword = async (e) => {
+    e.preventDefault();
+    if (!password) return;
+    setIsCheckingPassword(true);
+    await openLink(password);
+    setIsCheckingPassword(false);
+  };
 
   const handleDownload = async () => {
     setIsDownloading(true);
@@ -148,6 +171,59 @@ export const SharedView = ({ token, currentUser, hasPlan, onExit, onLogout, onNo
               <Loader2 size={34} style={{ margin: '0 auto 10px auto', animation: 'spin 1s linear infinite' }} />
               <p style={{ fontSize: '0.9rem', margin: 0 }}>Abriendo enlace compartido...</p>
             </div>
+          ) : needsPassword ? (
+            <form onSubmit={handleSubmitPassword}>
+              <div
+                style={{
+                  width: '56px',
+                  height: '56px',
+                  borderRadius: 'var(--radius-lg)',
+                  background: 'var(--primary-light)',
+                  color: 'var(--primary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 14px auto'
+                }}
+              >
+                <KeyRound size={26} />
+              </div>
+              <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)', margin: '0 0 6px 0' }}>
+                Este enlace tiene contraseña
+              </h2>
+              <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: '0 0 1.25rem 0' }}>
+                Pídesela a quien te lo compartió. Solo tendrás que escribirla una vez.
+              </p>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => { setPassword(e.target.value); setPasswordError(null); }}
+                placeholder="Contraseña"
+                autoFocus
+                autoComplete="off"
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: 'var(--radius-md)',
+                  border: `1px solid ${passwordError ? 'var(--danger)' : 'var(--border-color)'}`,
+                  background: 'var(--bg-body)',
+                  color: 'var(--text-main)',
+                  fontSize: '0.9rem',
+                  marginBottom: '8px'
+                }}
+                aria-label="Contraseña del enlace"
+              />
+              {passwordError && (
+                <p style={{ fontSize: '0.8rem', color: 'var(--danger)', margin: '0 0 8px 0', textAlign: 'left' }}>{passwordError}</p>
+              )}
+              <button type="submit" className="btn-primary" disabled={!password || isCheckingPassword} style={{ width: '100%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', marginTop: '6px' }}>
+                {isCheckingPassword && <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />}
+                Abrir
+              </button>
+              <button type="button" className="btn-ghost" onClick={onExit} style={{ marginTop: '1rem', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                <ArrowLeft size={16} /> Volver al inicio
+              </button>
+            </form>
           ) : error ? (
             <>
               <AlertCircle size={42} color="var(--warning)" style={{ margin: '0 auto 12px auto' }} />
@@ -193,6 +269,11 @@ export const SharedView = ({ token, currentUser, hasPlan, onExit, onLogout, onNo
                 <span style={badgeStyle}>
                   {isEditor ? <><Edit2 size={12} /> Puedes editar</> : <><Lock size={12} /> Solo lectura</>}
                 </span>
+                {shared.expiresAt && (
+                  <span style={badgeStyle}>
+                    <Clock size={12} /> Disponible hasta el {new Date(shared.expiresAt).toLocaleDateString('es', { day: 'numeric', month: 'long' })}
+                  </span>
+                )}
               </div>
 
               {isFolder ? (

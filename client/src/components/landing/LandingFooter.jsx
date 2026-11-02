@@ -1,7 +1,7 @@
 import React from 'react';
-import { Globe, Shield, Heart } from 'lucide-react';
 
-export const LandingFooter = () => {
+// onOpenLegal(tab): abre los términos ('terms') o la privacidad ('privacy')
+export const LandingFooter = ({ onOpenLegal }) => {
   return (
     <footer
       style={{
@@ -32,27 +32,8 @@ export const LandingFooter = () => {
             </div>
 
             <p style={{ fontSize: '0.875rem', lineHeight: 1.65, color: 'var(--text-light)', marginBottom: '1.5rem' }}>
-              Plataforma de almacenamiento en la nube segura, rápida y escalable (STaaS). Diseñada para la protección y distribución de archivos digitales.
+              Plataforma de almacenamiento en la nube (STaaS) para guardar, organizar y compartir archivos. Proyecto académico de Ingeniería de Software I.
             </p>
-
-            {/* System Status Pill */}
-            <div
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '4px 12px',
-                borderRadius: 'var(--radius-full)',
-                background: 'var(--success-bg)',
-                border: '1px solid var(--success-light)',
-                fontSize: '0.75rem',
-                color: 'var(--success-hover)',
-                fontWeight: 600,
-              }}
-            >
-              <span style={{ width: '6px', height: '6px', borderRadius: 'var(--radius-full)', background: 'var(--success)', boxShadow: '0 0 6px var(--success)', animation: 'pulseGlow 2s ease-in-out infinite' }} />
-              Sistemas: 100% Operacional
-            </div>
           </div>
 
           {/* Col 2: Producto */}
@@ -61,7 +42,6 @@ export const LandingFooter = () => {
               Producto
             </h4>
             <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.875rem' }}>
-              <li><a href="#security" className="footer-link">Seguridad y Cifrado</a></li>
               <li><a href="#features" className="footer-link">Características</a></li>
               <li><a href="#calculator" className="footer-link">Calculadora de Espacio</a></li>
               <li><a href="#pricing" className="footer-link">Planes y Precios</a></li>
@@ -69,28 +49,22 @@ export const LandingFooter = () => {
             </ul>
           </div>
 
-          {/* Col 3: Recursos */}
-          <div>
-            <h4 style={{ color: 'var(--text-white)', fontSize: '0.95rem', fontWeight: 700, marginBottom: '1.25rem' }}>
-              Recursos
-            </h4>
-            <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.875rem' }}>
-              <li><a href="#" className="footer-link">Documentación Técnica</a></li>
-              <li><a href="#" className="footer-link">Guía de Uso</a></li>
-              <li><a href="#" className="footer-link">Políticas de Archivo</a></li>
-              <li><a href="#" className="footer-link">Centro de Asistencia</a></li>
-            </ul>
-          </div>
-
-          {/* Col 4: Legal & Proyecto */}
+          {/* Col 3: Legal & Proyecto */}
           <div>
             <h4 style={{ color: 'var(--text-white)', fontSize: '0.95rem', fontWeight: 700, marginBottom: '1.25rem' }}>
               Legal y Proyecto
             </h4>
             <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.875rem' }}>
-              <li><a href="#" className="footer-link">Privacidad y Términos</a></li>
-              <li><a href="#" className="footer-link">Acuerdo de Servicio (SLA)</a></li>
-              <li><a href="#" className="footer-link">Seguridad de Datos</a></li>
+              <li>
+                <button type="button" onClick={() => onOpenLegal && onOpenLegal('terms')} className="footer-link" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit' }}>
+                  Términos de servicio
+                </button>
+              </li>
+              <li>
+                <button type="button" onClick={() => onOpenLegal && onOpenLegal('privacy')} className="footer-link" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit' }}>
+                  Política de privacidad
+                </button>
+              </li>
             </ul>
           </div>
         </div>

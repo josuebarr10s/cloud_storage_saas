@@ -7,28 +7,28 @@ export const FAQSection = ({ onGetStartedClick }) => {
 
   const faqs = [
     {
-      q: '¿Cómo garantiza Nimbox la seguridad y privacidad de mis archivos?',
-      a: 'Implementamos un esquema de seguridad multicapa: todos los archivos se cifran en reposo utilizando el algoritmo AES-256 y en tránsito mediante TLS 1.3. Además, nuestra arquitectura Zero-Knowledge garantiza que nadie, ni siquiera el equipo técnico de Nimbox, pueda acceder a tus archivos sin tu autorización.'
+      q: '¿Quién puede ver mis archivos?',
+      a: 'Solo tú. Cada cuenta tiene su propio espacio y la base de datos impide que otro usuario vea, descargue o liste tus archivos y carpetas. Lo único que otra persona puede abrir es lo que tú compartas con un enlace, y puedes desactivarlo cuando quieras.'
     },
     {
-      q: '¿Puedo cambiar de plan o cancelar mi suscripción en cualquier momento?',
-      a: 'Sí, totalmente. No tienes contratos de permanencia obligatoria. Puedes mejorar a un plan superior (como Pro o Empresarial) o cancelarlo cuando quieras directamente desde tu panel de usuario.'
+      q: '¿Puedo cambiar de plan?',
+      a: 'Sí. Desde la sección Pagos de tu panel puedes cambiar a otro plan; tu espacio se ajusta al límite del plan nuevo. Los pagos de Nimbox son simulados: es un proyecto académico y no se cobra ninguna tarjeta real.'
     },
     {
-      q: '¿Cómo funcionan los enlaces protegidos con contraseña y fecha de vencimiento?',
-      a: 'Al generar un enlace público o privado para cualquier archivo o carpeta, puedes asignar un PIN o contraseña de acceso y fijar una fecha de expiración (por ejemplo, 1 hora, 24 horas o 7 días). Tras dicho plazo o sin el PIN correcto, el acceso queda revocado de forma automática.'
+      q: '¿Cómo funcionan los enlaces para compartir?',
+      a: 'Creas un enlace para un archivo o una carpeta y quien lo abra necesita una cuenta de Nimbox. En Básico el enlace es de solo lectura. En Pro y Empresarial también puedes dar permiso de editor, ponerle contraseña y fecha de vencimiento. En Empresarial además puedes limitarlo a ciertos correos y ver quién lo abrió.'
     },
     {
       q: '¿Qué ocurre si alcanzo el límite de almacenamiento de mi plan?',
-      a: 'Si te acercas al límite de espacio de tu plan, el sistema te alertará. Tus archivos existentes seguirán disponibles y protegidos; únicamente deberás liberar espacio o cambiar a un plan con mayor capacidad (por ejemplo, Plan Pro de 500 GB o Empresarial) para subir nuevos elementos.'
+      a: 'Tus archivos siguen disponibles, pero no podrás subir más hasta que liberes espacio (por ejemplo, vaciando la papelera) o cambies a un plan con más capacidad.'
     },
     {
-      q: '¿Puedo recuperar versiones anteriores de archivos o elementos eliminados?',
-      a: 'Sí. El Plan Pro incluye hasta 30 días de retención en papelera de reciclaje e historial de versiones, permitiéndote restaurar documentos con un solo clic.'
+      q: '¿Puedo recuperar versiones anteriores o archivos eliminados?',
+      a: 'Sí. Al subir un archivo con el mismo nombre en la misma carpeta, la versión anterior se guarda en su historial y puedes restaurarla. Lo que mandas a la papelera se puede recuperar durante 7 días en Básico, 30 días en Pro y sin límite de tiempo en Empresarial.'
     },
     {
-      q: '¿Tienen opciones para empresas o instituciones educativas?',
-      a: 'Sí. Disponemos del Plan Empresarial con almacenamiento ilimitado, SSO, auditoría de seguridad y soporte dedicado 1 a 1.'
+      q: '¿Qué incluye el plan Empresarial?',
+      a: '2 TB de almacenamiento, papelera sin límite de tiempo y control total de tus enlaces: además de editor, contraseña y vencimiento, puedes invitar solo a ciertos correos y ver quién abrió cada enlace y cuántas veces.'
     }
   ];
 

@@ -3,7 +3,6 @@ import { Menu, X, ArrowRight, LogOut } from 'lucide-react';
 
 // En el mismo orden en que aparecen las secciones en la página
 const navLinks = [
-  { label: 'Seguridad', href: '#security' },
   { label: 'Características', href: '#features' },
   { label: 'Calculadora', href: '#calculator' },
   { label: 'Planes y Precios', href: '#pricing' },

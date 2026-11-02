@@ -9,37 +9,22 @@ export const FeatureComparison = () => {
     {
       category: 'Almacenamiento y Archivos',
       items: [
-        { feature: 'Capacidad de almacenamiento', basic: '10 GB', pro: '500 GB', enterprise: 'Ilimitado (2 TB base)' },
-        { feature: 'Dispositivos simultáneos', basic: '2 dispositivos', pro: 'Ilimitados', enterprise: 'Ilimitados' },
-        { feature: 'Subida de archivos', basic: 'Hasta 500 MB', pro: 'Hasta 5 GB', enterprise: 'Sin límite' },
-        { feature: 'Streaming multimedia', basic: 'Estándar', pro: 'Alta Velocidad', enterprise: 'Alta Velocidad con CDN' },
+        { feature: 'Capacidad de almacenamiento', basic: '10 GB', pro: '500 GB', enterprise: '2 TB' },
+        { feature: 'Carpetas, vista previa y búsqueda', basic: true, pro: true, enterprise: true },
+        { feature: 'Subir arrastrando archivos', basic: true, pro: true, enterprise: true },
+        { feature: 'Historial de versiones', basic: true, pro: true, enterprise: true },
+        { feature: 'Papelera para recuperar archivos', basic: '7 días', pro: '30 días', enterprise: 'Sin límite' },
       ]
     },
     {
-      category: 'Compartición y Seguridad',
+      category: 'Compartir',
       items: [
-        { feature: 'Compartir por enlace', basic: true, pro: true, enterprise: true },
-        { feature: 'Enlaces protegidos con PIN / Contraseña', basic: false, pro: true, enterprise: true },
-        { feature: 'Enlaces con fecha de expiración', basic: false, pro: true, enterprise: true },
-        { feature: 'Cifrado AES-256 en reposo y TLS en tránsito', basic: true, pro: true, enterprise: true },
-        { feature: 'SSO y control de acceso corporativo', basic: false, pro: false, enterprise: true },
-      ]
-    },
-    {
-      category: 'Historial y Recuperación',
-      items: [
-        { feature: 'Historial de versiones de archivos', basic: '7 días', pro: '30 días', enterprise: 'Ilimitado' },
-        { feature: 'Retención y papelera de reciclaje', basic: '7 días', pro: '30 días', enterprise: 'Ilimitada' },
-      ]
-    },
-    {
-      category: 'Soporte y Colaboración',
-      items: [
-        { feature: 'Colaboración en equipo', basic: false, pro: true, enterprise: true },
-        { feature: 'Integraciones con terceros', basic: false, pro: true, enterprise: true },
-        { feature: 'Soporte técnico', basic: 'Email estándar', pro: 'Prioritario 24/7', enterprise: 'Dedicado 1 a 1' },
-        { feature: 'SLA garantizado de disponibilidad', basic: '99.5%', pro: '99.9%', enterprise: '99.99%' },
-        { feature: 'API privada y Webhooks', basic: false, pro: false, enterprise: true },
+        { feature: 'Compartir archivos y carpetas por enlace', basic: true, pro: true, enterprise: true },
+        { feature: 'Enlaces de editor (colaborar)', basic: false, pro: true, enterprise: true },
+        { feature: 'Enlaces con contraseña', basic: false, pro: true, enterprise: true },
+        { feature: 'Enlaces con fecha de vencimiento', basic: false, pro: true, enterprise: true },
+        { feature: 'Enlaces solo para correos invitados', basic: false, pro: false, enterprise: true },
+        { feature: 'Ver quién abrió cada enlace', basic: false, pro: false, enterprise: true },
       ]
     }
   ];

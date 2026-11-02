@@ -86,12 +86,12 @@ export const LandingHero = ({ onGetStartedClick, onLoginClick }) => {
         {/* Hero Title */}
         <h1 className="hero-title hero-enter" style={{ '--d': '100ms' }}>
           Tu almacenamiento,<br />
-          <span className="text-gradient-animated">sin límites reales.</span>
+          <span className="text-gradient-animated">siempre a la mano.</span>
         </h1>
 
         {/* Subtitle */}
         <p className="hero-subtitle hero-enter" style={{ '--d': '220ms' }}>
-          Nimbox guarda, sincroniza y organiza tus archivos en la nube con la máxima seguridad y velocidad. Accede desde cualquier dispositivo, en cualquier momento.
+          Nimbox guarda y organiza tus archivos en la nube: carpetas, vista previa, historial de versiones y enlaces para compartir. Entra desde el navegador, en cualquier dispositivo.
         </p>
 
         {/* CTA Buttons */}
@@ -107,13 +107,13 @@ export const LandingHero = ({ onGetStartedClick, onLoginClick }) => {
         {/* Trust Badges Bar */}
         <div className="hero-checks hero-enter" style={{ '--d': '460ms' }}>
           <span>
-            <CheckCircle2 size={16} color="var(--success)" /> 10 GB en Plan Básico
+            <CheckCircle2 size={16} color="var(--success)" /> 10 GB desde $5 al mes
           </span>
           <span>
-            <CheckCircle2 size={16} color="var(--success)" /> Cifrado en reposo AES-256
+            <CheckCircle2 size={16} color="var(--success)" /> Historial de versiones
           </span>
           <span>
-            <CheckCircle2 size={16} color="var(--success)" /> SLA garantizado 99.99%
+            <CheckCircle2 size={16} color="var(--success)" /> Papelera para recuperar archivos
           </span>
         </div>
 
@@ -138,8 +138,8 @@ export const LandingHero = ({ onGetStartedClick, onLoginClick }) => {
               <ShieldCheck size={18} />
             </div>
             <div>
-              <div className="float-card-title">Cifrado AES-256</div>
-              <div className="float-card-sub">Protección activa</div>
+              <div className="float-card-title">Solo tú ves tus archivos</div>
+              <div className="float-card-sub">Acceso privado por cuenta</div>
             </div>
           </div>
           <div className="float-card float-card-3" aria-hidden="true">
@@ -148,7 +148,7 @@ export const LandingHero = ({ onGetStartedClick, onLoginClick }) => {
             </div>
             <div>
               <div className="float-card-title">Enlace compartido</div>
-              <div className="float-card-sub">Expira en 24h · con PIN</div>
+              <div className="float-card-sub">Vence en 7 días · con contraseña</div>
             </div>
           </div>
 
@@ -403,7 +403,7 @@ export const LandingHero = ({ onGetStartedClick, onLoginClick }) => {
                     </div>
                     <div>
                       <p style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>Presentacion_Ejecutiva_2026.pdf</p>
-                      <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>https://nimbox.com/s/x98a21f • 24 descargas</p>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Solo lectura • abierto 24 veces</p>
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -423,7 +423,7 @@ export const LandingHero = ({ onGetStartedClick, onLoginClick }) => {
                     </div>
                     <div>
                       <p style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>Render_Comercial_3D.zip</p>
-                      <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>https://nimbox.com/s/k39c09d • 108 descargas</p>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Editor • con contraseña</p>
                     </div>
                   </div>
                   <span style={{ fontSize: '0.75rem', fontWeight: 600, background: 'var(--success-bg)', color: 'var(--success-hover)', padding: '2px 8px', borderRadius: 'var(--radius-xs)' }}>

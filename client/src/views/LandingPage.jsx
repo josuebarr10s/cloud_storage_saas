@@ -1,19 +1,19 @@
 import React, { useState } from 'react';
 import { LandingNavbar } from '../components/landing/LandingNavbar.jsx';
 import { LandingHero } from '../components/landing/LandingHero.jsx';
-import { TrustBadges } from '../components/landing/TrustBadges.jsx';
 import { BentoFeatures } from '../components/landing/BentoFeatures.jsx';
 import { StorageCalculator } from '../components/landing/StorageCalculator.jsx';
 import { PricingSection } from '../components/landing/PricingSection.jsx';
 import { FeatureComparison } from '../components/landing/FeatureComparison.jsx';
-import { TestimonialsSection } from '../components/landing/TestimonialsSection.jsx';
 import { FAQSection } from '../components/landing/FAQSection.jsx';
 import { LandingFooter } from '../components/landing/LandingFooter.jsx';
 import { Toast } from '../components/Toast.jsx';
+import { LegalModal } from '../components/legal/LegalModal.jsx';
 import '../components/landing/landing.css';
 
 export const LandingPage = ({ onOpenCheckout, onOpenLogin, onLogout, currentUser }) => {
   const [toast, setToast] = useState(null);
+  const [legalTab, setLegalTab] = useState(null); // 'terms' | 'privacy' | null
 
   const showNotification = (message, type = 'info') => {
     setToast({ message, type });
@@ -64,9 +64,6 @@ export const LandingPage = ({ onOpenCheckout, onOpenLogin, onLogout, currentUser
         onLoginClick={handleLoginClick}
       />
 
-      {/* 3. Security & Trust Badges */}
-      <TrustBadges />
-
       {/* 4. Bento Grid Features */}
       <BentoFeatures />
 
@@ -83,16 +80,14 @@ export const LandingPage = ({ onOpenCheckout, onOpenLogin, onLogout, currentUser
       {/* 7. Detailed Feature Comparison Matrix */}
       <FeatureComparison />
 
-      {/* 8. Testimonials & Platform Live Stats */}
-      <TestimonialsSection />
-
       {/* 9. FAQ Accordion & Final CTA */}
       <FAQSection
         onGetStartedClick={handleRegisterClick}
       />
 
       {/* 10. Footer */}
-      <LandingFooter />
+      <LandingFooter onOpenLegal={setLegalTab} />
+      <LegalModal isOpen={Boolean(legalTab)} initialTab={legalTab || 'terms'} onClose={() => setLegalTab(null)} />
 
       {/* Global Interactive Notification Toast */}
       <Toast toast={toast} onClose={() => setToast(null)} />

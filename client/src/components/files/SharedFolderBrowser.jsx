@@ -8,6 +8,7 @@ import { filesService } from '../../services/filesService.js';
 import { FilePreviewModal } from './FilePreviewModal.jsx';
 import { CreateFolderModal } from './CreateFolderModal.jsx';
 import { RenameModal } from './RenameModal.jsx';
+import { ActionsMenu } from './ActionsMenu.jsx';
 
 const ICONS_BY_TYPE = {
   image: ImageIcon,
@@ -294,17 +295,15 @@ export const SharedFolderBrowser = ({ rootFolder, ownerId, permission, onNotific
                     <Download size={15} />
                   </button>
                   {isEditor && (
-                    <>
-                      <button type="button" onClick={() => setFileToRename(file)} disabled={isBusy} style={iconButtonStyle} title="Cambiar nombre">
-                        <Edit2 size={15} />
-                      </button>
-                      <button type="button" onClick={() => handlePickNewVersion(file)} disabled={isBusy} style={iconButtonStyle} title="Subir versión nueva">
-                        <Upload size={15} />
-                      </button>
-                      <button type="button" onClick={() => handleMoveToTrash(file)} disabled={isBusy} style={{ ...iconButtonStyle, color: 'var(--danger)' }} title="Mandar a la papelera">
-                        <Trash2 size={15} />
-                      </button>
-                    </>
+                    <ActionsMenu
+                      buttonStyle={iconButtonStyle}
+                      iconSize={15}
+                      items={[
+                        { label: 'Cambiar nombre', icon: Edit2, onClick: () => setFileToRename(file) },
+                        { label: 'Subir versión nueva', icon: Upload, onClick: () => handlePickNewVersion(file) },
+                        { label: 'Mandar a la papelera', icon: Trash2, onClick: () => handleMoveToTrash(file), danger: true, separatorBefore: true }
+                      ]}
+                    />
                   )}
                 </div>
               </div>

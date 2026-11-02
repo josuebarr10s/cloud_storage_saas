@@ -12,15 +12,36 @@ export const SHARE_PERMISSIONS = Object.freeze({
   EDITOR: 'editor',
 });
 
+// Códigos que devuelve canjear_enlace cuando el enlace tiene contraseña
+export const SHARE_ERRORS = Object.freeze({
+  PASSWORD_REQUIRED: 'PASSWORD_REQUIRED',
+  PASSWORD_INCORRECT: 'PASSWORD_INCORRECT',
+});
+
+const PASSWORD_ERROR_CODES = Object.freeze({
+  NB001: SHARE_ERRORS.PASSWORD_REQUIRED,
+  NB002: SHARE_ERRORS.PASSWORD_INCORRECT,
+});
+
 /**
- * Los enlaces de editor ("permisos avanzados") son de los planes Pro y Empresarial.
- * La BD lo vuelve a revisar al crear el enlace (política enlace_crear).
+ * Permisos avanzados (enlaces de editor, expiración y contraseña) son de los planes
+ * Pro y Empresarial. La BD lo vuelve a revisar (enlace_crear y configurar_enlace).
  * @param {string} planName
  * @returns {boolean}
  */
-export function canShareAsEditor(planName = '') {
+export function canUseAdvancedSharing(planName = '') {
   const plan = normalizeText(planName);
   return plan.includes('pro') || plan.includes('empresa');
+}
+
+/**
+ * Limitar enlaces a ciertos correos y ver quién los abrió es solo del plan Empresarial.
+ * La BD lo vuelve a revisar (configurar_correos_enlace y accesos_enlace).
+ * @param {string} planName
+ * @returns {boolean}
+ */
+export function canUseEnterpriseSharing(planName = '') {
+  return normalizeText(planName).includes('empresa');
 }
 
 /**
@@ -58,6 +79,16 @@ export function clearPendingShareToken() {
 // Un enlace apunta a un archivo (id_archivo) o a una carpeta (id_carpeta)
 const targetColumn = (item) => (item.isFolder ? 'id_carpeta' : 'id_archivo');
 
+const LINK_COLUMNS = 'token, permiso, fecha_expiracion, tiene_password, correos_permitidos';
+
+const mapLink = (row) => ({
+  token: row.token,
+  permission: row.permiso,
+  expiresAt: row.fecha_expiracion,
+  hasPassword: Boolean(row.tiene_password),
+  allowedEmails: row.correos_permitidos || [],
+});
+
 /**
  * Patrón Facade: crea, consulta y desactiva enlaces para compartir archivos y carpetas,
  * y abre los enlaces que otros usuarios comparten.
@@ -66,18 +97,18 @@ export const sharingService = {
   /**
    * Enlace activo de un archivo o carpeta propios, o null si es privado
    * @param {{ id: string, isFolder: boolean }} item
-   * @returns {Promise<{ token: string, permission: string }|null>}
+   * @returns {Promise<{ token: string, permission: string, expiresAt: string|null, hasPassword: boolean }|null>}
    */
   async getActiveLink(item) {
     const { data, error } = await supabase
       .from('enlace_compartido')
-      .select('token, permiso')
+      .select(LINK_COLUMNS)
       .eq(targetColumn(item), item.id)
       .eq('activo', true)
       .maybeSingle();
 
     if (error) throw new Error(`No se pudo consultar el enlace: ${error.message}`);
-    return data ? { token: data.token, permission: data.permiso } : null;
+    return data ? mapLink(data) : null;
   },
 
   /**
@@ -85,7 +116,7 @@ export const sharingService = {
    * @param {string} userId
    * @param {{ id: string, isFolder: boolean }} item
    * @param {string} permission SHARE_PERMISSIONS
-   * @returns {Promise<{ token: string, permission: string }>}
+   * @returns {Promise<{ token: string, permission: string, expiresAt: string|null, hasPassword: boolean }>}
    */
   async getOrCreateLink(userId, item, permission = SHARE_PERMISSIONS.VIEWER) {
     const existing = await this.getActiveLink(item);
@@ -94,7 +125,7 @@ export const sharingService = {
     const { data, error } = await supabase
       .from('enlace_compartido')
       .insert([{ id_usuario: userId, [targetColumn(item)]: item.id, permiso: permission }])
-      .select('token, permiso')
+      .select(LINK_COLUMNS)
       .single();
 
     if (error) {
@@ -106,7 +137,51 @@ export const sharingService = {
       }
       throw new Error(`No se pudo crear el enlace: ${error.message}`);
     }
-    return { token: data.token, permission: data.permiso };
+    return mapLink(data);
+  },
+
+  /**
+   * Expiración y contraseña del enlace (Pro y Empresarial). La contraseña se guarda cifrada
+   * en la BD; al cambiarla, quien ya había entrado debe escribirla otra vez.
+   * @param {string} token
+   * @param {{ expiresAt: string|null, password?: string|null, removePassword?: boolean }} options
+   *   expiresAt: fecha ISO o null para que no expire; password: null para no cambiarla
+   */
+  async configureLink(token, { expiresAt, password = null, removePassword = false }) {
+    const { error } = await supabase.rpc('configurar_enlace', {
+      p_token: token,
+      p_fecha_expiracion: expiresAt,
+      p_password: password,
+      p_quitar_password: removePassword,
+    });
+    if (error) throw new Error(error.message || 'No se pudo guardar la configuración del enlace.');
+  },
+
+  /**
+   * Limita el enlace a ciertos correos (Empresarial). Lista vacía = cualquiera con el enlace.
+   * Quien ya había entrado y no está en la lista pierde el acceso.
+   * @param {string} token
+   * @param {string[]} emails
+   */
+  async setAllowedEmails(token, emails) {
+    const { error } = await supabase.rpc('configurar_correos_enlace', { p_token: token, p_correos: emails });
+    if (error) throw new Error(error.message || 'No se pudieron guardar los invitados.');
+  },
+
+  /**
+   * Quién abrió el enlace, cuándo fue la última vez y cuántas veces (Empresarial)
+   * @param {string} token
+   * @returns {Promise<Array<{ name: string, email: string, lastAccess: string, times: number }>>}
+   */
+  async getLinkAccesses(token) {
+    const { data, error } = await supabase.rpc('accesos_enlace', { p_token: token });
+    if (error) throw new Error(error.message || 'No se pudo consultar quién abrió el enlace.');
+    return (data || []).map(a => ({
+      name: a.usuario_nombre || a.usuario_correo,
+      email: a.usuario_correo,
+      lastAccess: formatDate(a.ultimo_acceso),
+      times: a.veces_abierto,
+    }));
   },
 
   /**
@@ -165,21 +240,25 @@ export const sharingService = {
   /**
    * Abre un enlace compartido: lo valida en la BD, registra el acceso y devuelve
    * el archivo o la carpeta con el permiso efectivo
+   * Si el enlace pide contraseña, el error trae code SHARE_ERRORS.PASSWORD_REQUIRED o PASSWORD_INCORRECT.
    * @param {string} token
+   * @param {string|null} [password]
    * @param {number} [retries]
    * @returns {Promise<{ isOwner: boolean, permission: string, ownerId: string, ownerName: string,
-   *   type: 'file'|'folder', file: Object|null, folder: Object|null }>}
+   *   expiresAt: string|null, type: 'file'|'folder', file: Object|null, folder: Object|null }>}
    */
-  async openSharedLink(token, retries = 3) {
-    const { data, error } = await supabase.rpc('canjear_enlace', { p_token: token });
+  async openSharedLink(token, password = null, retries = 3) {
+    const { data, error } = await supabase.rpc('canjear_enlace', { p_token: token, p_password: password });
     if (error) {
       // Justo después de registrarse o iniciar sesión, Supabase puede rechazar el token recién emitido
       // durante unos segundos por desfase de reloj entre sus servidores ("JWT issued at future")
       if (retries > 0 && /issued at future/i.test(error.message || '')) {
         await new Promise(resolve => setTimeout(resolve, 1500));
-        return this.openSharedLink(token, retries - 1);
+        return this.openSharedLink(token, password, retries - 1);
       }
-      throw new Error(error.message || 'No se pudo abrir el enlace.');
+      const shareError = new Error(error.message || 'No se pudo abrir el enlace.');
+      shareError.code = PASSWORD_ERROR_CODES[error.code] || null;
+      throw shareError;
     }
 
     return {
@@ -187,6 +266,7 @@ export const sharingService = {
       permission: data.permiso,
       ownerId: data.id_propietario,
       ownerName: data.propietario || 'Un usuario de Nimbox',
+      expiresAt: data.fecha_expiracion,
       type: data.tipo === 'carpeta' ? 'folder' : 'file',
       file: data.archivo ? FileFactory.createFromDb(data.archivo) : null,
       folder: data.carpeta ? FolderFactory.createFromDb(data.carpeta) : null,

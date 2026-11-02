@@ -36,8 +36,12 @@ INSERT INTO public.plan (id_plan, nombre, descripcion, precio, limite_almacenami
 VALUES 
 ('11111111-1111-1111-1111-111111111111', 'Básico', 'Para uso personal y organización', 5.00, 10737418240, 30, true),
 ('22222222-2222-2222-2222-222222222222', 'Pro', 'Para profesionales y pequeños equipos', 12.00, 536870912000, 30, true),
-('33333333-3333-3333-3333-333333333333', 'Empresarial', 'Para organizaciones exigentes', 49.00, 10995116277760, 365, true)
+('33333333-3333-3333-3333-333333333333', 'Empresarial', 'Para organizaciones exigentes', 49.00, 2199023255552, 365, true)
 ON CONFLICT (id_plan) DO NOTHING;
+
+-- El plan Empresarial es de 2 TB (la primera versión de esta semilla decía 10 TB)
+UPDATE public.plan SET limite_almacenamiento_bytes = 2199023255552
+WHERE id_plan = '33333333-3333-3333-3333-333333333333' AND limite_almacenamiento_bytes <> 2199023255552;
 
 
 -- 3. TABLA USUARIO
@@ -354,6 +358,9 @@ CREATE TABLE IF NOT EXISTS public.archivo_version (
     REFERENCES public.archivo(id_archivo) ON DELETE CASCADE
 );
 
+-- Nombre que tenía el archivo en esa versión (se puede renombrar entre versiones)
+ALTER TABLE public.archivo_version ADD COLUMN IF NOT EXISTS nombre CHARACTER VARYING;
+
 ALTER TABLE public.archivo_version ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Usuario gestiona sus versiones" ON public.archivo_version;
 CREATE POLICY "Usuario gestiona sus versiones"
@@ -368,9 +375,16 @@ CREATE POLICY "Usuario gestiona sus versiones"
 --   editor: además subir versiones nuevas; en una carpeta, también subir archivos,
 --           crear subcarpetas y mandar archivos a la papelera del dueño
 -- Todo lo que sube un editor queda a nombre del dueño y ocupa su espacio.
--- Crear enlaces exige plan activo; los de editor, plan Pro o Empresarial.
+-- Crear enlaces exige plan activo. Permisos avanzados (plan Pro o Empresarial):
+-- enlaces de editor, fecha de expiración y contraseña. Solo Empresarial: limitar el
+-- enlace a ciertos correos y ver quién lo abrió.
 -- Esta sección se puede volver a correr completa sin problema.
 -- =============================================================================
+
+-- crypt() y gen_salt() para guardar las contraseñas de los enlaces (en Supabase ya
+-- viene instalada en el esquema extensions)
+CREATE SCHEMA IF NOT EXISTS extensions;
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
 
 -- ¿El usuario tiene una suscripción activa?
 CREATE OR REPLACE FUNCTION public.tiene_plan_activo(p_usuario UUID)
@@ -380,7 +394,7 @@ RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS
   );
 $$;
 
--- ¿Su plan activo incluye permisos avanzados (Pro o Empresarial)?
+-- ¿Su plan activo incluye permisos avanzados (Pro o Empresarial): editor, expiración y contraseña?
 CREATE OR REPLACE FUNCTION public.plan_permite_editor(p_usuario UUID)
 RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
   SELECT EXISTS (
@@ -389,6 +403,18 @@ RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS
     JOIN public.plan p ON p.id_plan = s.id_plan
     WHERE s.id_usuario = p_usuario AND s.estado = 'activa'
       AND (lower(p.nombre) LIKE '%pro%' OR lower(p.nombre) LIKE '%empresa%')
+  );
+$$;
+
+-- ¿Su plan activo es Empresarial? Limitar enlaces a correos y ver quién los abrió.
+CREATE OR REPLACE FUNCTION public.plan_empresarial(p_usuario UUID)
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.suscripcion s
+    JOIN public.plan p ON p.id_plan = s.id_plan
+    WHERE s.id_usuario = p_usuario AND s.estado = 'activa'
+      AND lower(p.nombre) LIKE '%empresa%'
   );
 $$;
 
@@ -419,6 +445,14 @@ CREATE UNIQUE INDEX IF NOT EXISTS enlace_compartido_archivo_activo_idx
 CREATE UNIQUE INDEX IF NOT EXISTS enlace_compartido_carpeta_activo_idx
   ON public.enlace_compartido (id_carpeta) WHERE activo AND id_carpeta IS NOT NULL;
 
+-- Contraseña opcional del enlace (bcrypt). tiene_password evita leer el hash desde el cliente.
+ALTER TABLE public.enlace_compartido ADD COLUMN IF NOT EXISTS password_hash TEXT;
+ALTER TABLE public.enlace_compartido ADD COLUMN IF NOT EXISTS tiene_password BOOLEAN
+  GENERATED ALWAYS AS (password_hash IS NOT NULL) STORED;
+
+-- Correos que pueden abrir el enlace (Empresarial). Vacío = cualquiera con cuenta que tenga el enlace.
+ALTER TABLE public.enlace_compartido ADD COLUMN IF NOT EXISTS correos_permitidos TEXT[] NOT NULL DEFAULT '{}';
+
 -- Quién ya abrió cada enlace
 CREATE TABLE IF NOT EXISTS public.acceso_compartido (
   id_enlace UUID NOT NULL,
@@ -428,6 +462,9 @@ CREATE TABLE IF NOT EXISTS public.acceso_compartido (
   CONSTRAINT acceso_compartido_id_enlace_fkey FOREIGN KEY (id_enlace) REFERENCES public.enlace_compartido(id_enlace) ON DELETE CASCADE,
   CONSTRAINT acceso_compartido_id_usuario_fkey FOREIGN KEY (id_usuario) REFERENCES public.usuario(id_usuario) ON DELETE CASCADE
 );
+
+-- Cuántas veces abrió el enlace cada persona (auditoría del plan Empresarial)
+ALTER TABLE public.acceso_compartido ADD COLUMN IF NOT EXISTS veces INTEGER NOT NULL DEFAULT 1;
 
 -- Para encontrar rápido el archivo de un objeto de Storage (política storage_ver_compartido)
 CREATE INDEX IF NOT EXISTS archivo_ruta_storage_idx ON public.archivo (ruta_storage);
@@ -672,16 +709,141 @@ CREATE TRIGGER actualizar_espacio_version
   AFTER INSERT OR DELETE ON public.archivo_version
   FOR EACH ROW EXECUTE FUNCTION public.actualizar_espacio_usado();
 
+-- Expiración y contraseña de un enlace propio (permisos avanzados).
+-- p_fecha_expiracion: null = no expira. p_password: null = no cambiarla.
+-- Al poner una contraseña nueva, quien ya había abierto el enlace debe escribirla otra vez.
+-- Quitar la expiración o la contraseña no exige plan (por si el dueño bajó de plan).
+CREATE OR REPLACE FUNCTION public.configurar_enlace(
+  p_token TEXT,
+  p_fecha_expiracion TIMESTAMP WITH TIME ZONE,
+  p_password TEXT DEFAULT NULL,
+  p_quitar_password BOOLEAN DEFAULT false
+)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions AS $$
+DECLARE
+  v_enlace public.enlace_compartido%ROWTYPE;
+BEGIN
+  SELECT * INTO v_enlace FROM public.enlace_compartido
+  WHERE token = p_token AND id_usuario = auth.uid() AND activo;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'No se encontró el enlace.';
+  END IF;
+
+  IF (p_fecha_expiracion IS NOT NULL OR p_password IS NOT NULL)
+     AND NOT public.plan_permite_editor(auth.uid()) THEN
+    RAISE EXCEPTION 'La expiración y la contraseña son para los planes Pro y Empresarial.';
+  END IF;
+
+  IF p_fecha_expiracion IS NOT NULL AND p_fecha_expiracion <= NOW() THEN
+    RAISE EXCEPTION 'La fecha de expiración debe ser posterior a hoy.';
+  END IF;
+
+  IF p_password IS NOT NULL AND length(p_password) < 4 THEN
+    RAISE EXCEPTION 'La contraseña debe tener al menos 4 caracteres.';
+  END IF;
+
+  UPDATE public.enlace_compartido
+  SET fecha_expiracion = p_fecha_expiracion,
+      password_hash = CASE
+        WHEN p_quitar_password THEN NULL
+        WHEN p_password IS NOT NULL THEN crypt(p_password, gen_salt('bf'))
+        ELSE password_hash
+      END
+  WHERE id_enlace = v_enlace.id_enlace;
+
+  IF p_password IS NOT NULL AND NOT p_quitar_password THEN
+    DELETE FROM public.acceso_compartido WHERE id_enlace = v_enlace.id_enlace;
+  END IF;
+END;
+$$;
+
+-- Limitar un enlace propio a ciertos correos (Empresarial). Lista vacía = sin límite (no exige plan).
+-- Quien ya había entrado y no está en la lista pierde el acceso.
+CREATE OR REPLACE FUNCTION public.configurar_correos_enlace(p_token TEXT, p_correos TEXT[])
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_enlace public.enlace_compartido%ROWTYPE;
+  v_correos TEXT[];
+BEGIN
+  SELECT * INTO v_enlace FROM public.enlace_compartido
+  WHERE token = p_token AND id_usuario = auth.uid() AND activo;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'No se encontró el enlace.';
+  END IF;
+
+  SELECT COALESCE(array_agg(DISTINCT lower(trim(c))) FILTER (WHERE trim(c) <> ''), '{}')
+  INTO v_correos
+  FROM unnest(COALESCE(p_correos, '{}')) AS c;
+
+  IF cardinality(v_correos) > 0 AND NOT public.plan_empresarial(auth.uid()) THEN
+    RAISE EXCEPTION 'Limitar el enlace a ciertos correos es del plan Empresarial.';
+  END IF;
+
+  IF cardinality(v_correos) > 100 THEN
+    RAISE EXCEPTION 'Puedes invitar hasta 100 correos por enlace.';
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM unnest(v_correos) AS c WHERE c !~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$') THEN
+    RAISE EXCEPTION 'Revisa los correos: hay uno que no es válido.';
+  END IF;
+
+  UPDATE public.enlace_compartido SET correos_permitidos = v_correos WHERE id_enlace = v_enlace.id_enlace;
+
+  IF cardinality(v_correos) > 0 THEN
+    DELETE FROM public.acceso_compartido ac
+    USING auth.users u
+    WHERE ac.id_enlace = v_enlace.id_enlace
+      AND u.id = ac.id_usuario
+      AND lower(u.email) <> ALL (v_correos);
+  END IF;
+END;
+$$;
+
+-- Quién abrió un enlace propio, cuándo fue la última vez y cuántas veces (Empresarial)
+CREATE OR REPLACE FUNCTION public.accesos_enlace(p_token TEXT)
+RETURNS TABLE (usuario_nombre TEXT, usuario_correo TEXT, ultimo_acceso TIMESTAMP WITH TIME ZONE, veces_abierto INTEGER)
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.enlace_compartido e WHERE e.token = p_token AND e.id_usuario = auth.uid()
+  ) THEN
+    RAISE EXCEPTION 'No se encontró el enlace.';
+  END IF;
+
+  IF NOT public.plan_empresarial(auth.uid()) THEN
+    RAISE EXCEPTION 'Ver quién abrió tus enlaces es del plan Empresarial.';
+  END IF;
+
+  RETURN QUERY
+  SELECT
+    trim(concat_ws(' ', us.nombre, us.apellido))::text,
+    u.email::text,
+    ac.fecha_acceso,
+    ac.veces
+  FROM public.acceso_compartido ac
+  JOIN public.enlace_compartido e ON e.id_enlace = ac.id_enlace
+  JOIN auth.users u ON u.id = ac.id_usuario
+  LEFT JOIN public.usuario us ON us.id_usuario = ac.id_usuario
+  WHERE e.token = p_token
+  ORDER BY ac.fecha_acceso DESC;
+END;
+$$;
+
 -- Abre un enlace: lo valida, registra el acceso y devuelve el archivo o la carpeta con el
--- permiso efectivo. Los mensajes de RAISE EXCEPTION llegan tal cual al frontend.
-CREATE OR REPLACE FUNCTION public.canjear_enlace(p_token TEXT)
-RETURNS json LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+-- permiso efectivo. Los mensajes de RAISE EXCEPTION llegan tal cual al frontend; los de la
+-- contraseña llevan su propio código (NB001 falta, NB002 incorrecta) para pedirla en pantalla,
+-- y NB003 indica que el correo de la cuenta no está entre los invitados.
+-- La versión anterior recibía solo p_token: se borra para que no queden dos funciones con el mismo nombre.
+DROP FUNCTION IF EXISTS public.canjear_enlace(TEXT);
+CREATE OR REPLACE FUNCTION public.canjear_enlace(p_token TEXT, p_password TEXT DEFAULT NULL)
+RETURNS json LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions AS $$
 DECLARE
   v_enlace public.enlace_compartido%ROWTYPE;
   v_archivo public.archivo%ROWTYPE;
   v_carpeta public.carpeta%ROWTYPE;
   v_propietario TEXT;
   v_permiso TEXT;
+  v_correo TEXT;
 BEGIN
   IF auth.uid() IS NULL THEN
     RAISE EXCEPTION 'Inicia sesión para abrir este enlace.';
@@ -700,6 +862,29 @@ BEGIN
     RAISE EXCEPTION 'Este enlace está pausado porque el plan de quien lo compartió no está activo.';
   END IF;
 
+  -- Enlace limitado a ciertos correos: se revisa antes de pedir la contraseña
+  IF cardinality(v_enlace.correos_permitidos) > 0 AND v_enlace.id_usuario <> auth.uid() THEN
+    SELECT lower(email) INTO v_correo FROM auth.users WHERE id = auth.uid();
+    IF v_correo IS NULL OR NOT (v_correo = ANY (v_enlace.correos_permitidos)) THEN
+      RAISE EXCEPTION 'Este enlace es solo para personas invitadas y tu cuenta (%) no está en la lista. Pídele acceso a quien te lo compartió.',
+        COALESCE(v_correo, 'sin correo') USING ERRCODE = 'NB003';
+    END IF;
+  END IF;
+
+  -- La contraseña se pide solo la primera vez: después basta con el acceso registrado
+  IF v_enlace.password_hash IS NOT NULL
+     AND v_enlace.id_usuario <> auth.uid()
+     AND NOT EXISTS (
+       SELECT 1 FROM public.acceso_compartido
+       WHERE id_enlace = v_enlace.id_enlace AND id_usuario = auth.uid()
+     ) THEN
+    IF COALESCE(p_password, '') = '' THEN
+      RAISE EXCEPTION 'Este enlace está protegido con contraseña.' USING ERRCODE = 'NB001';
+    ELSIF crypt(p_password, v_enlace.password_hash) <> v_enlace.password_hash THEN
+      RAISE EXCEPTION 'La contraseña no es correcta.' USING ERRCODE = 'NB002';
+    END IF;
+  END IF;
+
   IF v_enlace.id_archivo IS NOT NULL THEN
     SELECT * INTO v_archivo FROM public.archivo WHERE id_archivo = v_enlace.id_archivo;
     IF NOT FOUND OR v_archivo.eliminado THEN
@@ -715,7 +900,8 @@ BEGIN
   IF v_enlace.id_usuario <> auth.uid() THEN
     INSERT INTO public.acceso_compartido (id_enlace, id_usuario)
     VALUES (v_enlace.id_enlace, auth.uid())
-    ON CONFLICT (id_enlace, id_usuario) DO UPDATE SET fecha_acceso = NOW();
+    ON CONFLICT (id_enlace, id_usuario)
+    DO UPDATE SET fecha_acceso = NOW(), veces = public.acceso_compartido.veces + 1;
   END IF;
 
   SELECT trim(concat_ws(' ', nombre, apellido)) INTO v_propietario
@@ -732,6 +918,7 @@ BEGIN
     'permiso', v_permiso,
     'propietario', v_propietario,
     'id_propietario', v_enlace.id_usuario,
+    'fecha_expiracion', v_enlace.fecha_expiracion,
     'tipo', CASE WHEN v_enlace.id_archivo IS NOT NULL THEN 'archivo' ELSE 'carpeta' END,
     'archivo', CASE WHEN v_enlace.id_archivo IS NOT NULL THEN row_to_json(v_archivo) END,
     'carpeta', CASE WHEN v_enlace.id_carpeta IS NOT NULL THEN row_to_json(v_carpeta) END
@@ -973,3 +1160,73 @@ BEGIN
   RETURN v_renovaciones;
 END;
 $$;
+
+
+-- =============================================================================
+-- 14. CONTROL DE CUOTA (RF-15)
+-- No se puede subir más de lo que permite el plan: cuenta el espacio de los archivos
+-- (incluida la papelera) y de sus versiones anteriores. La app pregunta antes de subir
+-- (espacio_disponible) y la BD lo vuelve a revisar al guardar (trigger validar_cuota).
+-- =============================================================================
+
+-- Bytes que ocupa un usuario: archivos (también los de la papelera) y versiones anteriores
+CREATE OR REPLACE FUNCTION public.espacio_usado_real(p_usuario UUID)
+RETURNS BIGINT LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT COALESCE((SELECT SUM(tamano) FROM public.archivo WHERE id_usuario = p_usuario), 0)
+       + COALESCE((SELECT SUM(tamano) FROM public.archivo_version WHERE id_usuario = p_usuario), 0);
+$$;
+
+-- Bytes libres de un usuario. La consulta el dueño, quien edita por un enlace suyo o el admin.
+CREATE OR REPLACE FUNCTION public.espacio_disponible(p_usuario UUID)
+RETURNS BIGINT LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF auth.uid() IS NULL OR (
+    auth.uid() <> p_usuario
+    AND NOT public.puede_subir_como(p_usuario::text)
+    AND NOT public.es_admin()
+  ) THEN
+    RAISE EXCEPTION 'No autorizado para consultar el espacio de otro usuario.';
+  END IF;
+
+  RETURN COALESCE((SELECT capacidad_total_bytes FROM public.almacenamiento WHERE id_usuario = p_usuario), 0)
+       - public.espacio_usado_real(p_usuario);
+END;
+$$;
+
+-- Rechaza lo que no quepa en el plan del dueño: un archivo nuevo, una versión que pasa al
+-- historial o un archivo que crece. Al subir una versión nueva primero se guarda la anterior en
+-- archivo_version y después cambia el tamaño del archivo, así que cada paso se revisa por separado.
+CREATE OR REPLACE FUNCTION public.validar_cuota() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_extra BIGINT;
+  v_capacidad BIGINT;
+  v_usado BIGINT;
+BEGIN
+  v_extra := NEW.tamano - CASE WHEN TG_OP = 'UPDATE' THEN OLD.tamano ELSE 0 END;
+  IF v_extra <= 0 THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT COALESCE(capacidad_total_bytes, 0) INTO v_capacidad
+  FROM public.almacenamiento WHERE id_usuario = NEW.id_usuario;
+  v_usado := public.espacio_usado_real(NEW.id_usuario);
+
+  IF v_usado + v_extra > COALESCE(v_capacidad, 0) THEN
+    RAISE EXCEPTION 'No hay espacio suficiente: se necesitan % y quedan %. Libera espacio vaciando la papelera o cambia a un plan con más capacidad.',
+      pg_size_pretty(v_extra), pg_size_pretty(GREATEST(COALESCE(v_capacidad, 0) - v_usado, 0))
+      USING ERRCODE = 'NB010';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS validar_cuota_archivo ON public.archivo;
+CREATE TRIGGER validar_cuota_archivo
+  BEFORE INSERT OR UPDATE OF tamano ON public.archivo
+  FOR EACH ROW EXECUTE FUNCTION public.validar_cuota();
+
+DROP TRIGGER IF EXISTS validar_cuota_version ON public.archivo_version;
+CREATE TRIGGER validar_cuota_version
+  BEFORE INSERT ON public.archivo_version
+  FOR EACH ROW EXECUTE FUNCTION public.validar_cuota();
