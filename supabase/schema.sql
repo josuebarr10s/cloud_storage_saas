@@ -778,11 +778,60 @@ $$;
 
 
 -- =============================================================================
--- 13. COBRO AUTOMÁTICO MENSUAL / ANUAL DE SUSCRIPCIONES
--- Cuando una suscripción activa alcanza su fecha_fin, se renueva automáticamente
--- por el siguiente ciclo (30 días mensual o 365 días anual), marcando el ciclo
--- anterior como 'reemplazada' y registrando el pago correspondiente en public.pago.
+-- 13. COBRO AUTOMÁTICO MENSUAL / ANUAL DE SUSCRIPCIONES (UN ÚNICO COBRO POR MES)
+-- Garantiza a nivel de base de datos que:
+--   1. Solo exista un pago por cada periodo de suscripción (id_suscripcion).
+--   2. Solo exista una suscripción activa por usuario en todo momento.
+--   3. Se realice un único cobro automático por mes (o año), sin importar desde
+--      cuántos dispositivos o sesiones ingrese el usuario.
 -- =============================================================================
+
+-- Limpieza de pagos duplicados sobre una misma suscripción (conserva el primero)
+DELETE FROM public.pago p
+USING (
+  SELECT id_pago,
+         ROW_NUMBER() OVER (PARTITION BY id_suscripcion ORDER BY fecha_pago ASC, id_pago ASC) AS rn
+  FROM public.pago
+) dup
+WHERE p.id_pago = dup.id_pago AND dup.rn > 1;
+
+-- Limpieza de renovaciones duplicadas del mismo plan en el mismo mes (< 25 días de diferencia)
+WITH ordenadas AS (
+  SELECT id_suscripcion,
+         id_usuario,
+         id_plan,
+         fecha_inicio,
+         estado,
+         LAG(id_plan) OVER (PARTITION BY id_usuario ORDER BY fecha_inicio ASC, id_suscripcion ASC) AS plan_previo,
+         LAG(fecha_inicio) OVER (PARTITION BY id_usuario ORDER BY fecha_inicio ASC, id_suscripcion ASC) AS inicio_previo
+  FROM public.suscripcion
+  WHERE estado <> 'cancelada'
+)
+DELETE FROM public.suscripcion s
+USING ordenadas o
+WHERE s.id_suscripcion = o.id_suscripcion
+  AND o.plan_previo = o.id_plan
+  AND o.inicio_previo IS NOT NULL
+  AND EXTRACT(EPOCH FROM (o.fecha_inicio - o.inicio_previo)) / 86400 < 25;
+
+-- Si un usuario tenía más de una suscripción en estado 'activa', dejar activa solo la más reciente
+WITH activas AS (
+  SELECT id_suscripcion,
+         ROW_NUMBER() OVER (PARTITION BY id_usuario ORDER BY fecha_fin DESC, fecha_inicio DESC, id_suscripcion DESC) AS rn
+  FROM public.suscripcion
+  WHERE estado = 'activa'
+)
+UPDATE public.suscripcion s
+SET estado = 'reemplazada'
+FROM activas a
+WHERE s.id_suscripcion = a.id_suscripcion AND a.rn > 1;
+
+-- Índices únicos para impedir cobros o suscripciones activas duplicadas a nivel de motor
+CREATE UNIQUE INDEX IF NOT EXISTS pago_unico_por_suscripcion_idx
+  ON public.pago (id_suscripcion);
+
+CREATE UNIQUE INDEX IF NOT EXISTS suscripcion_unica_activa_por_usuario_idx
+  ON public.suscripcion (id_usuario) WHERE estado = 'activa';
 
 CREATE OR REPLACE FUNCTION public.procesar_renovaciones_suscripcion(
   p_usuario UUID DEFAULT auth.uid(),
@@ -799,6 +848,7 @@ DECLARE
   v_plan_bytes BIGINT;
   v_es_anual BOOLEAN;
   v_dias INTEGER;
+  v_min_dias INTEGER;
   v_inicio TIMESTAMP WITH TIME ZONE;
   v_fin TIMESTAMP WITH TIME ZONE;
   v_nuevo_id UUID;
@@ -813,11 +863,43 @@ BEGIN
     RAISE EXCEPTION 'No autorizado para procesar renovaciones de otro usuario.';
   END IF;
 
+  -- Bloqueo transaccional por usuario: serializa accesos simultáneos desde múltiples dispositivos
+  PERFORM pg_advisory_xact_lock(hashtext(p_usuario::text));
+
+  -- Limpiar cualquier pago duplicado en una misma suscripción del usuario
+  DELETE FROM public.pago p
+  USING (
+    SELECT pg.id_pago,
+           ROW_NUMBER() OVER (PARTITION BY pg.id_suscripcion ORDER BY pg.fecha_pago ASC, pg.id_pago ASC) AS rn
+    FROM public.pago pg
+    JOIN public.suscripcion sc ON sc.id_suscripcion = pg.id_suscripcion
+    WHERE sc.id_usuario = p_usuario
+  ) dup
+  WHERE p.id_pago = dup.id_pago AND dup.rn > 1;
+
+  -- Limpiar renovaciones duplicadas del mismo plan dentro del mismo ciclo mensual (< 25 días)
+  WITH ordenadas AS (
+    SELECT id_suscripcion,
+           id_plan,
+           fecha_inicio,
+           LAG(id_plan) OVER (ORDER BY fecha_inicio ASC, id_suscripcion ASC) AS plan_previo,
+           LAG(fecha_inicio) OVER (ORDER BY fecha_inicio ASC, id_suscripcion ASC) AS inicio_previo
+    FROM public.suscripcion
+    WHERE id_usuario = p_usuario AND estado <> 'cancelada'
+  )
+  DELETE FROM public.suscripcion s
+  USING ordenadas o
+  WHERE s.id_suscripcion = o.id_suscripcion
+    AND o.plan_previo = o.id_plan
+    AND o.inicio_previo IS NOT NULL
+    AND EXTRACT(EPOCH FROM (o.fecha_inicio - o.inicio_previo)) / 86400 < 25;
+
   SELECT * INTO v_sub
   FROM public.suscripcion
   WHERE id_usuario = p_usuario AND estado = 'activa'
   ORDER BY fecha_fin DESC
-  LIMIT 1;
+  LIMIT 1
+  FOR UPDATE;
 
   IF NOT FOUND OR v_sub.fecha_fin > p_ahora THEN
     RETURN 0;
@@ -832,6 +914,12 @@ BEGIN
     ELSE false
   END;
   v_dias := CASE WHEN v_es_anual THEN 365 ELSE 30 END;
+  v_min_dias := CASE WHEN v_es_anual THEN 300 ELSE 25 END;
+
+  -- Garantizar que haya transcurrido el ciclo completo desde el inicio de la suscripción activa
+  IF EXTRACT(EPOCH FROM (p_ahora - v_sub.fecha_inicio)) / 86400 < v_min_dias THEN
+    RETURN 0;
+  END IF;
 
   SELECT COALESCE(p.metodo_pago, 'tarjeta_simulada') INTO v_metodo
   FROM public.pago p
@@ -843,7 +931,12 @@ BEGIN
   v_metodo := COALESCE(v_metodo, 'tarjeta_simulada');
   v_inicio := v_sub.fecha_fin;
 
-  WHILE v_inicio <= p_ahora AND v_renovaciones < 36 LOOP
+  -- Marcar la suscripción vencida como reemplazada ANTES de insertar la nueva activa
+  UPDATE public.suscripcion
+  SET estado = 'reemplazada'
+  WHERE id_suscripcion = v_sub.id_suscripcion;
+
+  WHILE v_inicio <= p_ahora AND v_renovaciones < 12 LOOP
     v_renovaciones := v_renovaciones + 1;
     v_fin := v_inicio + make_interval(days => v_dias);
 
@@ -855,7 +948,7 @@ BEGIN
       v_sub.id_plan,
       v_inicio,
       v_fin,
-      CASE WHEN v_fin > p_ahora OR v_renovaciones = 36 THEN 'activa' ELSE 'reemplazada' END,
+      CASE WHEN v_fin > p_ahora OR v_renovaciones = 12 THEN 'activa' ELSE 'reemplazada' END,
       v_sub.precio_contratado,
       COALESCE(v_sub.limite_bytes_contratado, v_plan_bytes, 10737418240)
     )
@@ -871,18 +964,11 @@ BEGIN
       'NMB-' || (EXTRACT(EPOCH FROM v_inicio)::BIGINT * 1000)::TEXT || '-' || UPPER(SUBSTRING(REPLACE(v_nuevo_id::TEXT, '-', '') FROM 1 FOR 4)),
       'completado',
       v_inicio
-    );
+    )
+    ON CONFLICT (id_suscripcion) DO NOTHING;
 
     v_inicio := v_fin;
   END LOOP;
-
-  IF v_nuevo_id IS NOT NULL THEN
-    UPDATE public.suscripcion
-    SET estado = 'reemplazada'
-    WHERE id_usuario = p_usuario
-      AND estado = 'activa'
-      AND id_suscripcion <> v_nuevo_id;
-  END IF;
 
   RETURN v_renovaciones;
 END;

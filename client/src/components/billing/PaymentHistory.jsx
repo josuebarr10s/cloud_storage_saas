@@ -9,7 +9,7 @@ import {
   PAYMENT_STATUS, STATUS_META, PERIOD_OPTIONS, PAGE_SIZE,
   filterTransactions, sortTransactions, paginate, availableYears, yearSummary, monthlyTotals,
   monthShortName, formatMoney, formatShortDate, formatLongDate, cycleLabel,
-  transactionsToCsv, localDateKey, buildInvoiceHtml, downloadTextFile, openPrintableWindow
+  buildTransactionsXlsx, localDateKey, buildInvoiceHtml, downloadTextFile, downloadBlobFile, openPrintableWindow
 } from '../../utils/billing.js';
 
 const cardStyle = {
@@ -172,9 +172,18 @@ export const PaymentHistory = ({ currentUser, onChangePlan, onNotification, refr
 
   const handleExport = () => {
     if (filtered.length === 0) return;
-    // BOM para que Excel respete los acentos
-    downloadTextFile(`nimbox-pagos-${localDateKey(new Date())}.csv`, `\uFEFF${transactionsToCsv(filtered)}`, 'text/csv;charset=utf-8');
-    notify(`Se exportaron ${filtered.length} ${filtered.length === 1 ? 'transacción' : 'transacciones'} a CSV.`, 'success');
+    const xlsxBytes = buildTransactionsXlsx({
+      transactions: filtered,
+      user: currentUser,
+      subscription: data?.subscription,
+      paymentMethod: data?.paymentMethod,
+    });
+    downloadBlobFile(
+      `nimbox-pagos-${localDateKey(new Date())}.xlsx`,
+      xlsxBytes,
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    notify(`Se exportaron ${filtered.length} ${filtered.length === 1 ? 'transacción' : 'transacciones'} a Excel (.xlsx).`, 'success');
   };
 
   const handleInvoice = (tx) => {

@@ -111,6 +111,13 @@ export const plansService = {
       const durationDays = billingCycle === 'annual' ? DAYS_ANNUAL : DAYS_MONTHLY;
       fechaFin.setDate(fechaFin.getDate() + durationDays);
 
+      // Reemplazar suscripciones activas anteriores antes de insertar la nueva
+      await supabase
+        .from('suscripcion')
+        .update({ estado: 'reemplazada' })
+        .eq('id_usuario', userId)
+        .eq('estado', 'activa');
+
       // Insertar en public.suscripcion
       const { data: subData, error: subErr } = await supabase
         .from('suscripcion')
@@ -131,33 +138,32 @@ export const plansService = {
 
       const subRecord = subData?.[0];
       if (subRecord) {
-        // Reemplazar suscripciones anteriores para mantener únicamente una activa
-        await supabase
-          .from('suscripcion')
-          .update({ estado: 'reemplazada' })
-          .eq('id_usuario', userId)
-          .eq('estado', 'activa')
-          .neq('id_suscripcion', subRecord.id_suscripcion);
-
         // Actualizar capacidad de almacenamiento del usuario
         await supabase
           .from('almacenamiento')
           .upsert({ id_usuario: userId, capacidad_total_bytes: limitBytes }, { onConflict: 'id_usuario' });
 
-        // Registrar recibo en public.pago
-        // Solo se guarda la marca y los últimos 4 dígitos, nunca el número completo ni el CVC
-        const { error: pagoErr } = await supabase.from('pago').insert([{
-          id_suscripcion: subRecord.id_suscripcion,
-          monto: parseFloat(amountPaid || 12),
-          metodo_pago: encodePaymentMethod(cardBrand, cardLast4),
-          referencia_transaccion: transactionId || `NMB-${fechaInicio.getTime()}`,
-          estado: 'completado',
-          fecha_pago: fechaInicio.toISOString()
-        }]);
+        // Verificar si un trigger de la BD ya creó el recibo en public.pago para evitar duplicarlo
+        const { data: existingPagos } = await supabase
+          .from('pago')
+          .select('id_pago')
+          .eq('id_suscripcion', subRecord.id_suscripcion);
 
-        if (pagoErr) {
-          // La suscripción ya quedó activa: se registra el fallo sin cancelar el pago al usuario
-          console.error('Error al insertar en public.pago:', pagoErr.message);
+        if (!existingPagos || existingPagos.length === 0) {
+          // Solo se guarda la marca y los últimos 4 dígitos, nunca el número completo ni el CVC
+          const { error: pagoErr } = await supabase.from('pago').insert([{
+            id_suscripcion: subRecord.id_suscripcion,
+            monto: parseFloat(amountPaid || 12),
+            metodo_pago: encodePaymentMethod(cardBrand, cardLast4),
+            referencia_transaccion: transactionId || `NMB-${fechaInicio.getTime()}`,
+            estado: 'completado',
+            fecha_pago: fechaInicio.toISOString()
+          }]);
+
+          if (pagoErr) {
+            // La suscripción ya quedó activa: se registra el fallo sin cancelar el pago al usuario
+            console.error('Error al insertar en public.pago:', pagoErr.message);
+          }
         }
       }
 
