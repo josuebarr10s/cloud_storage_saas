@@ -1,3 +1,4 @@
+import { askConfirm } from '../../utils/confirm.js';
 import React, { useState, useEffect } from 'react';
 import { X, Share2, Copy, Check, Loader2, Link2, Link2Off, Eye, Edit2, Shield, Lock } from 'lucide-react';
 import { sharingService, buildShareUrl, canUseAdvancedSharing, canUseEnterpriseSharing, SHARE_PERMISSIONS } from '../../services/sharingService.js';
@@ -141,7 +142,7 @@ export const ShareLinkModal = ({ item, isOpen, onClose, currentUser, onNotificat
   };
 
   const handleRemovePassword = async () => {
-    if (!window.confirm('¿Quitar la contraseña? Cualquiera con el enlace podrá abrirlo.')) return;
+    if (!(await askConfirm('¿Quitar la contraseña? Cualquiera con el enlace podrá abrirlo.', { confirmText: 'Quitar contraseña', danger: true }))) return;
     setIsBusy(true);
     try {
       await sharingService.configureLink(link.token, { expiresAt: link.expiresAt, removePassword: true });
@@ -165,7 +166,7 @@ export const ShareLinkModal = ({ item, isOpen, onClose, currentUser, onNotificat
   };
 
   const handleDeactivate = async () => {
-    if (!window.confirm(`¿Desactivar el enlace? Quien lo tenga ya no podrá abrir esta ${kind}.`)) return;
+    if (!(await askConfirm(`¿Desactivar el enlace? Quien lo tenga ya no podrá abrir esta ${kind}.`, { confirmText: 'Desactivar', danger: true }))) return;
     setIsBusy(true);
     try {
       await sharingService.deactivateLink(item);

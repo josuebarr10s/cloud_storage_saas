@@ -1,3 +1,4 @@
+import { askConfirm } from '../../utils/confirm.js';
 import React, { useState, useEffect } from 'react';
 import { X, Clock, Download, RotateCcw, Loader2, FileText, CheckCircle } from 'lucide-react';
 import { filesService } from '../../services/filesService.js';
@@ -38,7 +39,7 @@ export const VersionHistoryModal = ({ file, isOpen, onClose, currentUser, onNoti
   };
 
   const handleRestoreVersion = async (version) => {
-    if (!window.confirm(`¿Restaurar la versión del ${version.date}? La versión actual se guardará en el historial.`)) return;
+    if (!(await askConfirm(`¿Restaurar la versión del ${version.date}? La versión actual se guardará en el historial.`, { confirmText: 'Restaurar' }))) return;
 
     setRestoringId(version.id);
     try {

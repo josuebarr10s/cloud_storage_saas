@@ -62,7 +62,7 @@ export const PaymentModal = ({ isOpen, onClose, user, selectedPlan, billingCycle
 
   const handleProcessPayment = () => {
     if (!validatePayment()) return;
-    if (!user) { alert("Error: No hay usuario autenticado."); return; }
+    if (!user) { setErrors({ general: 'No hay un usuario autenticado. Inicia sesión para continuar.' }); return; }
 
     setCurrentStep(2);
     setProcessingStatus('Conectando con el banco...');

@@ -10,6 +10,7 @@ import { LoginModal } from './components/auth/LoginModal.jsx';
 import { ForgotPasswordModal } from './components/auth/ForgotPasswordModal.jsx';
 import { ResetPasswordModal } from './components/auth/ResetPasswordModal.jsx';
 import { Toast } from './components/Toast.jsx';
+import { ConfirmHost } from './components/ConfirmDialog.jsx';
 
 import { authService } from './services/authService.js';
 import { takeShareTokenFromUrl, clearPendingShareToken } from './services/sharingService.js';
@@ -238,6 +239,7 @@ export default function App() {
       <PaymentModal isOpen={isPaymentOpen} onClose={() => setIsPaymentOpen(false)} user={currentUser} selectedPlan={selectedPlan} billingCycle={billingCycle} onPaymentSuccess={handlePaymentSuccess} />
 
       <Toast toast={toast} onClose={() => setToast(null)} />
+      <ConfirmHost />
     </div>
   );
 }

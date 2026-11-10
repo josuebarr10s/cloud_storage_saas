@@ -1,3 +1,4 @@
+import { askConfirm } from '../utils/confirm.js';
 import React, { useState, useEffect } from 'react';
 import { 
   Cloud, HardDrive, Upload, FolderPlus, Share2, LogOut, Search, 
@@ -241,7 +242,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
 
   // Eliminar carpeta (sus archivos se mandan a la papelera)
   const handleDeleteFolder = async (folder) => {
-    if (!window.confirm(`¿Eliminar la carpeta "${folder.name}" y sus subcarpetas? Los archivos que contiene se moverán a la papelera.`)) return;
+    if (!(await askConfirm(`¿Eliminar la carpeta "${folder.name}" y sus subcarpetas? Los archivos que contiene se moverán a la papelera.`, { confirmText: 'Eliminar carpeta', danger: true }))) return;
     try {
       const enviados = await filesService.deleteFolder(folder.id, currentUser?.id);
       await loadDashboardData();
@@ -344,7 +345,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
   };
 
   const handlePermanentDelete = async (file) => {
-    if (!window.confirm(`¿Eliminar "${file.name}" definitivamente? Esta acción no se puede deshacer.`)) return;
+    if (!(await askConfirm(`¿Eliminar "${file.name}" definitivamente? Esta acción no se puede deshacer.`, { confirmText: 'Eliminar definitivamente', danger: true }))) return;
     try {
       await filesService.deletePermanently(currentUser?.id, file.id, file.file_path);
       setTrashFiles(prev => prev.filter(f => f.id !== file.id));

@@ -1,3 +1,4 @@
+import { askConfirm } from '../utils/confirm.js';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Eye, Download, Upload, ArrowLeft, Loader2, AlertCircle, LogOut, Lock, User, Info, Edit2, Folder, Clock, KeyRound
@@ -113,8 +114,8 @@ export const SharedView = ({ token, currentUser, hasPlan, onExit, onLogout, onNo
   };
 
   // Sin plan no hay dashboard: al salir, lo compartido solo se recupera con el enlace
-  const handleLeave = () => {
-    if (!hasPlan && !window.confirm('Si sales, para volver a ver esto tendrás que abrir el enlace otra vez. ¿Quieres salir?')) return;
+  const handleLeave = async () => {
+    if (!hasPlan && !(await askConfirm('Si sales, para volver a ver esto tendrás que abrir el enlace otra vez. ¿Quieres salir?', { title: 'Salir del enlace', confirmText: 'Salir' }))) return;
     onExit();
   };
 

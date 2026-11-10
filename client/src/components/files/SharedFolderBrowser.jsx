@@ -1,3 +1,4 @@
+import { askConfirm } from '../../utils/confirm.js';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Folder, FileText, Image as ImageIcon, Video, Music, Archive, FileCode,
@@ -128,8 +129,8 @@ export const SharedFolderBrowser = ({ rootFolder, ownerId, permission, onNotific
     );
   };
 
-  const handleMoveToTrash = (file) => {
-    if (!window.confirm(`¿Mandar "${file.name}" a la papelera de su dueño?`)) return;
+  const handleMoveToTrash = async (file) => {
+    if (!(await askConfirm(`¿Mandar "${file.name}" a la papelera de su dueño?`, { confirmText: 'Mandar a la papelera', danger: true }))) return;
     runEditorAction(() => filesService.moveToTrash(file.id), `"${file.name}" se movió a la papelera.`);
   };
 

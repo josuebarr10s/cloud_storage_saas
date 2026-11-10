@@ -1,3 +1,4 @@
+import { askConfirm } from '../utils/confirm.js';
 import React, { useState, useEffect } from 'react';
 import {
   LogOut, Search, Loader2, Users, HardDrive, DollarSign,
@@ -80,7 +81,7 @@ export const AdminDashboardView = ({ currentUser, onLogout, onNotification }) =>
   const handleToggleStatus = async (user) => {
     const nuevoEstado = user.estado === 'suspendido' ? 'activo' : 'suspendido';
     const accion = nuevoEstado === 'suspendido' ? 'suspender' : 'activar';
-    if (!window.confirm(`¿Seguro que quieres ${accion} a ${user.name}?`)) return;
+    if (!(await askConfirm(`¿Seguro que quieres ${accion} a ${user.name}?`, { confirmText: accion === 'suspender' ? 'Suspender' : 'Activar', danger: nuevoEstado === 'suspendido' }))) return;
 
     setBusyUserId(user.id);
     try {
@@ -98,7 +99,7 @@ export const AdminDashboardView = ({ currentUser, onLogout, onNotification }) =>
   // Cambiar rol Administrador <-> Cliente
   const handleToggleRole = async (user) => {
     const nuevoRol = user.idRol === 1 ? 2 : 1;
-    if (!window.confirm(`¿Cambiar el rol de ${user.name} a ${ROLES[nuevoRol]}?`)) return;
+    if (!(await askConfirm(`¿Cambiar el rol de ${user.name} a ${ROLES[nuevoRol]}?`, { confirmText: 'Cambiar rol' }))) return;
 
     setBusyUserId(user.id);
     try {
