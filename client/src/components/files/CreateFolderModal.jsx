@@ -47,6 +47,7 @@ export const CreateFolderModal = ({ isOpen, onClose, onCreateFolder, initialData
 
   return (
     <div
+      className="nb-modal-overlay"
       style={{
         position: 'fixed',
         top: 0,
@@ -65,11 +66,15 @@ export const CreateFolderModal = ({ isOpen, onClose, onCreateFolder, initialData
       onClick={onClose}
     >
       <div
+        className="nb-modal-card"
         style={{
           background: 'var(--bg-card)',
           borderRadius: 'var(--radius-xl)',
           width: '100%',
           maxWidth: '460px',
+          maxHeight: '92vh',
+          display: 'flex',
+          flexDirection: 'column',
           boxShadow: 'var(--shadow-modal)',
           border: '1px solid var(--border-color)',
           overflow: 'hidden'
@@ -78,6 +83,7 @@ export const CreateFolderModal = ({ isOpen, onClose, onCreateFolder, initialData
       >
         {/* Modal Header */}
         <div
+          className="nb-modal-header"
           style={{
             padding: '1.25rem 1.5rem',
             borderBottom: '1px solid var(--border-color)',
@@ -97,7 +103,8 @@ export const CreateFolderModal = ({ isOpen, onClose, onCreateFolder, initialData
                 color: activeColorObj.color,
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center'
+                justifyContent: 'center',
+                flexShrink: 0
               }}
             >
               <FolderPlus size={20} />
@@ -127,7 +134,7 @@ export const CreateFolderModal = ({ isOpen, onClose, onCreateFolder, initialData
         </div>
 
         {/* Modal Content */}
-        <form onSubmit={handleSubmit} style={{ padding: '1.5rem' }}>
+        <form onSubmit={handleSubmit} className="nb-modal-body" style={{ padding: '1.5rem', overflowY: 'auto' }}>
           {/* Visual Preview */}
           <div
             style={{

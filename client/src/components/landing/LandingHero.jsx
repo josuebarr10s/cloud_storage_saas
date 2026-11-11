@@ -398,15 +398,15 @@ export const LandingHero = ({ onGetStartedClick, onLoginClick }) => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <div className="mock-link-row">
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-                    <div style={{ padding: '6px', borderRadius: 'var(--radius-xs)', background: 'var(--accent-sky-bg)', color: 'var(--accent-sky)' }}>
+                    <div style={{ padding: '6px', borderRadius: 'var(--radius-xs)', background: 'var(--accent-sky-bg)', color: 'var(--accent-sky)', flexShrink: 0 }}>
                       <Share2 size={16} />
                     </div>
-                    <div>
-                      <p style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>Presentacion_Ejecutiva_2026.pdf</p>
+                    <div style={{ minWidth: 0 }}>
+                      <p style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Presentacion_Ejecutiva_2026.pdf</p>
                       <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Solo lectura • abierto 24 veces</p>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                     <span style={{ fontSize: '0.75rem', fontWeight: 600, background: 'var(--primary-light)', color: 'var(--primary)', padding: '2px 8px', borderRadius: 'var(--radius-xs)' }}>
                       Con Contraseña
                     </span>
@@ -418,11 +418,11 @@ export const LandingHero = ({ onGetStartedClick, onLoginClick }) => {
 
                 <div className="mock-link-row">
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-                    <div style={{ padding: '6px', borderRadius: 'var(--radius-xs)', background: 'var(--accent-violet-bg)', color: 'var(--accent-violet)' }}>
+                    <div style={{ padding: '6px', borderRadius: 'var(--radius-xs)', background: 'var(--accent-violet-bg)', color: 'var(--accent-violet)', flexShrink: 0 }}>
                       <Share2 size={16} />
                     </div>
-                    <div>
-                      <p style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>Render_Comercial_3D.zip</p>
+                    <div style={{ minWidth: 0 }}>
+                      <p style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Render_Comercial_3D.zip</p>
                       <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Editor • con contraseña</p>
                     </div>
                   </div>

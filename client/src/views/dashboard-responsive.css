@@ -1,53 +1,616 @@
 /* ============================================================
-   Dashboard: ajustes responsive (solo diseño, sin lógica).
-   Los estilos base viven en línea en DashboardView.jsx; aquí se
-   adaptan a pantallas pequeñas (por eso algunos usan !important).
+   Nimbox: Sistema Responsive Integral (Móvil, Tablet y Escritorio)
+   Adapta Dashboard, Historial de Pagos, Panel de Administración,
+   Vista de Compartidos y Modales a cualquier tamaño de pantalla.
    ============================================================ */
 
-/* Pestañas: si no caben, se desplazan horizontalmente en vez de empujar la página */
-.nb-dash-tabs {
+/* Visibilidad adaptable */
+.nb-dash-user-meta {
+  display: flex;
+  flex-direction: column;
+}
+
+.nb-dash-sort-label {
+  display: inline;
+}
+
+/* Pestañas y menú desplegable adaptable */
+.nb-dash-tabs,
+.nb-admin-tabs,
+.nb-billing-chips {
   max-width: 100%;
-  overflow-x: auto;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
 }
-.nb-dash-tabs::-webkit-scrollbar { display: none; }
-.nb-dash-tab { white-space: nowrap; flex-shrink: 0; }
 
-.nb-dash-plan { white-space: nowrap; }
+.nb-dash-tab,
+.nb-admin-tab,
+.nb-billing-chip {
+  white-space: nowrap;
+}
 
-/* Tablas (lista de archivos y papelera): scroll horizontal dentro de la tarjeta */
-.nb-dash-content { overflow-x: auto !important; }
-.nb-dash-table { min-width: 720px; }
+/* Menú desplegable de secciones (oculto en escritorio, visible en <= 960px) */
+.nb-dash-dropdown-wrap {
+  display: none;
+  position: relative;
+  width: 100%;
+  z-index: 60;
+}
 
-.nb-dash-controls > * { min-width: 0; }
+.nb-dash-dropdown-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
 
-/* Tablet */
+.nb-dash-dropdown-trigger:hover,
+.nb-dash-dropdown-trigger.is-open {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-focus), var(--shadow-md);
+}
+
+.nb-dash-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-modal);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: nbDropdownIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes nbDropdownIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.nb-dash-dropdown-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.nb-dash-dropdown-item:hover:not(.is-selected) {
+  background: var(--bg-hover) !important;
+}
+
+.nb-dash-plan {
+  white-space: nowrap;
+}
+
+/* Contenedores con tablas */
+.nb-dash-content {
+  overflow-x: auto !important;
+}
+.nb-dash-table {
+  min-width: 700px;
+}
+
+.nb-dash-controls > * {
+  min-width: 0;
+}
+
+/* ============================================================
+   TABLET (<= 1024px y <= 960px)
+   ============================================================ */
+@media (max-width: 1024px) {
+  .nb-dash-main,
+  .nb-admin-main {
+    padding: 1.5rem 1.25rem !important;
+  }
+
+  .nb-admin-stats {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
 @media (max-width: 960px) {
-  .nb-dash-controls { flex-direction: column; align-items: stretch !important; }
-  .nb-dash-tabs { width: 100%; }
-  .nb-dash-toolbar { width: 100%; }
-  .nb-dash-search { flex: 1 1 200px; }
-  .nb-dash-search-input { width: 100% !important; }
+  .nb-dash-controls,
+  .nb-admin-controls {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+
+  /* En pantallas <= 960px ocultamos la tira larga de botones y activamos el menú desplegable estético */
+  .nb-dash-tabs {
+    display: none !important;
+  }
+
+  .nb-dash-dropdown-wrap {
+    display: block;
+  }
+
+  .nb-admin-tabs {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .nb-dash-toolbar,
+  .nb-admin-search-row {
+    width: 100%;
+  }
+
+  .nb-dash-search,
+  .nb-admin-search {
+    flex: 1 1 200px;
+  }
+
+  .nb-dash-search-input,
+  .nb-admin-search-input {
+    width: 100% !important;
+  }
+
+  .nb-dash-grid {
+    grid-template-columns: repeat(auto-fill, minmax(195px, 1fr)) !important;
+  }
 }
 
-/* Celular */
+/* ============================================================
+   TABLET PEQUEÑA / MÓVIL GRANDE (<= 768px)
+   ============================================================ */
+@media (max-width: 768px) {
+  .nb-dash-user-meta {
+    display: none !important;
+  }
+
+  .nb-dash-header,
+  .nb-admin-header {
+    padding: 0.75rem 1.15rem !important;
+  }
+
+  .nb-dash-banner,
+  .nb-admin-banner {
+    padding: 1.5rem !important;
+  }
+
+  .nb-dash-quota {
+    width: 100%;
+    min-width: 0 !important;
+  }
+
+  /* Tabla de administración convertida en tarjetas cómodas en pantallas <= 768px */
+  .nb-admin-table {
+    min-width: 0 !important;
+    display: block;
+  }
+  .nb-admin-table thead {
+    display: none;
+  }
+  .nb-admin-table tbody {
+    display: flex;
+    flex-direction: column;
+  }
+  .nb-admin-table tbody tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px 12px;
+    padding: 14px 16px;
+  }
+  .nb-admin-table tbody td {
+    padding: 0 !important;
+    min-width: 0 !important;
+  }
+  .nb-admin-table tbody td:first-child {
+    flex: 1 1 180px;
+  }
+  .nb-admin-table tbody td:nth-child(4) {
+    flex: 1 1 100%;
+    order: 5;
+    margin-top: 2px;
+  }
+  .nb-admin-table tbody td:nth-child(6) {
+    font-size: 0.78rem !important;
+    order: 6;
+  }
+  .nb-admin-table tbody td:last-child {
+    order: 7;
+    margin-left: auto;
+  }
+}
+
+/* ============================================================
+   MÓVIL (<= 640px)
+   ============================================================ */
 @media (max-width: 640px) {
-  .nb-dash-header { padding: 0.7rem 1rem !important; gap: 10px; }
-  .nb-dash-header-left { gap: 10px !important; min-width: 0; }
-  .nb-dash-hide-sm { display: none; }
-  .nb-dash-plan { font-size: 0.68rem !important; padding: 2px 8px !important; }
+  /* Encabezados */
+  .nb-dash-header,
+  .nb-admin-header,
+  .nb-shared-header {
+    padding: 0.7rem 0.95rem !important;
+    gap: 8px !important;
+  }
 
-  .nb-dash-main { padding: 1.25rem 1rem !important; }
+  .nb-dash-header-left,
+  .nb-admin-header-left {
+    gap: 8px !important;
+    min-width: 0;
+  }
 
-  .nb-dash-banner { padding: 1.35rem !important; border-radius: var(--radius-lg) !important; margin-bottom: 1.5rem !important; }
-  .nb-dash-banner-title { font-size: 1.35rem !important; line-height: 1.25; }
-  .nb-dash-quota { min-width: 0 !important; width: 100%; }
+  .nb-dash-hide-sm {
+    display: none !important;
+  }
 
-  .nb-dash-breadcrumb { flex-wrap: wrap; gap: 6px; padding: 10px 12px !important; }
+  .nb-dash-sort-label {
+    display: none !important;
+  }
+
+  .nb-dash-plan,
+  .nb-admin-badge {
+    font-size: 0.68rem !important;
+    padding: 2px 8px !important;
+  }
+
+  /* Contenedor principal */
+  .nb-dash-main,
+  .nb-admin-main {
+    padding: 1.1rem 0.9rem !important;
+  }
+
+  .nb-admin-tabs {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px !important;
+    padding: 6px !important;
+  }
+
+  .nb-admin-tab {
+    width: 100%;
+    text-align: center;
+    padding: 8px 10px !important;
+    font-size: 0.8rem !important;
+  }
+
+  /* Banners de bienvenida */
+  .nb-dash-banner,
+  .nb-admin-banner {
+    padding: 1.25rem !important;
+    border-radius: var(--radius-lg) !important;
+    margin-bottom: 1.25rem !important;
+    gap: 14px !important;
+  }
+
+  .nb-dash-banner-title,
+  .nb-admin-banner-title {
+    font-size: 1.3rem !important;
+    line-height: 1.25;
+  }
+
+  /* Barra de herramientas del Dashboard en móvil */
+  .nb-dash-toolbar {
+    gap: 8px !important;
+  }
+
+  .nb-dash-search {
+    flex: 1 1 100% !important;
+    order: -1;
+  }
+
+  .nb-dash-sort-box {
+    flex: 1 1 auto;
+    justify-content: space-between;
+  }
+
+  .nb-dash-action-btn {
+    flex: 1 1 calc(50% - 6px);
+    justify-content: center !important;
+    padding: 9px 10px !important;
+    font-size: 0.82rem !important;
+  }
+
+  /* Breadcrumb */
+  .nb-dash-breadcrumb {
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    padding: 10px 12px !important;
+  }
+
+  /* Cuadrícula de carpetas y archivos */
+  .nb-dash-grid-wrap {
+    padding: 1rem !important;
+    gap: 1.25rem !important;
+  }
+
+  .nb-dash-grid {
+    grid-template-columns: repeat(auto-fill, minmax(min(165px, 100%), 1fr)) !important;
+    gap: 12px !important;
+  }
+
+  /* Vista de Lista y Papelera: tarjetas móviles sin necesidad de scroll horizontal */
+  .nb-dash-content {
+    overflow-x: hidden !important;
+  }
+
+  .nb-dash-table {
+    min-width: 0 !important;
+    display: block;
+  }
+
+  .nb-dash-table thead {
+    display: none;
+  }
+
+  .nb-dash-table tbody {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .nb-dash-table tbody tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 10px;
+    padding: 12px 14px;
+  }
+
+  .nb-dash-table tbody td {
+    padding: 0 !important;
+  }
+
+  .nb-dash-table tbody td:first-child {
+    flex: 1 1 100%;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .nb-dash-table tbody td:nth-child(2),
+  .nb-dash-table tbody td:nth-child(3) {
+    font-size: 0.78rem !important;
+  }
+
+  .nb-dash-table tbody td:last-child {
+    margin-left: auto;
+  }
+
+  /* ==========================================================
+     HISTORIAL DE PAGOS (PaymentHistory.jsx) EN MÓVIL
+     ========================================================== */
+  .nb-billing-card {
+    padding: 1rem 1.1rem !important;
+  }
+
+  .nb-billing-top-actions {
+    width: 100%;
+  }
+
+  .nb-billing-top-actions > button {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .nb-billing-summary-grid {
+    grid-template-columns: 1fr !important;
+    gap: 0.9rem !important;
+  }
+
+  .nb-billing-header-bar {
+    padding: 1rem 1.1rem !important;
+  }
+
+  .nb-billing-filters {
+    padding: 0 1.1rem 1rem !important;
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+
+  .nb-billing-chips {
+    flex-wrap: wrap !important;
+    width: 100%;
+    gap: 6px !important;
+  }
+
+  .nb-billing-chip {
+    flex: 1 1 auto;
+    text-align: center;
+  }
+
+  .nb-billing-search-row {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px !important;
+  }
+
+  .nb-billing-period-select {
+    flex: 1 1 130px;
+  }
+
+  .nb-billing-search-wrap {
+    flex: 2 1 180px;
+  }
+
+  .nb-billing-search-input {
+    width: 100% !important;
+  }
+
+  /* Tabla de transacciones convertida en tarjetas limpias en móvil */
+  .nb-billing-table {
+    min-width: 0 !important;
+    display: block;
+  }
+
+  .nb-billing-table thead {
+    display: none;
+  }
+
+  .nb-billing-table tbody {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .nb-billing-table tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px 12px;
+    padding: 14px 16px;
+    align-items: center;
+  }
+
+  .nb-billing-table tbody td {
+    padding: 0 !important;
+  }
+
+  /* Concepto + Referencia arriba a la izquierda */
+  .nb-billing-table tbody td:nth-child(2) {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+  }
+
+  /* Monto arriba a la derecha */
+  .nb-billing-table tbody td:nth-child(3) {
+    grid-column: 2;
+    grid-row: 1;
+    text-align: right;
+    font-size: 1rem !important;
+  }
+
+  /* Fecha en segunda fila a la izquierda */
+  .nb-billing-table tbody td:nth-child(1) {
+    grid-column: 1;
+    grid-row: 2;
+    font-size: 0.78rem !important;
+  }
+
+  /* Estado en tercera fila a la izquierda */
+  .nb-billing-table tbody td:nth-child(4) {
+    grid-column: 1;
+    grid-row: 3;
+    padding-top: 2px !important;
+  }
+
+  /* Botón Descargar a la derecha abarcando filas 2 y 3 */
+  .nb-billing-table tbody td:nth-child(5) {
+    grid-column: 2;
+    grid-row: 2 / span 2;
+    text-align: right;
+    align-self: end;
+  }
+
+  .nb-billing-pagination {
+    padding: 0.9rem 1.1rem !important;
+    flex-direction: column;
+    align-items: center !important;
+    text-align: center;
+  }
+
+  /* ==========================================================
+     PANEL DE ADMINISTRACIÓN EN MÓVIL
+     ========================================================== */
+  .nb-admin-stats {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+  }
+
+  .nb-admin-stat-card {
+    padding: 0.95rem !important;
+    gap: 10px !important;
+  }
+
+  .nb-admin-search-row {
+    display: flex;
+    width: 100%;
+    gap: 8px !important;
+  }
+
+  /* ==========================================================
+     COMPARTIDOS Y VISTA PREVIA EN MÓVIL
+     ========================================================== */
+  .nb-shared-main {
+    padding: 1.15rem 0.85rem !important;
+  }
+
+  .nb-shared-card {
+    padding: 1.35rem 1.1rem !important;
+    border-radius: var(--radius-lg) !important;
+  }
+
+  .nb-shared-actions {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+
+  .nb-shared-actions > button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .nb-shared-list-row {
+    flex-wrap: wrap;
+    padding: 12px 14px !important;
+    gap: 10px !important;
+  }
+
+  .nb-preview-header {
+    padding: 0.85rem 1rem !important;
+    flex-wrap: wrap;
+    gap: 10px !important;
+  }
+
+  .nb-preview-title {
+    max-width: 190px !important;
+  }
+
+  .nb-preview-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .nb-preview-footer {
+    padding: 0.7rem 1rem !important;
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 6px !important;
+  }
 }
 
-/* Celulares muy angostos: el plan ya aparece en el banner */
-@media (max-width: 400px) {
-  .nb-dash-plan { display: none; }
+/* ============================================================
+   CELULARES PEQUEÑOS (<= 420px)
+   ============================================================ */
+@media (max-width: 420px) {
+  .nb-dash-plan,
+  .nb-admin-badge {
+    display: none !important;
+  }
+
+  .nb-dash-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .nb-admin-stats {
+    grid-template-columns: 1fr !important;
+  }
+
+  .nb-dash-action-btn {
+    flex: 1 1 100%;
+  }
 }

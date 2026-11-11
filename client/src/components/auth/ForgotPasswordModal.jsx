@@ -48,6 +48,7 @@ export const ForgotPasswordModal = ({ isOpen, onClose, onBackToLogin }) => {
 
   return (
     <div
+      className="nb-modal-overlay"
       style={{
         position: 'fixed',
         inset: 0,
@@ -62,10 +63,14 @@ export const ForgotPasswordModal = ({ isOpen, onClose, onBackToLogin }) => {
       }}
     >
       <div
+        className="nb-modal-card"
         style={{
           background: 'var(--bg-card)',
           width: '100%',
           maxWidth: '440px',
+          maxHeight: '92vh',
+          display: 'flex',
+          flexDirection: 'column',
           borderRadius: 'var(--radius-2xl)',
           boxShadow: 'var(--shadow-modal)',
           border: '1px solid var(--border-color)',
@@ -75,6 +80,7 @@ export const ForgotPasswordModal = ({ isOpen, onClose, onBackToLogin }) => {
       >
         {/* Header */}
         <div
+          className="nb-modal-header"
           style={{
             padding: '1.25rem 1.5rem',
             display: 'flex',
@@ -130,7 +136,7 @@ export const ForgotPasswordModal = ({ isOpen, onClose, onBackToLogin }) => {
         </div>
 
         {/* Content */}
-        <div style={{ padding: '1.75rem' }}>
+        <div className="nb-modal-body" style={{ padding: '1.75rem', overflowY: 'auto' }}>
           {!isSent ? (
             <>
               <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>

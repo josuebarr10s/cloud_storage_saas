@@ -250,7 +250,7 @@ export const PaymentHistory = ({ currentUser, onChangePlan, onNotification, refr
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
       {/* Método de pago + cambio de plan */}
-      <div style={{ ...cardStyle, padding: '1.25rem 1.5rem' }}>
+      <div className="nb-billing-card" style={{ ...cardStyle, padding: '1.25rem 1.5rem' }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px', minWidth: 0 }}>
             <div style={{ width: '52px', height: '40px', borderRadius: 'var(--radius-sm)', background: 'var(--bg-dark)', color: 'var(--text-white)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -263,13 +263,13 @@ export const PaymentHistory = ({ currentUser, onChangePlan, onNotification, refr
                   <span style={{ background: 'var(--primary-light)', color: 'var(--primary)', fontSize: '0.72rem', fontWeight: 700, padding: '2px 10px', borderRadius: 'var(--radius-full)' }}>Principal</span>
                 )}
               </div>
-              <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', wordBreak: 'break-word' }}>
                 {currentUser?.name || 'Cliente Nimbox'}{currentUser?.email ? ` · ${currentUser.email}` : ''}
               </span>
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <div className="nb-billing-top-actions" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             <button type="button" className="btn-secondary" onClick={handleRefresh} disabled={isLoading} title="Actualizar historial" style={{ padding: '8px 12px', fontSize: '0.85rem', borderRadius: 'var(--radius-sm)', gap: '6px', background: 'var(--bg-card)', opacity: isLoading ? 0.7 : 1 }}>
               <RefreshCw size={15} style={{ transform: `rotate(${spinTurns * 360}deg)`, transition: 'transform 0.6s ease-in-out' }} />
               <span>Actualizar</span>
@@ -321,9 +321,9 @@ export const PaymentHistory = ({ currentUser, onChangePlan, onNotification, refr
       </div>
 
       {/* Tarjetas de resumen */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.25rem' }}>
+      <div className="nb-billing-summary-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.25rem' }}>
         {/* Total pagado + mini gráfica */}
-        <div style={{ ...cardStyle, padding: '1.25rem 1.5rem' }}>
+        <div className="nb-billing-card" style={{ ...cardStyle, padding: '1.25rem 1.5rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={labelStyle}>Total pagado ({year})</span>
             {years.length > 1 && (
@@ -347,7 +347,7 @@ export const PaymentHistory = ({ currentUser, onChangePlan, onNotification, refr
         </div>
 
         {/* Próxima factura */}
-        <div style={{ ...cardStyle, padding: '1.25rem 1.5rem' }}>
+        <div className="nb-billing-card" style={{ ...cardStyle, padding: '1.25rem 1.5rem' }}>
           <span style={labelStyle}>Próxima factura</span>
           {sub ? (
             <>
@@ -370,7 +370,7 @@ export const PaymentHistory = ({ currentUser, onChangePlan, onNotification, refr
         </div>
 
         {/* Plan actual + progreso del periodo */}
-        <div style={{ ...cardStyle, padding: '1.25rem 1.5rem' }}>
+        <div className="nb-billing-card" style={{ ...cardStyle, padding: '1.25rem 1.5rem' }}>
           <span style={labelStyle}>Plan actual</span>
           <div style={{ fontSize: '1.75rem', fontWeight: 800, margin: '6px 0 2px' }}>{sub?.planName || currentUser?.plan || 'Ninguno'}</div>
           <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>{sub ? `Facturación ${cycleLabel(sub.cycle).toLowerCase()} · Automática` : 'Sin facturación activa'}</div>
@@ -390,7 +390,7 @@ export const PaymentHistory = ({ currentUser, onChangePlan, onNotification, refr
 
       {/* Transacciones */}
       <div style={{ ...cardStyle, overflow: 'hidden' }}>
-        <div style={{ padding: '1.25rem 1.5rem', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+        <div className="nb-billing-header-bar" style={{ padding: '1.25rem 1.5rem', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
           <div>
             <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0 }}>Transacciones</h3>
             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{transactions.length} {transactions.length === 1 ? 'registro' : 'registros'} en total</span>
@@ -401,23 +401,23 @@ export const PaymentHistory = ({ currentUser, onChangePlan, onNotification, refr
         </div>
 
         {transactions.length > 0 && (
-          <div style={{ padding: '0 1.5rem 1rem', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+          <div className="nb-billing-filters" style={{ padding: '0 1.5rem 1rem', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+            <div className="nb-billing-chips" style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
               {chips.map((id) => {
                 const active = statusFilter === id;
                 return (
-                  <button key={id} type="button" onClick={() => setStatusFilter(id)} style={{ padding: '5px 12px', borderRadius: 'var(--radius-full)', border: `1px solid ${active ? 'var(--primary)' : 'var(--border-color)'}`, background: active ? 'var(--primary)' : 'var(--bg-card)', color: active ? 'var(--text-white)' : 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}>
+                  <button key={id} className="nb-billing-chip" type="button" onClick={() => setStatusFilter(id)} style={{ padding: '5px 12px', borderRadius: 'var(--radius-full)', border: `1px solid ${active ? 'var(--primary)' : 'var(--border-color)'}`, background: active ? 'var(--primary)' : 'var(--bg-card)', color: active ? 'var(--text-white)' : 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}>
                     {CHIP_LABELS[id]} <span style={{ opacity: 0.75 }}>{counts[id]}</span>
                   </button>
                 );
               })}
             </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
-              <select value={period} onChange={(e) => setPeriod(e.target.value)} aria-label="Periodo" style={{ padding: '7px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', background: 'var(--bg-body)', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-main)', cursor: 'pointer' }}>
+            <div className="nb-billing-search-row" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+              <select className="nb-billing-period-select" value={period} onChange={(e) => setPeriod(e.target.value)} aria-label="Periodo" style={{ padding: '7px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', background: 'var(--bg-body)', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-main)', cursor: 'pointer' }}>
                 {PERIOD_OPTIONS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
               </select>
-              <div style={{ position: 'relative' }}>
-                <input type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar pagos..." aria-label="Buscar pagos" style={{ padding: '8px 30px 8px 32px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', background: 'var(--bg-body)', fontSize: '0.82rem', outline: 'none', width: '230px', maxWidth: '100%' }} />
+              <div className="nb-billing-search-wrap" style={{ position: 'relative' }}>
+                <input className="nb-billing-search-input" type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar pagos..." aria-label="Buscar pagos" style={{ padding: '8px 30px 8px 32px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', background: 'var(--bg-body)', fontSize: '0.82rem', outline: 'none', width: '230px', maxWidth: '100%' }} />
                 <Search size={15} color="var(--text-light)" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
                 {query && (
                   <button type="button" onClick={() => setQuery('')} aria-label="Limpiar búsqueda" style={{ position: 'absolute', right: '6px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-light)', display: 'flex', padding: '2px' }}>
@@ -447,7 +447,7 @@ export const PaymentHistory = ({ currentUser, onChangePlan, onNotification, refr
         ) : (
           <>
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', minWidth: '680px', borderCollapse: 'collapse', textAlign: 'left' }}>
+              <table className="nb-billing-table" style={{ width: '100%', minWidth: '680px', borderCollapse: 'collapse', textAlign: 'left' }}>
                 <thead>
                   <tr style={{ background: 'var(--bg-subtle)', borderTop: '1px solid var(--border-color)', borderBottom: '1px solid var(--border-color)', fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.06em' }}>
                     <SortHeader label="Fecha" field="date" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
@@ -490,7 +490,7 @@ export const PaymentHistory = ({ currentUser, onChangePlan, onNotification, refr
               </table>
             </div>
 
-            <div style={{ padding: '1rem 1.5rem', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '10px', fontSize: '0.82rem', color: 'var(--text-muted)', borderTop: '1px solid var(--border-color)' }}>
+            <div className="nb-billing-pagination" style={{ padding: '1rem 1.5rem', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '10px', fontSize: '0.82rem', color: 'var(--text-muted)', borderTop: '1px solid var(--border-color)' }}>
               <span>
                 Mostrando {pageData.from}–{pageData.to} de {filtered.length}
                 {hasFilters && <> · Pagado en esta vista: <strong style={{ color: 'var(--text-main)' }}>{formatMoney(filteredTotal)}</strong></>}

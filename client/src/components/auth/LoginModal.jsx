@@ -62,6 +62,7 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onOpenRegister, on
 
   return (
     <div
+      className="nb-modal-overlay"
       style={{
         position: 'fixed',
         inset: 0,
@@ -76,10 +77,14 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onOpenRegister, on
       }}
     >
       <div
+        className="nb-modal-card"
         style={{
           background: 'var(--bg-card)',
           width: '100%',
           maxWidth: '460px',
+          maxHeight: '92vh',
+          display: 'flex',
+          flexDirection: 'column',
           borderRadius: 'var(--radius-2xl)',
           boxShadow: 'var(--shadow-modal)',
           border: '1px solid var(--border-color)',
@@ -89,6 +94,7 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onOpenRegister, on
       >
         {/* Header */}
         <div
+          className="nb-modal-header"
           style={{
             padding: '1.5rem 1.75rem 1rem 1.75rem',
             display: 'flex',
@@ -107,7 +113,8 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onOpenRegister, on
                 color: 'var(--primary)',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center'
+                justifyContent: 'center',
+                flexShrink: 0
               }}
             >
               <LogIn size={20} />
@@ -141,7 +148,7 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onOpenRegister, on
         </div>
 
         {/* Content */}
-        <div style={{ padding: '1.75rem' }}>
+        <div className="nb-modal-body" style={{ padding: '1.75rem', overflowY: 'auto' }}>
           {errorMessage && (
             <div
               style={{

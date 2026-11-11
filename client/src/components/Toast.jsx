@@ -9,6 +9,7 @@ export const Toast = ({ toast, onClose }) => {
 
   return (
     <div
+      className="nb-toast"
       style={{
         position: 'fixed',
         bottom: '24px',

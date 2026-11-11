@@ -8,6 +8,7 @@ import { filesService } from '../services/filesService.js';
 import { FilePreviewModal } from '../components/files/FilePreviewModal.jsx';
 import { SharedFolderBrowser, getFileIconByType } from '../components/files/SharedFolderBrowser.jsx';
 import { RenameModal } from '../components/files/RenameModal.jsx';
+import './dashboard-responsive.css';
 
 const badgeStyle = {
   fontSize: '0.75rem',
@@ -127,6 +128,7 @@ export const SharedView = ({ token, currentUser, hasPlan, onExit, onLogout, onNo
     <div style={{ minHeight: '100vh', background: 'var(--bg-body)', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
       <header
+        className="nb-shared-header"
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -154,8 +156,9 @@ export const SharedView = ({ token, currentUser, hasPlan, onExit, onLogout, onNo
       </header>
 
       {/* Contenido */}
-      <main style={{ flex: 1, display: 'flex', alignItems: isFolder ? 'flex-start' : 'center', justifyContent: 'center', padding: '2rem 1rem' }}>
+      <main className="nb-shared-main" style={{ flex: 1, display: 'flex', alignItems: isFolder ? 'flex-start' : 'center', justifyContent: 'center', padding: '2rem 1rem' }}>
         <div
+          className="nb-shared-card"
           style={{
             width: '100%',
             maxWidth: isFolder ? '820px' : '460px',
@@ -285,7 +288,7 @@ export const SharedView = ({ token, currentUser, hasPlan, onExit, onLogout, onNo
                   onNotification={onNotification}
                 />
               ) : (
-                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '10px' }}>
+                <div className="nb-shared-actions" style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '10px' }}>
                   <button type="button" className="btn-primary" onClick={() => setIsPreviewOpen(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                     <Eye size={16} /> Ver archivo
                   </button>

@@ -399,6 +399,7 @@ export const FilePreviewModal = ({ file, isOpen, onClose, onNotification, onShar
 
   return (
     <div
+      className="nb-modal-overlay"
       style={{
         position: 'fixed',
         inset: 0,
@@ -414,6 +415,7 @@ export const FilePreviewModal = ({ file, isOpen, onClose, onNotification, onShar
       onClick={onClose}
     >
       <div
+        className="nb-modal-card"
         style={{
           background: 'var(--bg-card)',
           width: '100%',
@@ -431,6 +433,7 @@ export const FilePreviewModal = ({ file, isOpen, onClose, onNotification, onShar
       >
         {/* Header */}
         <div
+          className="nb-preview-header"
           style={{
             padding: '1rem 1.5rem',
             borderBottom: '1px solid var(--border-color)',
@@ -464,6 +467,7 @@ export const FilePreviewModal = ({ file, isOpen, onClose, onNotification, onShar
             <div style={{ minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <h3
+                  className="nb-preview-title"
                   style={{
                     fontSize: '1rem',
                     fontWeight: 700,
@@ -499,7 +503,7 @@ export const FilePreviewModal = ({ file, isOpen, onClose, onNotification, onShar
           </div>
 
           {/* Action Header Buttons */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="nb-preview-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             {onShare && (
               <button
                 type="button"
@@ -559,6 +563,7 @@ export const FilePreviewModal = ({ file, isOpen, onClose, onNotification, onShar
 
         {/* Viewer Body */}
         <div
+          className="nb-modal-body"
           style={{
             padding: '1.25rem',
             overflowY: 'auto',
@@ -575,6 +580,7 @@ export const FilePreviewModal = ({ file, isOpen, onClose, onNotification, onShar
 
         {/* Modal Footer Metadata */}
         <div
+          className="nb-preview-footer"
           style={{
             padding: '0.75rem 1.5rem',
             borderTop: '1px solid var(--border-color)',

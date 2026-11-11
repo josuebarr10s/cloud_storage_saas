@@ -72,6 +72,7 @@ export const LegalModal = ({ isOpen, onClose, initialTab = 'terms' }) => {
 
   return (
     <div
+      className="nb-modal-overlay"
       style={{
         position: 'fixed',
         inset: 0,
@@ -90,6 +91,7 @@ export const LegalModal = ({ isOpen, onClose, initialTab = 'terms' }) => {
         role="dialog"
         aria-modal="true"
         aria-label={current.label}
+        className="nb-modal-card"
         style={{
           background: 'var(--bg-card)',
           width: '100%',
@@ -117,7 +119,7 @@ export const LegalModal = ({ isOpen, onClose, initialTab = 'terms' }) => {
               <X size={20} />
             </button>
           </div>
-          <div style={{ display: 'flex', gap: '4px' }}>
+          <div style={{ display: 'flex', gap: '4px', overflowX: 'auto' }}>
             {Object.entries(TABS).map(([key, { label, icon: Icon }]) => (
               <button
                 key={key}
@@ -134,7 +136,8 @@ export const LegalModal = ({ isOpen, onClose, initialTab = 'terms' }) => {
                   cursor: 'pointer',
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '6px'
+                  gap: '6px',
+                  whiteSpace: 'nowrap'
                 }}
               >
                 <Icon size={14} /> {label}
@@ -144,7 +147,7 @@ export const LegalModal = ({ isOpen, onClose, initialTab = 'terms' }) => {
         </div>
 
         {/* Contenido */}
-        <div style={{ padding: '1.25rem 1.5rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        <div className="nb-modal-body" style={{ padding: '1.25rem 1.5rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '14px' }}>
           {current.sections.map(section => (
             <div key={section.title}>
               <h4 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-main)', margin: '0 0 4px 0' }}>{section.title}</h4>

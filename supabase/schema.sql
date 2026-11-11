@@ -80,7 +80,8 @@ CREATE POLICY "usuario_editar" ON public.usuario
 
 -- Un cliente no puede cambiarse el rol ni el estado (hacerse admin o quitarse una suspensión).
 -- auth.uid() es null en el SQL Editor y en los triggers del servidor: ahí sí se permite.
-CREATE OR REPLACE FUNCTION public.proteger_rol_y_estado() RETURNS trigger AS $$
+CREATE OR REPLACE FUNCTION public.proteger_rol_y_estado() RETURNS trigger
+LANGUAGE plpgsql SET search_path = public AS $$
 BEGIN
   IF auth.uid() IS NOT NULL AND NOT public.es_admin()
      AND (NEW.id_rol IS DISTINCT FROM OLD.id_rol OR NEW.estado IS DISTINCT FROM OLD.estado) THEN
@@ -88,15 +89,23 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 DROP TRIGGER IF EXISTS proteger_rol_y_estado ON public.usuario;
 CREATE TRIGGER proteger_rol_y_estado
   BEFORE UPDATE ON public.usuario
   FOR EACH ROW EXECUTE FUNCTION public.proteger_rol_y_estado();
 
--- Políticas de public.plan (van aquí porque necesitan public.es_admin()):
--- cualquiera puede leer los planes (la landing muestra precios sin sesión), solo el admin los modifica.
+-- Políticas de public.rol y public.plan (van aquí porque necesitan public.es_admin()):
+-- cualquiera puede leer los roles y planes, pero solo el administrador puede modificarlos.
+ALTER TABLE public.rol ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "rol_ver" ON public.rol;
+DROP POLICY IF EXISTS "rol_admin" ON public.rol;
+CREATE POLICY "rol_ver" ON public.rol FOR SELECT USING (true);
+CREATE POLICY "rol_admin" ON public.rol
+  FOR ALL USING (public.es_admin()) WITH CHECK (public.es_admin());
+
 ALTER TABLE public.plan ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "plan_ver" ON public.plan;
@@ -130,7 +139,7 @@ BEGIN
 
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
@@ -624,7 +633,8 @@ CREATE POLICY "archivo_compartido_editar" ON public.archivo
   WITH CHECK (public.permiso_compartido_archivo(id_archivo, id_carpeta) = 'editor');
 
 -- Quien edita por un enlace no puede cambiar el dueño de un archivo ni sacarlo de su carpeta
-CREATE OR REPLACE FUNCTION public.proteger_archivo_compartido() RETURNS trigger AS $$
+CREATE OR REPLACE FUNCTION public.proteger_archivo_compartido() RETURNS trigger
+LANGUAGE plpgsql SET search_path = public AS $$
 BEGIN
   IF auth.uid() IS NOT NULL AND OLD.id_usuario <> auth.uid()
      AND (NEW.id_usuario IS DISTINCT FROM OLD.id_usuario OR NEW.id_carpeta IS DISTINCT FROM OLD.id_carpeta) THEN
@@ -632,7 +642,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 DROP TRIGGER IF EXISTS proteger_archivo_compartido ON public.archivo;
 CREATE TRIGGER proteger_archivo_compartido

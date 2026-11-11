@@ -235,6 +235,7 @@ export const ShareLinkModal = ({ item, isOpen, onClose, currentUser, onNotificat
 
   return (
     <div
+      className="nb-modal-overlay"
       style={{
         position: 'fixed',
         inset: 0,
@@ -250,6 +251,7 @@ export const ShareLinkModal = ({ item, isOpen, onClose, currentUser, onNotificat
       onClick={onClose}
     >
       <div
+        className="nb-modal-card"
         style={{
           background: 'var(--bg-card)',
           width: '100%',
@@ -264,6 +266,7 @@ export const ShareLinkModal = ({ item, isOpen, onClose, currentUser, onNotificat
       >
         {/* Header */}
         <div
+          className="nb-modal-header"
           style={{
             padding: '1rem 1.5rem',
             borderBottom: '1px solid var(--border-color)',
@@ -309,7 +312,7 @@ export const ShareLinkModal = ({ item, isOpen, onClose, currentUser, onNotificat
         </div>
 
         {/* Body */}
-        <div style={{ padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        <div className="nb-modal-body" style={{ padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '14px' }}>
           {isLoading ? (
             <div style={{ padding: '1.5rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
               <Loader2 size={26} style={{ margin: '0 auto 8px auto', animation: 'spin 1s linear infinite' }} />
@@ -319,14 +322,14 @@ export const ShareLinkModal = ({ item, isOpen, onClose, currentUser, onNotificat
             <>
               {/* Enlace para copiar (arriba, para no tener que bajar a buscarlo) */}
               {link && (
-                <div style={{ display: 'flex', gap: '8px' }}>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                   <input
                     type="text"
                     readOnly
                     value={shareUrl}
                     onFocus={(e) => e.target.select()}
                     style={{
-                      flex: 1,
+                      flex: '1 1 200px',
                       minWidth: 0,
                       padding: '9px 12px',
                       borderRadius: 'var(--radius-md)',
@@ -340,7 +343,7 @@ export const ShareLinkModal = ({ item, isOpen, onClose, currentUser, onNotificat
                     type="button"
                     onClick={handleCopy}
                     className="btn-primary"
-                    style={{ ...buttonBase, cursor: 'pointer', opacity: 1 }}
+                    style={{ ...buttonBase, cursor: 'pointer', opacity: 1, flexShrink: 0 }}
                   >
                     {copied ? <Check size={15} /> : <Copy size={15} />}
                     {copied ? 'Copiado' : 'Copiar'}

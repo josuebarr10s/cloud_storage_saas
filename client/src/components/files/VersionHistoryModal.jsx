@@ -59,6 +59,7 @@ export const VersionHistoryModal = ({ file, isOpen, onClose, currentUser, onNoti
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
+    flexWrap: 'wrap',
     gap: '12px',
     padding: '12px 14px',
     borderRadius: 'var(--radius-md)',
@@ -81,6 +82,7 @@ export const VersionHistoryModal = ({ file, isOpen, onClose, currentUser, onNoti
 
   return (
     <div
+      className="nb-modal-overlay"
       style={{
         position: 'fixed',
         inset: 0,
@@ -96,6 +98,7 @@ export const VersionHistoryModal = ({ file, isOpen, onClose, currentUser, onNoti
       onClick={onClose}
     >
       <div
+        className="nb-modal-card"
         style={{
           background: 'var(--bg-card)',
           width: '100%',
@@ -112,6 +115,7 @@ export const VersionHistoryModal = ({ file, isOpen, onClose, currentUser, onNoti
       >
         {/* Header */}
         <div
+          className="nb-modal-header"
           style={{
             padding: '1rem 1.5rem',
             borderBottom: '1px solid var(--border-color)',
@@ -157,7 +161,7 @@ export const VersionHistoryModal = ({ file, isOpen, onClose, currentUser, onNoti
         </div>
 
         {/* Body */}
-        <div style={{ padding: '1.25rem 1.5rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <div className="nb-modal-body" style={{ padding: '1.25rem 1.5rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {/* Versión actual */}
           <div style={{ ...rowStyle, background: 'var(--primary-light)', borderColor: 'var(--primary)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>

@@ -233,14 +233,14 @@ export const SharedFolderBrowser = ({ rootFolder, ownerId, permission, onNotific
       {/* Acciones de editor */}
       {isEditor && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-          <button type="button" className="btn-primary" onClick={() => uploadInputRef.current?.click()} disabled={isBusy} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+          <button type="button" className="btn-primary nb-dash-action-btn" onClick={() => uploadInputRef.current?.click()} disabled={isBusy} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
             {isBusy ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Upload size={16} />}
             Subir archivos
           </button>
-          <button type="button" className="btn-secondary" onClick={() => setIsCreateFolderOpen(true)} disabled={isBusy} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+          <button type="button" className="btn-secondary nb-dash-action-btn" onClick={() => setIsCreateFolderOpen(true)} disabled={isBusy} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
             <FolderPlus size={16} /> Nueva carpeta
           </button>
-          <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', alignSelf: 'center' }}>
+          <span className="nb-dash-hide-sm" style={{ fontSize: '0.78rem', color: 'var(--text-muted)', alignSelf: 'center' }}>
             También puedes arrastrar archivos aquí
           </span>
           <input ref={uploadInputRef} type="file" multiple hidden onChange={handleUploadFiles} />

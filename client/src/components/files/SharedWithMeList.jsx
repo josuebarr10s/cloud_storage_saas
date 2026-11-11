@@ -62,6 +62,7 @@ export const SharedWithMeList = ({ searchQuery = '', onOpen, onNotification }) =
         return (
           <button
             key={item.token}
+            className="nb-shared-list-row"
             type="button"
             onClick={() => onOpen(item.token)}
             style={{

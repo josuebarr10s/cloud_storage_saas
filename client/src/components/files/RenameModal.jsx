@@ -58,6 +58,7 @@ export const RenameModal = ({ item, isOpen, onClose, onRename }) => {
 
   return (
     <div
+      className="nb-modal-overlay"
       style={{
         position: 'fixed',
         inset: 0,
@@ -74,6 +75,7 @@ export const RenameModal = ({ item, isOpen, onClose, onRename }) => {
     >
       <form
         onSubmit={handleSubmit}
+        className="nb-modal-card"
         style={{
           background: 'var(--bg-card)',
           width: '100%',
@@ -86,6 +88,7 @@ export const RenameModal = ({ item, isOpen, onClose, onRename }) => {
         onClick={(e) => e.stopPropagation()}
       >
         <div
+          className="nb-modal-header"
           style={{
             padding: '1rem 1.5rem',
             borderBottom: '1px solid var(--border-color)',
@@ -124,7 +127,7 @@ export const RenameModal = ({ item, isOpen, onClose, onRename }) => {
           </button>
         </div>
 
-        <div style={{ padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <div className="nb-modal-body" style={{ padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <input
             ref={inputRef}
             type="text"

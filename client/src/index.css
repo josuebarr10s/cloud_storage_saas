@@ -287,3 +287,69 @@ input:focus, select:focus, textarea:focus {
   border-color: var(--primary) !important;
   box-shadow: 0 0 0 3px var(--primary-focus) !important;
 }
+
+/* ==========================================================
+   RESPONSIVE GLOBAL: MODALES, TOASTS Y UTILIDADES
+   ========================================================== */
+
+.nb-toast {
+  max-width: min(420px, calc(100vw - 32px)) !important;
+}
+
+.nb-modal-overlay {
+  padding: clamp(0.65rem, 2.5vw, 1.25rem) !important;
+}
+
+.nb-modal-card {
+  max-height: 92vh !important;
+  overflow-y: auto !important;
+}
+
+@media (max-width: 640px) {
+  .nb-toast {
+    left: 16px !important;
+    right: 16px !important;
+    bottom: 16px !important;
+    max-width: none !important;
+    padding: 12px 16px !important;
+    font-size: 0.85rem !important;
+  }
+
+  .nb-modal-card {
+    border-radius: var(--radius-lg) !important;
+    max-height: 94vh !important;
+  }
+
+  .nb-modal-header {
+    padding: 0.9rem 1.1rem !important;
+    gap: 8px !important;
+    flex-wrap: wrap;
+  }
+
+  .nb-modal-body {
+    padding: 1.15rem !important;
+  }
+
+  .nb-modal-footer {
+    padding: 0.75rem 1.1rem !important;
+    flex-wrap: wrap;
+    gap: 8px !important;
+  }
+
+  .nb-hide-xs {
+    display: none !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .nb-stack-xs {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .nb-stack-xs > button,
+  .nb-stack-xs > a {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+}

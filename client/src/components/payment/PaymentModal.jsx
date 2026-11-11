@@ -97,12 +97,12 @@ export const PaymentModal = ({ isOpen, onClose, user, selectedPlan, billingCycle
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'var(--bg-overlay)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-      <div style={{ background: 'var(--bg-card)', width: '100%', maxWidth: '550px', borderRadius: 'var(--radius-2xl)', boxShadow: 'var(--shadow-modal)', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div className="nb-modal-overlay" style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'var(--bg-overlay)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+      <div className="nb-modal-card" style={{ background: 'var(--bg-card)', width: '100%', maxWidth: '550px', maxHeight: '92vh', borderRadius: 'var(--radius-2xl)', boxShadow: 'var(--shadow-modal)', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         
-        <div style={{ padding: '1.25rem 1.75rem', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-subtle)' }}>
+        <div className="nb-modal-header" style={{ padding: '1.25rem 1.75rem', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-subtle)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ width: '36px', height: '36px', borderRadius: 'var(--radius-sm)', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
+            <div style={{ width: '36px', height: '36px', borderRadius: 'var(--radius-sm)', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', flexShrink: 0 }}>
               <ShieldCheck size={20} />
             </div>
             <div>
@@ -114,8 +114,8 @@ export const PaymentModal = ({ isOpen, onClose, user, selectedPlan, billingCycle
         </div>
 
         {currentStep === 1 && (
-          <div style={{ padding: '1.75rem' }}>
-            <div style={{ background: 'var(--bg-subtle)', padding: '15px', borderRadius: '8px', border: '1px solid var(--border-color)', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="nb-modal-body" style={{ padding: '1.75rem', overflowY: 'auto' }}>
+            <div style={{ background: 'var(--bg-subtle)', padding: '15px', borderRadius: '8px', border: '1px solid var(--border-color)', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
               <div>
                 <strong style={{ display: 'block' }}>Plan {activePlan.nombre} ({isAnnual ? 'Anual' : 'Mensual'})</strong>
                 <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{activePlan.storageQuota} de almacenamiento</span>
@@ -161,7 +161,7 @@ export const PaymentModal = ({ isOpen, onClose, user, selectedPlan, billingCycle
         )}
 
         {currentStep === 2 && (
-          <div style={{ padding: '4rem', textAlign: 'center' }}>
+          <div style={{ padding: 'clamp(2rem, 6vw, 4rem)', textAlign: 'center' }}>
             <Loader2 size={40} color="var(--primary)" style={{ animation: 'spin 1s linear infinite', margin: '0 auto 15px' }} />
             <h3 style={{ margin: 0 }}>Procesando Pago</h3>
             <p style={{ color: 'var(--text-muted)' }}>{processingStatus}</p>
@@ -169,7 +169,7 @@ export const PaymentModal = ({ isOpen, onClose, user, selectedPlan, billingCycle
         )}
 
         {currentStep === 3 && (
-          <div style={{ padding: '4rem', textAlign: 'center' }}>
+          <div style={{ padding: 'clamp(2rem, 6vw, 4rem)', textAlign: 'center' }}>
             <CheckCircle2 size={50} color="var(--success, green)" style={{ margin: '0 auto 15px' }} />
             <h2 style={{ margin: 0 }}>¡Pago Exitoso!</h2>
             <p style={{ color: 'var(--text-muted)', marginBottom: '20px' }}>Tu cuenta ha sido actualizada al Plan {activePlan.nombre}.</p>

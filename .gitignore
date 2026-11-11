@@ -10,6 +10,13 @@ client/dist/
 .env
 .env.local
 .env.*.local
+client/.env
+client/.env.local
+client/.env.*.local
+
+# Vercel
+.vercel/
+client/.vercel/
 
 # Logs
 npm-debug.log*

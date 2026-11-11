@@ -442,6 +442,36 @@
 @media (max-width: 640px) {
   .mockup-url,
   .mockup-status { display: none !important; }
+
+  .hero-ctas {
+    flex-direction: column;
+    width: 100%;
+    max-width: 340px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .hero-ctas button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .hero-badge {
+    font-size: 0.78rem;
+    padding: 5px 12px 5px 5px;
+  }
+
+  .billing-toggle button {
+    padding: 8px 14px;
+    font-size: 0.8rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
 }
 
 /* ---------- Navbar ---------- */

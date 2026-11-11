@@ -59,6 +59,7 @@ export const MoveItemModal = ({ isOpen, onClose, item, currentUser, onMoveSucces
 
   return (
     <div
+      className="nb-modal-overlay"
       style={{
         position: 'fixed',
         top: 0,
@@ -77,11 +78,15 @@ export const MoveItemModal = ({ isOpen, onClose, item, currentUser, onMoveSucces
       onClick={onClose}
     >
       <div
+        className="nb-modal-card"
         style={{
           background: 'var(--bg-card)',
           borderRadius: 'var(--radius-xl)',
           width: '100%',
           maxWidth: '480px',
+          maxHeight: '92vh',
+          display: 'flex',
+          flexDirection: 'column',
           boxShadow: 'var(--shadow-modal)',
           border: '1px solid var(--border-color)',
           overflow: 'hidden'
@@ -90,6 +95,7 @@ export const MoveItemModal = ({ isOpen, onClose, item, currentUser, onMoveSucces
       >
         {/* Header */}
         <div
+          className="nb-modal-header"
           style={{
             padding: '1.25rem 1.5rem',
             borderBottom: '1px solid var(--border-color)',
@@ -99,7 +105,7 @@ export const MoveItemModal = ({ isOpen, onClose, item, currentUser, onMoveSucces
             background: 'var(--bg-subtle)'
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
             <div
               style={{
                 width: '36px',
@@ -109,12 +115,13 @@ export const MoveItemModal = ({ isOpen, onClose, item, currentUser, onMoveSucces
                 color: 'var(--primary)',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center'
+                justifyContent: 'center',
+                flexShrink: 0
               }}
             >
               <ArrowRight size={20} />
             </div>
-            <div>
+            <div style={{ minWidth: 0 }}>
               <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
                 Mover {item.isFolder ? 'Carpeta' : 'Archivo'}
               </h3>
@@ -139,7 +146,7 @@ export const MoveItemModal = ({ isOpen, onClose, item, currentUser, onMoveSucces
         </div>
 
         {/* Directory Selection List */}
-        <div style={{ padding: '1.25rem 1.5rem', maxHeight: '320px', overflowY: 'auto' }}>
+        <div className="nb-modal-body" style={{ padding: '1.25rem 1.5rem', maxHeight: '320px', overflowY: 'auto' }}>
           <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             Destino:
           </div>

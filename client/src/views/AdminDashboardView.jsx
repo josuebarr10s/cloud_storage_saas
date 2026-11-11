@@ -5,6 +5,7 @@ import {
   Shield, UserCheck, UserX, RefreshCw
 } from 'lucide-react';
 import { adminService } from '../services/adminService.js';
+import './dashboard-responsive.css';
 
 const ROLES = { 1: 'Administrador', 2: 'Cliente' };
 
@@ -149,6 +150,7 @@ export const AdminDashboardView = ({ currentUser, onLogout, onNotification }) =>
     <div style={{ minHeight: '100vh', background: 'var(--bg-subtle)', display: 'flex', flexDirection: 'column' }}>
       {/* Top Navbar */}
       <header
+        className="nb-admin-header"
         style={{
           background: 'var(--bg-body)',
           borderBottom: '1px solid var(--border-color)',
@@ -161,7 +163,7 @@ export const AdminDashboardView = ({ currentUser, onLogout, onNotification }) =>
           zIndex: 100
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        <div className="nb-admin-header-left" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           {/* Logo */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <img
@@ -180,6 +182,7 @@ export const AdminDashboardView = ({ currentUser, onLogout, onNotification }) =>
           </div>
 
           <span
+            className="nb-admin-badge"
             style={{
               background: 'var(--danger-bg)',
               color: 'var(--danger)',
@@ -230,15 +233,16 @@ export const AdminDashboardView = ({ currentUser, onLogout, onNotification }) =>
             }}
           >
             <LogOut size={15} />
-            <span>Cerrar Sesión</span>
+            <span className="nb-dash-hide-sm">Cerrar Sesión</span>
           </button>
         </div>
       </header>
 
       {/* Main */}
-      <main style={{ flex: 1, padding: '2rem 1.5rem', maxWidth: '1200px', margin: '0 auto', width: '100%' }}>
+      <main className="nb-admin-main" style={{ flex: 1, padding: '2rem 1.5rem', maxWidth: '1200px', margin: '0 auto', width: '100%' }}>
         {/* Welcome Banner */}
         <div
+          className="nb-admin-banner"
           style={{
             background: 'var(--bg-hero-banner)',
             borderRadius: 'var(--radius-xl)',
@@ -251,7 +255,7 @@ export const AdminDashboardView = ({ currentUser, onLogout, onNotification }) =>
           <span style={{ background: 'var(--white-alpha-20)', padding: '2px 8px', borderRadius: 'var(--radius-xs)', fontSize: '0.75rem', fontWeight: 600 }}>
             ADMINISTRADOR
           </span>
-          <h2 style={{ fontSize: '1.75rem', fontWeight: 800, margin: '8px 0 6px 0' }}>
+          <h2 className="nb-admin-banner-title" style={{ fontSize: '1.75rem', fontWeight: 800, margin: '8px 0 6px 0' }}>
             Hola, {currentUser?.name || 'Administrador'}
           </h2>
           <p style={{ opacity: 0.85, fontSize: '0.9rem', maxWidth: '560px', margin: 0 }}>
@@ -261,6 +265,7 @@ export const AdminDashboardView = ({ currentUser, onLogout, onNotification }) =>
 
         {/* Stat Cards */}
         <div
+          className="nb-admin-stats"
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
@@ -271,6 +276,7 @@ export const AdminDashboardView = ({ currentUser, onLogout, onNotification }) =>
           {statCards.map((card) => (
             <div
               key={card.label}
+              className="nb-admin-stat-card"
               style={{
                 background: 'var(--bg-card)',
                 border: '1px solid var(--border-color)',
@@ -297,7 +303,7 @@ export const AdminDashboardView = ({ currentUser, onLogout, onNotification }) =>
               >
                 {card.icon}
               </div>
-              <div>
+              <div style={{ minWidth: 0 }}>
                 <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block' }}>
                   {card.label}
                 </span>
@@ -311,6 +317,7 @@ export const AdminDashboardView = ({ currentUser, onLogout, onNotification }) =>
 
         {/* Controls */}
         <div
+          className="nb-admin-controls"
           style={{
             display: 'flex',
             flexWrap: 'wrap',
@@ -322,6 +329,7 @@ export const AdminDashboardView = ({ currentUser, onLogout, onNotification }) =>
         >
           {/* Filtros */}
           <div
+            className="nb-admin-tabs"
             style={{
               display: 'flex',
               background: 'var(--bg-card)',
@@ -339,6 +347,7 @@ export const AdminDashboardView = ({ currentUser, onLogout, onNotification }) =>
             ].map((tab) => (
               <button
                 key={tab.id}
+                className="nb-admin-tab"
                 type="button"
                 onClick={() => setFilter(tab.id)}
                 style={{
@@ -358,10 +367,11 @@ export const AdminDashboardView = ({ currentUser, onLogout, onNotification }) =>
             ))}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div className="nb-admin-search-row" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             {/* Buscar */}
-            <div style={{ position: 'relative' }}>
+            <div className="nb-admin-search" style={{ position: 'relative' }}>
               <input
+                className="nb-admin-search-input"
                 type="text"
                 placeholder="Buscar usuario..."
                 value={searchQuery}
@@ -389,7 +399,7 @@ export const AdminDashboardView = ({ currentUser, onLogout, onNotification }) =>
               title="Recargar datos"
             >
               <RefreshCw size={15} style={isLoading ? { animation: 'spin 1s linear infinite' } : undefined} />
-              <span>Actualizar</span>
+              <span className="nb-dash-hide-sm">Actualizar</span>
             </button>
           </div>
         </div>
@@ -417,7 +427,7 @@ export const AdminDashboardView = ({ currentUser, onLogout, onNotification }) =>
             </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '860px' }}>
+              <table className="nb-admin-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '860px' }}>
                 <thead>
                   <tr style={{ background: 'var(--bg-subtle)', borderBottom: '1px solid var(--border-color)', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em' }}>
                     <th style={{ padding: '12px 20px', fontWeight: 600 }}>Usuario</th>

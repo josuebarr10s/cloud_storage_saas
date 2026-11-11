@@ -1,11 +1,11 @@
 import { askConfirm } from '../utils/confirm.js';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Cloud, HardDrive, Upload, FolderPlus, Share2, LogOut, Search, 
   FileText, Image as ImageIcon, Video, FileCode, Archive, Trash2, Download, 
   CheckCircle, Shield, MoreVertical, Plus, Clock, ExternalLink, Loader2,
   Eye, LayoutGrid, List, Music, Sparkles, RotateCcw, Folder, FolderOpen,
-  ArrowLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Edit2, ArrowRight, CreditCard, Users
+  ArrowLeft, ChevronRight, ChevronDown, ArrowUpDown, ArrowUp, ArrowDown, Edit2, ArrowRight, CreditCard, Users
 } from 'lucide-react';
 import { filesService, getRetentionDays } from '../services/filesService.js';
 import { FilePreviewModal } from '../components/files/FilePreviewModal.jsx';
@@ -61,6 +61,26 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
 
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
   const [itemToMove, setItemToMove] = useState(null);
+  const [isNavMenuOpen, setIsNavMenuOpen] = useState(false);
+  const navDropdownRef = useRef(null);
+
+  useEffect(() => {
+    if (!isNavMenuOpen) return;
+    const handleClickOutside = (e) => {
+      if (navDropdownRef.current && !navDropdownRef.current.contains(e.target)) {
+        setIsNavMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setIsNavMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isNavMenuOpen]);
 
   // Sin plan conocido no se asume ninguno (antes mostraba "Pro" por defecto)
   const planName = currentUser?.plan || 'Ninguno';
@@ -519,7 +539,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
         {/* User Info & Logout */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', textAlign: 'right' }}>
-            <div style={{ display: 'none', flexDirection: 'column', mdDisplay: 'flex' }}>
+            <div className="nb-dash-user-meta">
               <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)' }}>
                 {currentUser?.name || 'Usuario Nimbox'}
               </span>
@@ -634,7 +654,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
             marginBottom: '1.25rem'
           }}
         >
-          {/* Tabs */}
+          {/* Tabs horizontales (Escritorio) */}
           <div className="nb-dash-tabs"
             style={{
               display: 'flex',
@@ -681,10 +701,154 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
                 }}
               >
                 {tab.icon}
-                {tab.label}
+                <span>{tab.label}</span>
               </button>
             ))}
           </div>
+
+          {/* Menú desplegable estético (Móvil y Tablet) */}
+          {(() => {
+            const navItems = [
+              { id: 'all', label: 'Todos los archivos', desc: 'Carpetas y archivos en tu nube', icon: HardDrive, group: 'Mi Almacenamiento' },
+              { id: 'docs', label: 'Documentos', desc: 'PDFs, hojas de cálculo y textos', icon: FileText, group: 'Mi Almacenamiento' },
+              { id: 'images', label: 'Imágenes', desc: 'Fotografías, gráficos y vectores', icon: ImageIcon, group: 'Mi Almacenamiento' },
+              { id: 'media', label: 'Multimedia', desc: 'Videos y archivos de audio', icon: Video, group: 'Mi Almacenamiento' },
+              { id: 'shared', label: 'Compartidos conmigo', desc: 'Enlaces y carpetas de otros usuarios', icon: Users, group: 'Gestión y Cuenta' },
+              { id: 'trash', label: 'Papelera', desc: 'Restaurar o eliminar permanentemente', icon: Trash2, group: 'Gestión y Cuenta', danger: true },
+              { id: 'billing', label: 'Pagos y Suscripción', desc: 'Facturas, historial y cambio de plan', icon: CreditCard, group: 'Gestión y Cuenta' }
+            ];
+            const currentNav = navItems.find((item) => item.id === activeTab) || navItems[0];
+            const CurrentIcon = currentNav.icon;
+            const isDangerActive = currentNav.danger;
+
+            return (
+              <div className="nb-dash-dropdown-wrap" ref={navDropdownRef}>
+                <button
+                  type="button"
+                  className={`nb-dash-dropdown-trigger ${isNavMenuOpen ? 'is-open' : ''}`}
+                  onClick={() => setIsNavMenuOpen((prev) => !prev)}
+                  aria-expanded={isNavMenuOpen}
+                  aria-haspopup="listbox"
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                    <div
+                      style={{
+                        width: '38px',
+                        height: '38px',
+                        borderRadius: 'var(--radius-sm)',
+                        background: isDangerActive ? 'var(--danger-bg)' : 'var(--primary-light)',
+                        color: isDangerActive ? 'var(--danger)' : 'var(--primary)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
+                      }}
+                    >
+                      <CurrentIcon size={18} />
+                    </div>
+                    <div style={{ textAlign: 'left', minWidth: 0 }}>
+                      <span style={{ display: 'block', fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)' }}>
+                        Sección activa · {currentNav.group}
+                      </span>
+                      <span style={{ display: 'block', fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {currentNav.label}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '5px 10px',
+                      borderRadius: 'var(--radius-full)',
+                      background: 'var(--bg-subtle)',
+                      border: '1px solid var(--border-color)',
+                      color: 'var(--primary)',
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      flexShrink: 0
+                    }}
+                  >
+                    <span>Menú</span>
+                    <ChevronDown
+                      size={16}
+                      style={{
+                        transition: 'transform 0.25s ease',
+                        transform: isNavMenuOpen ? 'rotate(180deg)' : 'rotate(0deg)'
+                      }}
+                    />
+                  </div>
+                </button>
+
+                {isNavMenuOpen && (
+                  <div className="nb-dash-dropdown-menu" role="listbox">
+                    {['Mi Almacenamiento', 'Gestión y Cuenta'].map((groupName, gIdx) => (
+                      <div key={groupName} style={{ paddingTop: gIdx > 0 ? '6px' : 0, marginTop: gIdx > 0 ? '6px' : 0, borderTop: gIdx > 0 ? '1px solid var(--border-color)' : 'none' }}>
+                        <div style={{ padding: '6px 12px 4px', fontSize: '0.68rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-light)' }}>
+                          {groupName}
+                        </div>
+                        {navItems
+                          .filter((item) => item.group === groupName)
+                          .map((item) => {
+                            const ItemIcon = item.icon;
+                            const selected = activeTab === item.id;
+                            const accentColor = item.danger ? 'var(--danger)' : 'var(--primary)';
+                            const accentBg = item.danger ? 'var(--danger-bg)' : 'var(--primary-light)';
+                            return (
+                              <button
+                                key={item.id}
+                                type="button"
+                                role="option"
+                                aria-selected={selected}
+                                className={`nb-dash-dropdown-item ${selected ? 'is-selected' : ''}`}
+                                onClick={() => {
+                                  setActiveTab(item.id);
+                                  setSearchQuery('');
+                                  if (item.id !== 'all') setCurrentFolderId(null);
+                                  setIsNavMenuOpen(false);
+                                }}
+                                style={{
+                                  background: selected ? accentBg : 'transparent',
+                                  borderColor: selected ? accentColor : 'transparent'
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    width: '34px',
+                                    height: '34px',
+                                    borderRadius: 'var(--radius-sm)',
+                                    background: selected ? 'var(--bg-card)' : 'var(--bg-subtle)',
+                                    color: selected ? accentColor : (item.danger ? 'var(--danger)' : 'var(--text-secondary)'),
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    flexShrink: 0,
+                                    boxShadow: selected ? 'var(--shadow-xs)' : 'none'
+                                  }}
+                                >
+                                  <ItemIcon size={17} />
+                                </div>
+                                <div style={{ flex: 1, textAlign: 'left', minWidth: 0 }}>
+                                  <div style={{ fontSize: '0.88rem', fontWeight: 700, color: selected ? accentColor : 'var(--text-main)' }}>
+                                    {item.label}
+                                  </div>
+                                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {item.desc}
+                                  </div>
+                                </div>
+                                {selected && <CheckCircle size={17} color={accentColor} style={{ flexShrink: 0 }} />}
+                              </button>
+                            );
+                          })}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Right Toolbar: Sort Dropdown, Search, View Toggle, Create Folder & Upload */}
           {!isBilling && (
@@ -692,6 +856,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
             {/* Control de Ordenamiento (Sorting) */}
             {canManageFiles && (
               <div
+                className="nb-dash-sort-box"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -704,7 +869,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', paddingLeft: '4px', color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600 }}>
                   <ArrowUpDown size={14} color="var(--primary)" />
-                  <span style={{ display: 'none', smDisplay: 'inline' }}>Ordenar:</span>
+                  <span className="nb-dash-sort-label">Ordenar:</span>
                 </div>
                 <select
                   value={sortBy}
@@ -824,7 +989,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
               <button
                 type="button"
                 onClick={() => { setEditingFolder(null); setIsCreateFolderOpen(true); }}
-                className="btn-secondary"
+                className="btn-secondary nb-dash-action-btn"
                 style={{
                   padding: '8px 14px',
                   fontSize: '0.85rem',
@@ -841,7 +1006,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
             {/* Botón Subir Archivo */}
             {canManageFiles && (
               <label
-                className="btn-primary"
+                className="btn-primary nb-dash-action-btn"
                 style={{
                   padding: '8px 16px',
                   fontSize: '0.85rem',
@@ -1331,14 +1496,14 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
             </table>
           ) : (
             /* GRID VIEW CARDS */
-            <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div className="nb-dash-grid-wrap" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
               {/* Sección de Carpetas */}
               {activeTab === 'all' && sortedFolders.length > 0 && (
                 <div>
                   <h4 style={{ fontSize: '0.85rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em', marginBottom: '1rem' }}>
                     Carpetas ({sortedFolders.length})
                   </h4>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '16px' }}>
+                  <div className="nb-dash-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '16px' }}>
                     {sortedFolders.map((folder) => (
                       <FolderCard
                         key={folder.id}
@@ -1366,7 +1531,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
                       Archivos ({sortedFiles.length})
                     </h4>
                   )}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '16px' }}>
+                  <div className="nb-dash-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '16px' }}>
                     {sortedFiles.map((file) => (
                       <div
                         key={file.id}
