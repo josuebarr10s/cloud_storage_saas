@@ -255,9 +255,9 @@ export const AdminDashboardView = ({ currentUser, onLogout, onNotification }) =>
           <span style={{ background: 'var(--white-alpha-20)', padding: '2px 8px', borderRadius: 'var(--radius-xs)', fontSize: '0.75rem', fontWeight: 600 }}>
             ADMINISTRADOR
           </span>
-          <h2 className="nb-admin-banner-title" style={{ fontSize: '1.75rem', fontWeight: 800, margin: '8px 0 6px 0' }}>
+          <h1 className="nb-admin-banner-title" style={{ fontSize: '1.75rem', fontWeight: 800, margin: '8px 0 6px 0', color: 'var(--text-white)' }}>
             Hola, {currentUser?.name || 'Administrador'}
-          </h2>
+          </h1>
           <p style={{ opacity: 0.85, fontSize: '0.9rem', maxWidth: '560px', margin: 0 }}>
             Desde aquí puedes ver el estado general de Nimbox y gestionar las cuentas de los usuarios: suspenderlas, reactivarlas o cambiar su rol.
           </p>

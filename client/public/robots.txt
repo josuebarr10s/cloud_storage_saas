@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://nimbox-cloud.vercel.app/sitemap.xml
+

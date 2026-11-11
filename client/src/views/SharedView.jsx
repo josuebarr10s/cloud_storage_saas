@@ -192,9 +192,9 @@ export const SharedView = ({ token, currentUser, hasPlan, onExit, onLogout, onNo
               >
                 <KeyRound size={26} />
               </div>
-              <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)', margin: '0 0 6px 0' }}>
+              <h1 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)', margin: '0 0 6px 0' }}>
                 Este enlace tiene contraseña
-              </h2>
+              </h1>
               <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: '0 0 1.25rem 0' }}>
                 Pídesela a quien te lo compartió. Solo tendrás que escribirla una vez.
               </p>
@@ -231,9 +231,9 @@ export const SharedView = ({ token, currentUser, hasPlan, onExit, onLogout, onNo
           ) : error ? (
             <>
               <AlertCircle size={42} color="var(--warning)" style={{ margin: '0 auto 12px auto' }} />
-              <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)', margin: '0 0 6px 0' }}>
+              <h1 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)', margin: '0 0 6px 0' }}>
                 No se pudo abrir el enlace
-              </h2>
+              </h1>
               <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: '0 0 1.5rem 0' }}>{error}</p>
               <button type="button" className="btn-secondary" onClick={onExit} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                 <ArrowLeft size={16} /> Volver al inicio
@@ -257,9 +257,9 @@ export const SharedView = ({ token, currentUser, hasPlan, onExit, onLogout, onNo
                 <ItemIcon size={30} />
               </div>
 
-              <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)', margin: '0 0 4px 0', wordBreak: 'break-word' }}>
+              <h1 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)', margin: '0 0 4px 0', wordBreak: 'break-word' }}>
                 {isFolder ? shared.folder.name : shared.file.name}
-              </h2>
+              </h1>
               {!isFolder && (
                 <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0 0 12px 0' }}>
                   {shared.file.size} · {shared.file.updated}

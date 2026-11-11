@@ -634,9 +634,9 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
                 <Shield size={14} /> Archivos privados
               </span>
             </div>
-            <h2 className="nb-dash-banner-title" style={{ fontSize: '1.75rem', fontWeight: 800, marginBottom: '6px' }}>
+            <h1 className="nb-dash-banner-title" style={{ fontSize: '1.75rem', fontWeight: 800, marginBottom: '6px', color: 'var(--text-white)' }}>
               ¡Bienvenido a tu nube, {currentUser?.name || 'Cliente'}!
-            </h2>
+            </h1>
             <p style={{ opacity: 0.85, fontSize: '0.9rem', maxWidth: '520px' }}>
               Tu cuenta está suscrita al <strong>Plan {planName}</strong> con <strong>{storageQuota}</strong> de capacidad disponible para almacenar, organizar, previsualizar y compartir.
             </p>
