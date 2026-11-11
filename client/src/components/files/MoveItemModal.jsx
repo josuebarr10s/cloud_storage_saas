@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Folder, FolderPlus, ArrowRight, X, Check, Home, CornerDownRight } from 'lucide-react';
 import { filesService, getDescendantFolderIds } from '../../services/filesService.js';
 
-export const MoveItemModal = ({ isOpen, onClose, item, currentUser, onMoveSuccess, onNotification }) => {
+export const MoveItemModal = ({ isOpen, onClose, item, currentUser, allFolders: cachedFolders = null, onMoveSuccess, onNotification }) => {
   const [folders, setFolders] = useState([]);
   const [selectedFolderId, setSelectedFolderId] = useState(null); // null means root
   const [isLoading, setIsLoading] = useState(true);
@@ -12,9 +12,10 @@ export const MoveItemModal = ({ isOpen, onClose, item, currentUser, onMoveSucces
     if (!isOpen || !item) return;
 
     async function fetchFolders() {
-      setIsLoading(true);
+      const hasCached = Array.isArray(cachedFolders);
+      if (!hasCached) setIsLoading(true);
       try {
-        const allFolders = await filesService.getAllUserFolders(currentUser?.id);
+        const allFolders = hasCached ? cachedFolders : await filesService.getAllUserFolders(currentUser?.id);
         // Si es carpeta, excluir la carpeta misma y todas sus subcarpetas (no se puede mover dentro de ellas)
         const excluidas = item.isFolder
           ? [item.id, ...getDescendantFolderIds(allFolders, item.id)]
@@ -31,7 +32,7 @@ export const MoveItemModal = ({ isOpen, onClose, item, currentUser, onMoveSucces
     }
 
     fetchFolders();
-  }, [isOpen, item, currentUser?.id]);
+  }, [isOpen, item, currentUser?.id, cachedFolders]);
 
   if (!isOpen || !item) return null;
 
@@ -39,7 +40,7 @@ export const MoveItemModal = ({ isOpen, onClose, item, currentUser, onMoveSucces
     setIsSubmitting(true);
     try {
       if (item.isFolder) {
-        await filesService.moveFolderToFolder(item.id, selectedFolderId);
+        await filesService.moveFolderToFolder(item.id, selectedFolderId, cachedFolders || folders);
       } else {
         await filesService.moveFileToFolder(item.id, selectedFolderId);
       }
@@ -48,7 +49,7 @@ export const MoveItemModal = ({ isOpen, onClose, item, currentUser, onMoveSucces
       const destinationName = targetFolderObj ? `"${targetFolderObj.name}"` : 'el Espacio Principal (Raíz)';
 
       onNotification && onNotification(`"${item.name}" se movió con éxito a ${destinationName}.`, 'success');
-      onMoveSuccess && onMoveSuccess();
+      onMoveSuccess && onMoveSuccess(item, selectedFolderId);
       onClose();
     } catch (err) {
       onNotification && onNotification(`Error al mover: ${err.message}`, 'error');

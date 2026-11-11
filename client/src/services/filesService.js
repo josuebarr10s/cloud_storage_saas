@@ -8,6 +8,10 @@ import { FileFactory, FolderFactory } from '../factories/entityFactory.js';
 const BUCKET = STORAGE_CONSTANTS.STORAGE_BUCKET;
 const DIA_MS = STORAGE_CONSTANTS.MS_PER_DAY;
 
+// Caché en memoria de Signed URLs para que abrir vistas previas repetidas sea instantáneo (50 min TTL)
+const signedUrlCache = new Map();
+const SIGNED_URL_TTL_MS = 50 * 60 * 1000;
+
 /**
  * Adaptadores de compatibilidad delegados al Patrón Factory
  */
@@ -24,13 +28,15 @@ async function resolveUserId(userId) {
 }
 
 /**
- * Recalcula el espacio usado: archivos (incluye papelera) + versiones antiguas
+ * Recalcula el espacio usado: archivos (incluye papelera) + versiones antiguas en paralelo
  */
 async function recalcularAlmacenamiento(userId) {
   if (!userId) return;
   try {
-    const { data: archivos } = await supabase.from('archivo').select('tamano').eq('id_usuario', userId);
-    const { data: versiones } = await supabase.from('archivo_version').select('tamano').eq('id_usuario', userId);
+    const [{ data: archivos }, { data: versiones }] = await Promise.all([
+      supabase.from('archivo').select('tamano').eq('id_usuario', userId),
+      supabase.from('archivo_version').select('tamano').eq('id_usuario', userId)
+    ]);
     const totalBytes = [...(archivos || []), ...(versiones || [])]
       .reduce((acc, curr) => acc + parseInt(curr.tamano || 0, 10), 0);
 
@@ -393,26 +399,38 @@ export const filesService = {
   /**
    * Mover una carpeta a otra carpeta (o raíz si targetParentId es null)
    */
-  async moveFolderToFolder(folderId, targetParentId) {
+  async moveFolderToFolder(folderId, targetParentId, knownFolders = null) {
     if (folderId === targetParentId) {
       throw new Error('No puedes mover una carpeta dentro de sí misma.');
     }
 
-    // Evitar ciclos: el destino no puede ser una subcarpeta de la carpeta que se mueve.
-    // Se sube desde el destino hasta la raíz; si en el camino aparece la carpeta, es inválido.
-    let currentId = targetParentId;
-    const visitados = new Set();
-    while (currentId && !visitados.has(currentId)) {
-      if (currentId === folderId) {
-        throw new Error('No puedes mover una carpeta dentro de una de sus subcarpetas.');
+    // Evitar ciclos: si ya tenemos la lista de carpetas en memoria, validamos en 0ms sin múltiples queries
+    if (Array.isArray(knownFolders) && knownFolders.length > 0) {
+      const parentMap = new Map(knownFolders.map(f => [f.id, f.parentId || null]));
+      let currentId = targetParentId;
+      const visitados = new Set();
+      while (currentId && !visitados.has(currentId)) {
+        if (currentId === folderId) {
+          throw new Error('No puedes mover una carpeta dentro de una de sus subcarpetas.');
+        }
+        visitados.add(currentId);
+        currentId = parentMap.get(currentId) || null;
       }
-      visitados.add(currentId);
-      const { data: padre } = await supabase
-        .from('carpeta')
-        .select('id_carpeta_padre')
-        .eq('id_carpeta', currentId)
-        .maybeSingle();
-      currentId = padre?.id_carpeta_padre || null;
+    } else {
+      let currentId = targetParentId;
+      const visitados = new Set();
+      while (currentId && !visitados.has(currentId)) {
+        if (currentId === folderId) {
+          throw new Error('No puedes mover una carpeta dentro de una de sus subcarpetas.');
+        }
+        visitados.add(currentId);
+        const { data: padre } = await supabase
+          .from('carpeta')
+          .select('id_carpeta_padre')
+          .eq('id_carpeta', currentId)
+          .maybeSingle();
+        currentId = padre?.id_carpeta_padre || null;
+      }
     }
 
     const { data, error } = await supabase
@@ -473,11 +491,9 @@ export const filesService = {
       throw new Error('El ID de usuario no es un UUID de Supabase válido. Asegúrate de registrarte o iniciar sesión correctamente.');
     }
 
-    // La fila de public.usuario ya existe: la crea el trigger handle_new_user al registrarse
-
     const { type } = detectCategoryAndType(file.name);
 
-    // 1. ¿Ya existe un archivo activo con el mismo nombre EN ESTA MISMA CARPETA? -> nueva versión
+    // 1 y 2 en paralelo: buscar versión previa con el mismo nombre y consultar espacio disponible
     let busqueda = supabase
       .from('archivo')
       .select('*')
@@ -489,14 +505,20 @@ export const filesService = {
       ? busqueda.eq('id_carpeta', currentFolderId)
       : busqueda.is('id_carpeta', null);
 
-    const { data: coincidencias } = await busqueda
-      .order('fecha_modificacion', { ascending: false })
-      .limit(1);
+    const [{ data: coincidencias }, { data: disponible, error: rpcError }] = await Promise.all([
+      busqueda.order('fecha_modificacion', { ascending: false }).limit(1),
+      supabase.rpc('espacio_disponible', { p_usuario: activeUserId })
+    ]);
 
     const existente = coincidencias?.[0] || null;
+    const bytesNecesarios = Math.max(file.size, Number(existente?.tamano || 0));
 
-    // 2. ¿Cabe en el plan? En una versión nueva la anterior también se queda en el historial
-    await asegurarEspacio(activeUserId, Math.max(file.size, Number(existente?.tamano || 0)));
+    if (!rpcError && typeof disponible === 'number' && bytesNecesarios > disponible) {
+      throw new Error(
+        `No hay espacio suficiente: se necesitan ${formatBytes(bytesNecesarios)} y quedan ${formatBytes(Math.max(0, disponible))}. ` +
+        'Libera espacio vaciando la papelera o cambia a un plan con más capacidad.'
+      );
+    }
 
     // 3. Subir binario a Supabase Storage
     const uploadedPath = await subirBinario(activeUserId, file);
@@ -542,8 +564,8 @@ export const filesService = {
       throw err;
     }
 
-    // 5. Actualizar espacio usado
-    await recalcularAlmacenamiento(activeUserId);
+    // 5. Actualizar espacio usado en segundo plano para no bloquear la respuesta al usuario
+    recalcularAlmacenamiento(activeUserId).catch(() => {});
 
     return {
       ...mapArchivo(savedRecord),
@@ -610,13 +632,38 @@ export const filesService = {
   },
 
   /**
-   * Obtener URL de vista previa o Blob para un archivo
+   * Obtener URL de vista previa rápida con caché de Signed URLs en memoria
    */
   async getFilePreviewUrl(filePath) {
     if (!filePath) return null;
 
     try {
-      // 1. Intentar descargar directamente como Blob (funciona con sesión activa)
+      // 1. Revisar caché en memoria (respuesta instantánea en 0ms)
+      const cached = signedUrlCache.get(filePath);
+      if (cached && cached.expiresAt > Date.now()) {
+        return {
+          url: cached.url,
+          isBlob: false
+        };
+      }
+
+      // 2. Generar Signed URL ligera (permite streaming inmediato de imágenes, PDF, audio y video)
+      const { data: signedData, error: signedErr } = await supabase.storage
+        .from(BUCKET)
+        .createSignedUrl(filePath, 3600);
+
+      if (!signedErr && signedData?.signedUrl) {
+        signedUrlCache.set(filePath, {
+          url: signedData.signedUrl,
+          expiresAt: Date.now() + SIGNED_URL_TTL_MS
+        });
+        return {
+          url: signedData.signedUrl,
+          isBlob: false
+        };
+      }
+
+      // 3. Fallback: descargar como Blob si la Signed URL no estuvo disponible
       const { data: blobData, error: dlErr } = await supabase.storage
         .from(BUCKET)
         .download(filePath);
@@ -629,19 +676,7 @@ export const filesService = {
         };
       }
 
-      // 2. Intentar crear Signed URL con 1 hora de validez
-      const { data: signedData, error: signedErr } = await supabase.storage
-        .from(BUCKET)
-        .createSignedUrl(filePath, 3600);
-
-      if (!signedErr && signedData?.signedUrl) {
-        return {
-          url: signedData.signedUrl,
-          isBlob: false
-        };
-      }
-
-      // 3. Fallback a Public URL
+      // 4. Fallback a Public URL
       const { data: publicData } = supabase.storage
         .from(BUCKET)
         .getPublicUrl(filePath);

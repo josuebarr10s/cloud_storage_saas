@@ -13,6 +13,7 @@ import { Toast } from './components/Toast.jsx';
 import { ConfirmHost } from './components/ConfirmDialog.jsx';
 
 import { authService } from './services/authService.js';
+import { mapAuthErrorMessage } from './utils/authErrorHandler.js';
 import { takeShareTokenFromUrl, clearPendingShareToken } from './services/sharingService.js';
 import { USER_ROLES } from './constants/roles.js';
 import { PLAN_NAMES } from './constants/plans.js';
@@ -24,8 +25,36 @@ const tienePlan = (user) => Boolean(user?.plan) && user.plan !== PLAN_NAMES.NONE
 const vistaPara = (user) => (esAdmin(user) || tienePlan(user)) ? 'dashboard' : 'landing';
 
 export default function App() {
-  const [currentUser, setCurrentUser] = useState(null);
-  const [currentView, setCurrentView] = useState('landing'); 
+  // Detectar primero si la URL trae un error de recuperación o un enlace de recuperación válido
+  const initialRawHash = (window.location.hash || '').replace(/^#/, '');
+  const initialRawSearch = (window.location.search || '').replace(/^\?/, '');
+  const initialHashParams = new URLSearchParams(initialRawHash);
+  const initialSearchParams = new URLSearchParams(initialRawSearch);
+  const hasUrlError = Boolean(initialHashParams.get('error') || initialSearchParams.get('error') || initialHashParams.get('error_description') || initialSearchParams.get('error_description'));
+
+  // Si la URL trae un error (ej. otp_expired), limpiar cualquier bandera previa de recuperación
+  if (hasUrlError) {
+    sessionStorage.removeItem('nimbox_is_recovering');
+  }
+
+  // Bandera persistente para asegurar que NUNCA se entre al dashboard durante la recuperación
+  const isRecoveringRef = useRef(
+    !hasUrlError && (
+      window.location.hash.includes('type=recovery') ||
+      window.location.search.includes('type=recovery') ||
+      sessionStorage.getItem('nimbox_is_recovering') === 'true'
+    )
+  );
+
+  if (isRecoveringRef.current) {
+    sessionStorage.setItem('nimbox_is_recovering', 'true');
+  }
+
+  // Hidratación instantánea desde caché local para evitar parpadeo y espera al recargar
+  const initialCachedUser = isRecoveringRef.current ? null : authService.getCachedUser();
+
+  const [currentUser, setCurrentUser] = useState(initialCachedUser);
+  const [currentView, setCurrentView] = useState(() => (initialCachedUser ? vistaPara(initialCachedUser) : 'landing')); 
   
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState(null);
@@ -35,18 +64,6 @@ export default function App() {
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
-
-  // Bandera persistente para asegurar que NUNCA se entre al dashboard durante la recuperación
-  const isRecoveringRef = useRef(
-    window.location.hash.includes('type=recovery') ||
-    window.location.search.includes('type=recovery') ||
-    sessionStorage.getItem('nimbox_is_recovering') === 'true'
-  );
-
-  if (isRecoveringRef.current) {
-    sessionStorage.setItem('nimbox_is_recovering', 'true');
-  }
-
   const [isResetPasswordOpen, setIsResetPasswordOpen] = useState(isRecoveringRef.current);
   // Enlace compartido pendiente (?share=TOKEN). Tiene prioridad sobre landing y dashboard mientras haya sesión.
   const [shareToken, setShareToken] = useState(() => takeShareTokenFromUrl());
@@ -56,28 +73,46 @@ export default function App() {
 
   const showNotification = (message, type = 'info') => {
     setToast({ message, type });
-    setTimeout(() => setToast(null), 4000);
+    setTimeout(() => setToast(null), 5000);
   };
 
   useEffect(() => {
-    // Si viene desde el enlace de recuperación, forzar vista landing y abrir modal
-    if (isRecoveringRef.current) {
+    // Detectar si Supabase envió algún error en la URL (ej: enlace expirado o ya utilizado)
+    const rawHash = (window.location.hash || '').replace(/^#/, '');
+    const rawSearch = (window.location.search || '').replace(/^\?/, '');
+    const hashParams = new URLSearchParams(rawHash);
+    const searchParams = new URLSearchParams(rawSearch);
+    const errorDescription = hashParams.get('error_description') || searchParams.get('error_description');
+    const errorCode = hashParams.get('error_code') || searchParams.get('error_code');
+
+    if (errorDescription || errorCode) {
+      const rawMsg = errorDescription ? decodeURIComponent(errorDescription.replace(/\+/g, ' ')) : errorCode;
+      const friendlyMsg = mapAuthErrorMessage({ message: rawMsg });
+      isRecoveringRef.current = false;
+      sessionStorage.removeItem('nimbox_is_recovering');
+      setIsResetPasswordOpen(false);
+      setIsForgotPasswordOpen(true);
+      window.history.replaceState(null, '', window.location.pathname);
+      showNotification(friendlyMsg, 'error');
+    } else if (isRecoveringRef.current) {
+      // Si viene desde un enlace de recuperación válido, verificar token_hash/code si aplica y abrir modal
       setIsResetPasswordOpen(true);
       setIsLoginOpen(false);
       setIsForgotPasswordOpen(false);
       setIsRegisterOpen(false);
       setCurrentView('landing');
       setCurrentUser(null);
-    }
 
-    // Detectar si Supabase envió algún error en la URL (ej: enlace expirado o URL no permitida)
-    const rawHash = (window.location.hash || '').replace(/^#/, '');
-    const rawSearch = (window.location.search || '').replace(/^\?/, '');
-    const params = new URLSearchParams(rawHash || rawSearch);
-    const errorDescription = params.get('error_description');
-    if (errorDescription) {
-      const cleanMsg = decodeURIComponent(errorDescription.replace(/\+/g, ' '));
-      showNotification(`Error de recuperación: ${cleanMsg}`, 'error');
+      authService.verifyRecoveryFromUrl().then(({ ok, error }) => {
+        if (!ok && error) {
+          isRecoveringRef.current = false;
+          sessionStorage.removeItem('nimbox_is_recovering');
+          setIsResetPasswordOpen(false);
+          setIsForgotPasswordOpen(true);
+          window.history.replaceState(null, '', window.location.pathname);
+          showNotification(mapAuthErrorMessage(error), 'error');
+        }
+      });
     }
 
     async function loadSession() {
@@ -92,10 +127,14 @@ export default function App() {
       if (user) {
         setCurrentUser(user);
         setCurrentView(vistaPara(user));
-      } else if (shareToken) {
-        // Para abrir un enlace compartido se necesita cuenta
-        setIsLoginOpen(true);
-        showNotification('Inicia sesión o crea una cuenta para ver el archivo que te compartieron.', 'info');
+      } else {
+        setCurrentUser(null);
+        setCurrentView('landing');
+        if (shareToken) {
+          // Para abrir un enlace compartido se necesita cuenta
+          setIsLoginOpen(true);
+          showNotification('Inicia sesión o crea una cuenta para ver el archivo que te compartieron.', 'info');
+        }
       }
     }
     loadSession();

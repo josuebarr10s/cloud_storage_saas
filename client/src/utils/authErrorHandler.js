@@ -8,6 +8,8 @@ export const AUTH_MESSAGES = Object.freeze({
   EMAIL_NOT_CONFIRMED: 'Tu correo aún no está confirmado. Revisa tu bandeja de entrada.',
   ALREADY_REGISTERED: 'Ya existe una cuenta con este correo.',
   RATE_LIMIT: 'Demasiados intentos. Espera unos minutos e inténtalo de nuevo.',
+  EXPIRED_RECOVERY_LINK: 'El enlace de recuperación expiró o ya fue utilizado. Solicita uno nuevo.',
+  SAME_PASSWORD: 'La nueva contraseña debe ser diferente a la anterior.',
   GENERIC_ERROR: 'Ocurrió un error inesperado.',
   CREATE_ACCOUNT_FAILED: 'No se pudo crear la cuenta.',
 });
@@ -24,6 +26,10 @@ export function mapAuthErrorMessage(error) {
   if (msg.includes('email not confirmed')) return AUTH_MESSAGES.EMAIL_NOT_CONFIRMED;
   if (msg.includes('already registered')) return AUTH_MESSAGES.ALREADY_REGISTERED;
   if (msg.includes('rate limit') || msg.includes('too many')) return AUTH_MESSAGES.RATE_LIMIT;
+  if (msg.includes('invalid or has expired') || msg.includes('otp_expired') || msg.includes('auth session missing')) {
+    return AUTH_MESSAGES.EXPIRED_RECOVERY_LINK;
+  }
+  if (msg.includes('different from the old password')) return AUTH_MESSAGES.SAME_PASSWORD;
 
   return error?.message || AUTH_MESSAGES.GENERIC_ERROR;
 }

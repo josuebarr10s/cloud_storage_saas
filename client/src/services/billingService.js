@@ -118,46 +118,58 @@ async function cleanupDuplicateSubscriptionsInDb(rawSubscriptions = []) {
 }
 
 async function runAutoRenewals(userId) {
-  // 1. Intentar primero la renovación atómica en la base de datos (bloqueo por usuario en Postgres).
-  // Si la BD ya renovó la suscripción (por trigger, cron o RPC), el cliente no vuelve a cobrar.
-  try {
-    await supabase.rpc('procesar_renovaciones_suscripcion', {
-      p_usuario: userId,
-      p_ahora: new Date().toISOString(),
-    });
-  } catch {
-    // Si la función RPC aún no está instalada en Supabase, continúa con la verificación segura.
-  }
-
   let subscriptions = await fetchUserSubscriptions(userId);
   if (!subscriptions.length) return { renewed: 0, subscriptions };
 
-  // 2. Si existían cobros duplicados previos en el mismo mes, anularlos en la BD
+  // 1. Si existían cobros duplicados previos en el mismo mes, anularlos en la BD
   const cleaned = await cleanupDuplicateSubscriptionsInDb(subscriptions);
   if (cleaned) {
     subscriptions = await fetchUserSubscriptions(userId);
   }
 
-  const cleanSubs = deduplicateSubscriptions(subscriptions);
-  const active = cleanSubs
+  let cleanSubs = deduplicateSubscriptions(subscriptions);
+  let active = cleanSubs
     .filter((s) => normalizeText(s.estado) === 'activa')
     .sort((a, b) => new Date(b.fecha_fin) - new Date(a.fecha_fin))[0];
 
   if (!active) return { renewed: 0, subscriptions: cleanSubs };
 
-  // 3. Respaldo seguro: solo cobrar si ya venció el periodo actual Y han pasado al menos
-  // 25 días (mensual) o 300 días (anual) desde el último cobro de este mismo plan.
   const now = new Date();
-  const cycle = billingCycleOf(active);
-  const durationDays = cycle === 'annual' ? DAYS_ANNUAL : DAYS_MONTHLY;
-  const minGapMs = (cycle === 'annual' ? 300 : MIN_DAYS_BETWEEN_MONTHLY_CHARGES) * MS_PER_DAY;
-
   const activeStart = new Date(active.fecha_inicio);
   const activeEnd = new Date(active.fecha_fin);
 
   if (Number.isNaN(activeStart.getTime()) || Number.isNaN(activeEnd.getTime())) {
     return { renewed: 0, subscriptions: cleanSubs };
   }
+
+  // Fast-path: si la suscripción activa sigue vigente, devolver en 1 sola consulta sin invocar RPC
+  if (activeEnd.getTime() > now.getTime()) {
+    return { renewed: 0, subscriptions: cleanSubs };
+  }
+
+  // 2. Si ya venció, intentar primero la renovación atómica en la base de datos
+  try {
+    await supabase.rpc('procesar_renovaciones_suscripcion', {
+      p_usuario: userId,
+      p_ahora: now.toISOString(),
+    });
+    subscriptions = await fetchUserSubscriptions(userId);
+    cleanSubs = deduplicateSubscriptions(subscriptions);
+    active = cleanSubs
+      .filter((s) => normalizeText(s.estado) === 'activa')
+      .sort((a, b) => new Date(b.fecha_fin) - new Date(a.fecha_fin))[0];
+    if (!active || new Date(active.fecha_fin).getTime() > now.getTime()) {
+      return { renewed: 1, subscriptions: cleanSubs };
+    }
+  } catch {
+    // Si la función RPC aún no está instalada en Supabase, continúa con la verificación segura.
+  }
+
+  // 3. Respaldo seguro: solo cobrar si ya venció el periodo actual Y han pasado al menos
+  // 25 días (mensual) o 300 días (anual) desde el último cobro de este mismo plan.
+  const cycle = billingCycleOf(active);
+  const durationDays = cycle === 'annual' ? DAYS_ANNUAL : DAYS_MONTHLY;
+  const minGapMs = (cycle === 'annual' ? 300 : MIN_DAYS_BETWEEN_MONTHLY_CHARGES) * MS_PER_DAY;
 
   // Verificar que realmente venció y que no se haya cobrado ya este mes en ningún otro dispositivo
   const elapsedSinceStart = now.getTime() - activeStart.getTime();

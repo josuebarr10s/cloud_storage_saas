@@ -1,5 +1,5 @@
 import { askConfirm } from '../utils/confirm.js';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Cloud, HardDrive, Upload, FolderPlus, Share2, LogOut, Search, 
   FileText, Image as ImageIcon, Video, FileCode, Archive, Trash2, Download, 
@@ -25,10 +25,8 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
   const [activeTab, setActiveTab] = useState(initialTab); // 'all' | 'docs' | 'images' | 'media' | 'shared' | 'trash' | 'billing'
   const [searchQuery, setSearchQuery] = useState('');
   const [files, setFiles] = useState([]);
-  const [folders, setFolders] = useState([]);
   const [allFolders, setAllFolders] = useState([]);
   const [currentFolderId, setCurrentFolderId] = useState(null);
-  const [folderPath, setFolderPath] = useState([]);
 
   const [isLoadingFiles, setIsLoadingFiles] = useState(true);
   const [isLoadingFolders, setIsLoadingFolders] = useState(false);
@@ -92,29 +90,31 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
   // Subir, crear carpetas, ordenar y cambiar de vista solo aplica a los archivos propios
   const canManageFiles = !isTrash && !isSharedTab;
 
-  // Cargar contenido principal (Archivos, Carpetas y Breadcrumbs)
-  const loadDashboardData = async () => {
+  // Cargar contenido principal (Archivos y todas las carpetas en una sola carga paralela)
+  const loadDashboardData = async ({ silent = false } = {}) => {
     if (!currentUser?.id) return;
-    setIsLoadingFiles(true);
-    setIsLoadingFolders(true);
+    if (!silent) {
+      setIsLoadingFiles(true);
+      setIsLoadingFolders(true);
+    }
 
     try {
-      // Se limpia la papelera en segundo plano para no retrasar la carga del dashboard
-      filesService.purgeExpiredTrash(currentUser?.id, retentionDays)
-        .catch(err => console.warn('No se pudo purgar la papelera:', err));
-      
-      const [userFiles, userFolders, userAllFolders, path, sharedIds] = await Promise.all([
+      // Se limpia la papelera solo una vez por sesión en segundo plano
+      const purgeKey = `nimbox_purged_${currentUser.id}`;
+      if (!sessionStorage.getItem(purgeKey)) {
+        sessionStorage.setItem(purgeKey, 'true');
+        filesService.purgeExpiredTrash(currentUser?.id, retentionDays)
+          .catch(err => console.warn('No se pudo purgar la papelera:', err));
+      }
+
+      const [userFiles, userAllFolders, sharedIds] = await Promise.all([
         filesService.getUserFiles(currentUser?.id),
-        filesService.getUserFolders(currentUser?.id, currentFolderId),
         filesService.getAllUserFolders(currentUser?.id),
-        filesService.getFolderPath(currentFolderId),
         sharingService.getSharedIds()
       ]);
 
       setFiles(userFiles.map(f => ({ ...f, shared: sharedIds.files.has(f.id) })));
-      setFolders(userFolders.map(f => ({ ...f, shared: sharedIds.folders.has(f.id) })));
-      setAllFolders(userAllFolders);
-      setFolderPath(path);
+      setAllFolders(userAllFolders.map(f => ({ ...f, shared: sharedIds.folders.has(f.id) })));
     } catch (err) {
       console.error('Error al cargar datos del dashboard:', err);
     } finally {
@@ -125,7 +125,30 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
 
   useEffect(() => {
     loadDashboardData();
-  }, [currentUser?.id, currentFolderId]);
+  }, [currentUser?.id]);
+
+  // Subcarpetas del nivel actual calculadas en memoria (navegación en 0ms sin peticiones adicionales)
+  const folders = useMemo(() => {
+    return allFolders.filter(f => (f.parentId || null) === (currentFolderId || null));
+  }, [allFolders, currentFolderId]);
+
+  // Ruta de navegación (Breadcrumbs) calculada en memoria (0ms)
+  const folderPath = useMemo(() => {
+    if (!currentFolderId) return [];
+    const folderMap = new Map(allFolders.map(f => [f.id, f]));
+    const path = [];
+    const visitados = new Set();
+    let currentId = currentFolderId;
+
+    while (currentId && !visitados.has(currentId)) {
+      visitados.add(currentId);
+      const folder = folderMap.get(currentId);
+      if (!folder) break;
+      path.unshift({ id: folder.id, name: folder.name });
+      currentId = folder.parentId || null;
+    }
+    return path;
+  }, [allFolders, currentFolderId]);
 
   // Cargar la papelera cuando se abre la pestaña
   useEffect(() => {
@@ -238,12 +261,10 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
     try {
       if (editingFolder) {
         const updated = await filesService.updateFolder(editingFolder.id, { name, color });
-        setFolders(prev => prev.map(f => f.id === updated.id ? { ...updated, shared: f.shared } : f));
-        setAllFolders(prev => prev.map(f => f.id === updated.id ? updated : f));
+        setAllFolders(prev => prev.map(f => f.id === updated.id ? { ...updated, shared: f.shared } : f));
         onNotification && onNotification(`Carpeta "${name}" actualizada.`, 'success');
       } else {
         const newFolder = await filesService.createFolder(currentUser?.id, name, color, currentFolderId);
-        setFolders(prev => [...prev, newFolder]);
         setAllFolders(prev => [...prev, newFolder]);
         onNotification && onNotification(`Carpeta "${name}" creada exitosamente.`, 'success');
       }
@@ -265,7 +286,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
     if (!(await askConfirm(`¿Eliminar la carpeta "${folder.name}" y sus subcarpetas? Los archivos que contiene se moverán a la papelera.`, { confirmText: 'Eliminar carpeta', danger: true }))) return;
     try {
       const enviados = await filesService.deleteFolder(folder.id, currentUser?.id);
-      await loadDashboardData();
+      await loadDashboardData({ silent: true });
       onNotification && onNotification(
         enviados > 0
           ? `Carpeta "${folder.name}" eliminada. ${enviados} ${enviados === 1 ? 'archivo se movió' : 'archivos se movieron'} a la papelera.`
@@ -288,13 +309,14 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
     if (!itemData || !itemData.id) return;
     try {
       if (itemData.isFolder) {
-        await filesService.moveFolderToFolder(itemData.id, targetFolderId);
+        await filesService.moveFolderToFolder(itemData.id, targetFolderId, allFolders);
+        setAllFolders(prev => prev.map(f => f.id === itemData.id ? { ...f, parentId: targetFolderId || null } : f));
         onNotification && onNotification(`Carpeta "${itemData.name}" movida con éxito.`, 'success');
       } else {
         await filesService.moveFileToFolder(itemData.id, targetFolderId);
+        setFiles(prev => prev.map(f => f.id === itemData.id ? { ...f, folder_id: targetFolderId || null } : f));
         onNotification && onNotification(`Archivo "${itemData.name}" movido con éxito.`, 'success');
       }
-      loadDashboardData();
     } catch (err) {
       onNotification && onNotification(`No se pudo mover: ${err.message}`, 'error');
     }
@@ -404,7 +426,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
 
   const handleShareChange = (item, shared) => {
     const marcar = (prev) => prev.map(i => i.id === item.id ? { ...i, shared } : i);
-    if (item.isFolder) setFolders(marcar);
+    if (item.isFolder) setAllFolders(marcar);
     else setFiles(marcar);
   };
 
@@ -457,32 +479,33 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
     }
   };
 
-  // Filtrar archivos pertenecientes a la ubicación actual o tab activa
-  const visibleFiles = files.filter(f => {
-    const matchesSearch = f.name.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    if (activeTab !== 'all') {
-      return matchesSearch && f.category === activeTab;
-    }
-    
-    // En la pestaña 'all', si no hay búsqueda activa, mostrar archivos de la carpeta actual
-    if (!searchQuery.trim()) {
-      return f.folder_id === currentFolderId;
-    }
-    return matchesSearch;
-  });
+  // Filtrar y ordenar archivos y carpetas con useMemo para evitar recálculos en cada render
+  const sortedFiles = useMemo(() => {
+    const query = searchQuery.toLowerCase();
+    const hasQuery = Boolean(searchQuery.trim());
+    const visible = files.filter(f => {
+      const matchesSearch = !hasQuery || f.name.toLowerCase().includes(query);
+      if (activeTab !== 'all') {
+        return matchesSearch && f.category === activeTab;
+      }
+      if (!hasQuery) {
+        return (f.folder_id || null) === (currentFolderId || null);
+      }
+      return matchesSearch;
+    });
+    return sortItems(visible);
+  }, [files, searchQuery, activeTab, currentFolderId, sortBy, sortOrder]);
 
-  // Filtrar carpetas pertenecientes al nivel actual
-  const visibleFolders = folders.filter(f => {
-    return f.name.toLowerCase().includes(searchQuery.toLowerCase());
-  });
+  const sortedFolders = useMemo(() => {
+    const query = searchQuery.toLowerCase();
+    const visible = folders.filter(f => !query || f.name.toLowerCase().includes(query));
+    return sortItems(visible);
+  }, [folders, searchQuery, sortBy, sortOrder]);
 
-  const sortedFiles = sortItems(visibleFiles);
-  const sortedFolders = sortItems(visibleFolders);
-
-  const filteredTrash = trashFiles.filter(f =>
-    f.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredTrash = useMemo(() => {
+    const query = searchQuery.toLowerCase();
+    return trashFiles.filter(f => !query || f.name.toLowerCase().includes(query));
+  }, [trashFiles, searchQuery]);
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-subtle)', display: 'flex', flexDirection: 'column' }}>
@@ -1687,7 +1710,16 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
         onClose={() => setIsMoveModalOpen(false)}
         item={itemToMove}
         currentUser={currentUser}
-        onMoveSuccess={loadDashboardData}
+        allFolders={allFolders}
+        onMoveSuccess={(movedItem, targetFolderId) => {
+          if (movedItem?.isFolder) {
+            setAllFolders(prev => prev.map(f => f.id === movedItem.id ? { ...f, parentId: targetFolderId || null } : f));
+          } else if (movedItem?.id) {
+            setFiles(prev => prev.map(f => f.id === movedItem.id ? { ...f, folder_id: targetFolderId || null } : f));
+          } else {
+            loadDashboardData({ silent: true });
+          }
+        }}
         onNotification={onNotification}
       />
 
