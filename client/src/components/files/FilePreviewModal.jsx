@@ -1,13 +1,334 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import * as pdfjsLib from 'pdfjs-dist';
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import {
   X, Download, Share2, ZoomIn, ZoomOut, Maximize2, RotateCw,
   FileText, Image as ImageIcon, Video, Music, Archive, FileCode,
-  Copy, ExternalLink, Loader2, AlertCircle, Info, Calendar, HardDrive
+  Copy, ExternalLink, Loader2, AlertCircle, Info, Calendar, HardDrive, Sparkles
 } from 'lucide-react';
 import { filesService } from '../../services/filesService.js';
+import { isSupportedBoxIADocument } from '../../services/boxIAService.js';
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+
+/**
+ * Renderiza una página individual del PDF en un <canvas> de alta resolución adaptable a móvil y escritorio
+ */
+const PdfPageCanvas = ({ pdfDoc, pageNumber, zoom, containerWidth }) => {
+  const canvasRef = useRef(null);
+  const [pageRendered, setPageRendered] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    let renderTask = null;
+
+    async function renderPage() {
+      if (!pdfDoc || !canvasRef.current) return;
+      try {
+        const page = await pdfDoc.getPage(pageNumber);
+        if (cancelled) return;
+
+        const unscaledViewport = page.getViewport({ scale: 1 });
+        const availableWidth = Math.max(260, (containerWidth || 720) - 28);
+        const baseScale = Math.min(1.6, availableWidth / unscaledViewport.width);
+        const finalScale = baseScale * zoom;
+        const viewport = page.getViewport({ scale: finalScale });
+
+        const canvas = canvasRef.current;
+        const context = canvas.getContext('2d');
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+        canvas.width = Math.floor(viewport.width * dpr);
+        canvas.height = Math.floor(viewport.height * dpr);
+        canvas.style.width = `${Math.floor(viewport.width)}px`;
+        canvas.style.height = `${Math.floor(viewport.height)}px`;
+
+        context.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        renderTask = page.render({
+          canvasContext: context,
+          viewport
+        });
+        await renderTask.promise;
+        if (!cancelled) {
+          setPageRendered(true);
+        }
+      } catch (err) {
+        if (err?.name !== 'RenderingCancelledException') {
+          console.warn(`Error al renderizar página ${pageNumber}:`, err);
+        }
+      }
+    }
+
+    renderPage();
+
+    return () => {
+      cancelled = true;
+      if (renderTask?.cancel) {
+        try {
+          renderTask.cancel();
+        } catch {}
+      }
+    };
+  }, [pdfDoc, pageNumber, zoom, containerWidth]);
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        marginBottom: '16px',
+        width: '100%'
+      }}
+    >
+      <div
+        style={{
+          background: '#ffffff',
+          borderRadius: '8px',
+          boxShadow: '0 4px 14px rgba(15, 23, 42, 0.14)',
+          border: '1px solid var(--border-color)',
+          overflow: 'hidden',
+          maxWidth: '100%',
+          position: 'relative'
+        }}
+      >
+        {!pageRendered && (
+          <div
+            style={{
+              padding: '3rem 2rem',
+              textAlign: 'center',
+              color: 'var(--text-muted)',
+              fontSize: '0.8rem'
+            }}
+          >
+            Renderizando página {pageNumber}...
+          </div>
+        )}
+        <canvas
+          ref={canvasRef}
+          style={{
+            display: 'block',
+            margin: '0 auto'
+          }}
+        />
+      </div>
+      <span
+        style={{
+          marginTop: '6px',
+          fontSize: '0.73rem',
+          fontWeight: 600,
+          color: 'var(--text-muted)'
+        }}
+      >
+        Página {pageNumber} de {pdfDoc?.numPages || 1}
+      </span>
+    </div>
+  );
+};
+
+/**
+ * Visor PDF multipágina compatible con teléfonos móviles (iOS/Android) y escritorio
+ */
+const PdfMultiPageViewer = ({ previewUrl }) => {
+  const [pdfDoc, setPdfDoc] = useState(null);
+  const [numPages, setNumPages] = useState(0);
+  const [pdfLoading, setPdfLoading] = useState(true);
+  const [pdfError, setPdfError] = useState(null);
+  const [zoom, setZoom] = useState(1);
+  const [containerWidth, setContainerWidth] = useState(720);
+  const scrollContainerRef = useRef(null);
+
+  useEffect(() => {
+    const updateWidth = () => {
+      if (scrollContainerRef.current) {
+        setContainerWidth(scrollContainerRef.current.clientWidth);
+      }
+    };
+    updateWidth();
+    window.addEventListener('resize', updateWidth);
+    return () => window.removeEventListener('resize', updateWidth);
+  }, [pdfDoc]);
+
+  useEffect(() => {
+    let active = true;
+    let loadedPdf = null;
+
+    async function loadPdfDocument() {
+      if (!previewUrl) return;
+      setPdfLoading(true);
+      setPdfError(null);
+      try {
+        const res = await fetch(previewUrl);
+        const arrayBuffer = await res.arrayBuffer();
+        const loadingTask = pdfjsLib.getDocument({
+          data: new Uint8Array(arrayBuffer),
+          useSystemFonts: true,
+          isEvalSupported: false
+        });
+        loadedPdf = await loadingTask.promise;
+        if (!active) return;
+        setPdfDoc(loadedPdf);
+        setNumPages(loadedPdf.numPages || 1);
+      } catch (err) {
+        console.error('Error al cargar documento PDF multipágina:', err);
+        if (active) {
+          setPdfError('No se pudo renderizar el documento PDF.');
+        }
+      } finally {
+        if (active) {
+          setPdfLoading(false);
+        }
+      }
+    }
+
+    loadPdfDocument();
+
+    return () => {
+      active = false;
+      if (loadedPdf?.destroy) {
+        try {
+          loadedPdf.destroy();
+        } catch {}
+      }
+    };
+  }, [previewUrl]);
+
+  if (pdfLoading) {
+    return (
+      <div style={{ padding: '3.5rem 1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+        <Loader2 size={34} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 10px auto' }} />
+        <p style={{ fontWeight: 600, fontSize: '0.9rem', margin: 0 }}>Preparando todas las páginas del PDF...</p>
+      </div>
+    );
+  }
+
+  if (pdfError || !pdfDoc) {
+    return (
+      <div style={{ width: '100%', height: '65vh', borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+        <iframe src={previewUrl} title="PDF Fallback" style={{ width: '100%', height: '100%', border: 'none' }} />
+      </div>
+    );
+  }
+
+  const pagesArray = Array.from({ length: numPages }, (_, idx) => idx + 1);
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        width: '100%',
+        height: '66vh',
+        borderRadius: 'var(--radius-md)',
+        border: '1px solid var(--border-color)',
+        background: 'var(--bg-subtle)',
+        overflow: 'hidden'
+      }}
+    >
+      {/* Barra superior de control de páginas y zoom */}
+      <div
+        style={{
+          padding: '8px 14px',
+          background: 'var(--bg-card)',
+          borderBottom: '1px solid var(--border-color)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '8px',
+          flexWrap: 'wrap',
+          fontSize: '0.78rem'
+        }}
+      >
+        <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>
+          Documento completo ({numPages} {numPages === 1 ? 'página' : 'páginas'})
+        </span>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <button
+            type="button"
+            onClick={() => setZoom((z) => Math.max(0.6, +(z - 0.2).toFixed(2)))}
+            style={{
+              background: 'var(--bg-subtle)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '6px',
+              color: 'var(--text-main)',
+              cursor: 'pointer',
+              padding: '4px 7px',
+              display: 'flex',
+              alignItems: 'center'
+            }}
+            title="Reducir zoom"
+          >
+            <ZoomOut size={14} />
+          </button>
+          <span style={{ fontWeight: 700, minWidth: '42px', textAlign: 'center', color: 'var(--text-main)' }}>
+            {Math.round(zoom * 100)}%
+          </span>
+          <button
+            type="button"
+            onClick={() => setZoom((z) => Math.min(2.2, +(z + 0.2).toFixed(2)))}
+            style={{
+              background: 'var(--bg-subtle)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '6px',
+              color: 'var(--text-main)',
+              cursor: 'pointer',
+              padding: '4px 7px',
+              display: 'flex',
+              alignItems: 'center'
+            }}
+            title="Aumentar zoom"
+          >
+            <ZoomIn size={14} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setZoom(1)}
+            style={{
+              background: 'var(--bg-subtle)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '6px',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+              padding: '4px 7px',
+              display: 'flex',
+              alignItems: 'center'
+            }}
+            title="Ajustar al ancho"
+          >
+            <RotateCw size={13} />
+          </button>
+        </div>
+      </div>
+
+      {/* Contenedor deslizable vertical y horizontal con todas las páginas del PDF */}
+      <div
+        ref={scrollContainerRef}
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          overflowX: 'auto',
+          WebkitOverflowScrolling: 'touch',
+          padding: '14px 10px'
+        }}
+      >
+        {pagesArray.map((pageNum) => (
+          <PdfPageCanvas
+            key={pageNum}
+            pdfDoc={pdfDoc}
+            pageNumber={pageNum}
+            zoom={zoom}
+            containerWidth={containerWidth}
+          />
+        ))}
+      </div>
+    </div>
+  );
+};
 
 // onShare: si se pasa (solo el dueño), muestra el botón Compartir
-export const FilePreviewModal = ({ file, isOpen, onClose, onNotification, onShare }) => {
+export const FilePreviewModal = ({ file, isOpen, onClose, onNotification, onShare, onAskAI }) => {
   const [previewUrl, setPreviewUrl] = useState(null);
   const [textContent, setTextContent] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -208,17 +529,9 @@ export const FilePreviewModal = ({ file, isOpen, onClose, onNotification, onShar
       );
     }
 
-    // 2. DOCUMENTOS PDF
+    // 2. DOCUMENTOS PDF (Visor multipágina compatible con teléfonos móviles y escritorio)
     if (file.mimeCategory === 'pdf' || file.ext === 'pdf') {
-      return (
-        <div style={{ width: '100%', height: '65vh', borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
-          <iframe
-            src={previewUrl}
-            title={file.name}
-            style={{ width: '100%', height: '100%', border: 'none' }}
-          />
-        </div>
-      );
+      return <PdfMultiPageViewer previewUrl={previewUrl} />;
     }
 
     // 3. VIDEOS
@@ -504,6 +817,41 @@ export const FilePreviewModal = ({ file, isOpen, onClose, onNotification, onShar
 
           {/* Action Header Buttons */}
           <div className="nb-preview-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {onAskAI && isSupportedBoxIADocument(file) && (
+              <button
+                type="button"
+                onClick={() => onAskAI(file)}
+                style={{
+                  padding: '5px 12px',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  borderRadius: 'var(--radius-sm)',
+                  border: 'none',
+                  background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+                title="Analizar este documento con Box IA"
+              >
+                <img
+                  src="/box-ia-icon.png"
+                  alt="Box IA"
+                  style={{
+                    width: '19px',
+                    height: '19px',
+                    objectFit: 'contain',
+                    background: 'rgba(255, 255, 255, 0.92)',
+                    borderRadius: '4px',
+                    padding: '1px'
+                  }}
+                />
+                <span>Box IA</span>
+              </button>
+            )}
+
             {onShare && (
               <button
                 type="button"

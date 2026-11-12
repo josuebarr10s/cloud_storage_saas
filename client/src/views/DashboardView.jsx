@@ -19,6 +19,8 @@ import { CreateFolderModal } from '../components/files/CreateFolderModal.jsx';
 import { MoveItemModal } from '../components/files/MoveItemModal.jsx';
 import { FolderCard } from '../components/files/FolderCard.jsx';
 import { PaymentHistory } from '../components/billing/PaymentHistory.jsx';
+import { BoxIAAgentModal } from '../components/ai/BoxIAAgentModal.jsx';
+import { isSupportedBoxIADocument } from '../services/boxIAService.js';
 import './dashboard-responsive.css';
 
 export const DashboardView = ({ currentUser, onLogout, onNotification, onChangePlan, onOpenShared, initialTab = 'all', billingVersion = 0 }) => {
@@ -59,6 +61,8 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
 
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
   const [itemToMove, setItemToMove] = useState(null);
+  const [isBoxIAOpen, setIsBoxIAOpen] = useState(false);
+  const [boxIAInitialFile, setBoxIAInitialFile] = useState(null);
   const [isNavMenuOpen, setIsNavMenuOpen] = useState(false);
   const navDropdownRef = useRef(null);
 
@@ -404,8 +408,16 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
     setIsShareOpen(true);
   };
 
+  const handleOpenBoxIA = (file = null) => {
+    setBoxIAInitialFile(file || null);
+    setIsBoxIAOpen(true);
+  };
+
   // Acciones que no caben en la tarjeta o fila del archivo: van en el menú de tres puntos
   const getFileMenuItems = (file) => [
+    ...(isSupportedBoxIADocument(file)
+      ? [{ label: 'Analizar con Box IA', icon: Sparkles, onClick: () => handleOpenBoxIA(file) }]
+      : []),
     { label: 'Vista previa', icon: Eye, onClick: () => handleOpenPreview(file) },
     { label: 'Cambiar nombre', icon: Edit2, onClick: () => setFileToRename(file) },
     { label: 'Mover a otra carpeta', icon: ArrowRight, onClick: () => handleOpenMoveModal(file) },
@@ -1006,6 +1018,42 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
               />
               <Search size={16} color="var(--text-light)" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
             </div>
+
+            {/* Botón Box IA */}
+            <button
+              type="button"
+              onClick={() => handleOpenBoxIA(null)}
+              className="nb-dash-action-btn"
+              style={{
+                padding: '6px 14px',
+                fontSize: '0.85rem',
+                fontWeight: 700,
+                borderRadius: 'var(--radius-sm)',
+                border: '1px solid rgba(124, 58, 237, 0.35)',
+                background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+                color: '#ffffff',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '7px',
+                boxShadow: '0 4px 12px rgba(79, 70, 229, 0.25)'
+              }}
+              title="Abrir agente Box IA para leer y hacer preguntas sobre tus documentos"
+            >
+              <img
+                src="/box-ia-icon.png"
+                alt="Box IA"
+                style={{
+                  width: '22px',
+                  height: '22px',
+                  objectFit: 'contain',
+                  background: 'rgba(255, 255, 255, 0.92)',
+                  borderRadius: '5px',
+                  padding: '1px'
+                }}
+              />
+              <span>Box IA</span>
+            </button>
 
             {/* Botón Crear Carpeta */}
             {canManageFiles && (
@@ -1730,6 +1778,19 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
         onClose={() => setIsPreviewOpen(false)}
         onNotification={onNotification}
         onShare={handleOpenShare}
+        onAskAI={(file) => {
+          setIsPreviewOpen(false);
+          handleOpenBoxIA(file);
+        }}
+      />
+
+      {/* MODAL DEL AGENTE BOX IA */}
+      <BoxIAAgentModal
+        isOpen={isBoxIAOpen}
+        onClose={() => setIsBoxIAOpen(false)}
+        files={files}
+        initialSelectedFile={boxIAInitialFile}
+        onNotification={onNotification}
       />
 
       {/* MODAL DE CAMBIAR NOMBRE */}

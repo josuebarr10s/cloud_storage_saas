@@ -591,6 +591,11 @@
     align-items: flex-start !important;
     gap: 6px !important;
   }
+
+  .nb-boxia-grid {
+    grid-template-columns: 1fr !important;
+    grid-template-rows: 200px 1fr;
+  }
 }
 
 /* ============================================================
