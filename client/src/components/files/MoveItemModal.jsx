@@ -228,6 +228,7 @@ export const MoveItemModal = ({ isOpen, onClose, item, currentUser, allFolders: 
 
         {/* Footer Actions */}
         <div
+          className="nb-modal-footer"
           style={{
             padding: '1rem 1.5rem',
             borderTop: '1px solid var(--border-color)',

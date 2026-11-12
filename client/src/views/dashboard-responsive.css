@@ -596,10 +596,52 @@
     grid-template-columns: 1fr !important;
     grid-template-rows: 200px 1fr;
   }
+
+  /* Breadcrumb y Toolbar de Dashboard */
+  .nb-dash-breadcrumb {
+    overflow-x: auto !important;
+    white-space: nowrap !important;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px;
+  }
+
+  .nb-dash-toolbar {
+    width: 100%;
+  }
+
+  .nb-dash-search {
+    flex: 1 1 100% !important;
+    width: 100% !important;
+  }
+
+  .nb-dash-search-input {
+    width: 100% !important;
+  }
+
+  .nb-billing-search {
+    width: 100% !important;
+  }
+
+  .nb-billing-search-input {
+    width: 100% !important;
+  }
+
+  .nb-billing-summary-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .nb-admin-search {
+    flex: 1 1 100% !important;
+    width: 100% !important;
+  }
+
+  .nb-admin-search-input {
+    width: 100% !important;
+  }
 }
 
 /* ============================================================
-   CELULARES PEQUEÑOS (<= 420px)
+   CELULARES PEQUEÑOS (<= 420px y <= 380px)
    ============================================================ */
 @media (max-width: 420px) {
   .nb-dash-plan,
@@ -617,5 +659,36 @@
 
   .nb-dash-action-btn {
     flex: 1 1 100%;
+  }
+
+  .nb-dash-sort-box {
+    width: 100% !important;
+  }
+
+  .nb-dash-sort-box select {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+}
+
+@media (max-width: 380px) {
+  .nb-dash-main,
+  .nb-admin-main,
+  .nb-shared-main {
+    padding: 0.85rem 0.65rem !important;
+  }
+
+  .nb-dash-banner,
+  .nb-admin-banner {
+    padding: 1rem !important;
+  }
+
+  .nb-dash-banner-title,
+  .nb-admin-banner-title {
+    font-size: 1.25rem !important;
+  }
+
+  .nb-preview-title {
+    max-width: 140px !important;
   }
 }

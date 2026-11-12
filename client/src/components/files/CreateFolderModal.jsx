@@ -219,7 +219,7 @@ export const CreateFolderModal = ({ isOpen, onClose, onCreateFolder, initialData
           </div>
 
           {/* Actions */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+          <div className="nb-modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
             <button
               type="button"
               onClick={onClose}

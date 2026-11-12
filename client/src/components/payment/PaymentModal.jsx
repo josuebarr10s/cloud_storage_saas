@@ -142,7 +142,7 @@ export const PaymentModal = ({ isOpen, onClose, user, selectedPlan, billingCycle
                 {errors.cardNumber && <span style={{ color: 'red', fontSize: '0.8rem' }}>{errors.cardNumber}</span>}
               </div>
               
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div className="nb-payment-dual-fields" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
                   <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>MM/AA</label>
                   <input type="text" value={cardExpiry} onChange={handleExpiryChange} placeholder="MM/AA" maxLength={5} style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid var(--border-color)' }}/>
@@ -153,7 +153,7 @@ export const PaymentModal = ({ isOpen, onClose, user, selectedPlan, billingCycle
                 </div>
               </div>
 
-              <button onClick={handleProcessPayment} style={{ padding: '12px', background: 'var(--primary)', color: 'white', border: 'none', cursor: 'pointer', borderRadius: '4px', marginTop: '10px', fontWeight: 'bold', display: 'flex', justifyContent: 'center', gap: '8px' }}>
+              <button onClick={handleProcessPayment} className="btn-primary" style={{ padding: '12px', background: 'var(--primary)', color: 'white', border: 'none', cursor: 'pointer', borderRadius: '4px', marginTop: '10px', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', width: '100%' }}>
                 Pagar ${billedTotal} <Lock size={15}/>
               </button>
             </div>

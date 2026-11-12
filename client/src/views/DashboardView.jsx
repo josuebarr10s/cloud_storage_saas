@@ -21,6 +21,7 @@ import { FolderCard } from '../components/files/FolderCard.jsx';
 import { PaymentHistory } from '../components/billing/PaymentHistory.jsx';
 import { BoxIAAgentModal } from '../components/ai/BoxIAAgentModal.jsx';
 import { isSupportedBoxIADocument } from '../services/boxIAService.js';
+import boxIaIcon from '../assets/box-ia-icon.png';
 import './dashboard-responsive.css';
 
 export const DashboardView = ({ currentUser, onLogout, onNotification, onChangePlan, onOpenShared, initialTab = 'all', billingVersion = 0 }) => {
@@ -1041,7 +1042,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
               title="Abrir agente Box IA para leer y hacer preguntas sobre tus documentos"
             >
               <img
-                src="/box-ia-icon.png"
+                src={boxIaIcon}
                 alt="Box IA"
                 style={{
                   width: '22px',

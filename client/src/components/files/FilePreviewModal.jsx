@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { filesService } from '../../services/filesService.js';
 import { isSupportedBoxIADocument } from '../../services/boxIAService.js';
+import boxIaIcon from '../../assets/box-ia-icon.png';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -837,7 +838,7 @@ export const FilePreviewModal = ({ file, isOpen, onClose, onNotification, onShar
                 title="Analizar este documento con Box IA"
               >
                 <img
-                  src="/box-ia-icon.png"
+                  src={boxIaIcon}
                   alt="Box IA"
                   style={{
                     width: '19px',

@@ -53,6 +53,7 @@ export const ResetPasswordModal = ({ isOpen, onClose, onResetSuccess }) => {
 
   return (
     <div
+      className="nb-modal-overlay"
       style={{
         position: 'fixed',
         inset: 0,
@@ -62,15 +63,19 @@ export const ResetPasswordModal = ({ isOpen, onClose, onResetSuccess }) => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '1rem',
+        padding: 'clamp(0.65rem, 2.5vw, 1.25rem)',
         animation: 'fadeIn 0.2s ease-out'
       }}
     >
       <div
+        className="nb-modal-card"
         style={{
           background: 'var(--bg-card)',
           width: '100%',
           maxWidth: '460px',
+          maxHeight: '92vh',
+          display: 'flex',
+          flexDirection: 'column',
           borderRadius: 'var(--radius-2xl)',
           boxShadow: 'var(--shadow-modal)',
           border: '1px solid var(--border-color)',
@@ -79,18 +84,31 @@ export const ResetPasswordModal = ({ isOpen, onClose, onResetSuccess }) => {
       >
         {!isSuccess ? (
           <>
-            <div style={{ padding: '1.5rem 1.75rem', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div
+              className="nb-modal-header"
+              style={{
+                padding: '1.25rem 1.5rem',
+                borderBottom: '1px solid var(--border-color)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                background: 'var(--bg-subtle)'
+              }}
+            >
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ width: '38px', height: '38px', borderRadius: 'var(--radius-md)', background: 'var(--primary-light)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ width: '38px', height: '38px', borderRadius: 'var(--radius-md)', background: 'var(--primary-light)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   <ShieldCheck size={20} />
                 </div>
-                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>Nueva Contraseña</h3>
+                <div>
+                  <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>Nueva Contraseña</h3>
+                  <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: 0 }}>Protege el acceso a tu cuenta</p>
+                </div>
               </div>
-              <button onClick={onClose} style={{ color: 'var(--text-muted)' }}><X size={20} /></button>
+              <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '4px' }} aria-label="Cerrar"><X size={20} /></button>
             </div>
 
-            <div style={{ padding: '1.75rem' }}>
-              <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
+            <div className="nb-modal-body" style={{ padding: '1.5rem', overflowY: 'auto' }}>
+              <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', marginBottom: '1.25rem' }}>
                 Crea una contraseña segura para proteger tu cuenta de Nimbox.
               </p>
 
@@ -175,7 +193,7 @@ export const ResetPasswordModal = ({ isOpen, onClose, onResetSuccess }) => {
             </div>
           </>
         ) : (
-          <div style={{ padding: '3rem 2rem', textAlign: 'center' }}>
+          <div style={{ padding: 'clamp(2rem, 5vw, 3rem) 1.5rem', textAlign: 'center' }}>
             <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'var(--success-bg)', color: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem auto' }}>
               <CheckCircle2 size={32} />
             </div>

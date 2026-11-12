@@ -88,11 +88,11 @@ export const FeatureComparison = () => {
               border: '1px solid var(--border-color)',
               borderRadius: 'var(--radius-xl)',
               overflow: 'hidden',
-              padding: '1.5rem',
+              padding: 'clamp(0.75rem, 3vw, 1.5rem)',
               boxShadow: 'var(--shadow-md)',
             }}
           >
-            <div style={{ overflowX: 'auto' }}>
+            <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '650px' }}>
                 <thead>
                   <tr style={{ borderBottom: '2px solid var(--bg-hover)' }}>

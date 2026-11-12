@@ -146,7 +146,7 @@ export const RenameModal = ({ item, isOpen, onClose, onRename }) => {
           />
           {error && <p style={{ fontSize: '0.8rem', color: 'var(--danger)', margin: 0 }}>{error}</p>}
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '6px' }}>
+          <div className="nb-modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '6px' }}>
             <button type="button" className="btn-secondary" onClick={onClose}>
               Cancelar
             </button>
