@@ -13,6 +13,19 @@ const fileContentCache = new Map();
 // La clave de DeepSeek vive solo en el servidor como secreto; nunca va en el código del navegador.
 const BOX_IA_FUNCTION = 'box-ia';
 
+const mapUsage = (u) => ({ used: Number(u.usadas) || 0, limit: Number(u.limite) || 0 });
+
+/**
+ * Preguntas a Box IA que el usuario lleva hoy y las que permite su plan
+ * (Básico 10, Pro 50, Empresarial 200). Devuelve null si no se pudo consultar.
+ */
+export async function getBoxIAUsage() {
+  const { data, error } = await supabase.rpc('uso_ia_hoy');
+  if (error) return null;
+  const row = Array.isArray(data) ? data[0] : data;
+  return row ? mapUsage(row) : null;
+}
+
 const TEXT_EXTENSIONS = new Set([
   'txt', 'md', 'csv', 'json', 'js', 'jsx', 'ts', 'tsx', 'html', 'css',
   'sql', 'py', 'xml', 'yml', 'yaml', 'log', 'ini', 'env', 'sh', 'bat', 'ps1'
@@ -683,13 +696,17 @@ export async function askBoxIA({ question, selectedFiles, conversationHistory = 
 
   if (error) {
     let message = 'No se pudo consultar Box IA. Intenta de nuevo.';
+    let uso = null;
     try {
       const detail = await error.context?.json();
       if (detail?.error) message = detail.error;
+      if (detail?.uso) uso = mapUsage(detail.uso);
     } catch {
       // respuesta sin cuerpo JSON: se deja el mensaje general
     }
-    throw new Error(message);
+    const boxError = new Error(message);
+    boxError.usage = uso;
+    throw boxError;
   }
 
   const rawReply = data?.answer || '';
@@ -697,6 +714,7 @@ export async function askBoxIA({ question, selectedFiles, conversationHistory = 
 
   return {
     answer: cleanReply || 'No se pudo generar una respuesta para esta consulta.',
+    usage: data?.uso ? mapUsage(data.uso) : null,
     loadedDocs
   };
 }

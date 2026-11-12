@@ -3,6 +3,8 @@
 // nunca llega al navegador ni al repositorio.
 // Solo atiende a usuarios con sesión iniciada en Nimbox, y arma ella misma el mensaje
 // para DeepSeek, así nadie puede usarla como acceso libre a la IA.
+// Cada consulta cuesta dinero real, así que se limita por día según el plan
+// (Básico 10, Pro 50, Empresarial 200; ver la sección 15 de schema.sql).
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const DEEPSEEK_URL = 'https://api.deepseek.com/chat/completions';
@@ -73,7 +75,27 @@ Deno.serve(async (req) => {
     `---\nPREGUNTA DEL USUARIO: ${question}\n\n` +
     'Responde de forma concreta, completa y directamente enfocada en lo que se pregunta (sin usar asteriscos * ni copiar extractos literales):';
 
-  // 3. Llamar a DeepSeek con la clave del servidor (modelo y límites fijos)
+  // 3. Descontar una consulta del límite diario del plan (solo el servidor puede hacerlo)
+  const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
+    auth: { persistSession: false },
+  });
+  const userId = userData.user.id;
+  const { data: cuota, error: cuotaError } = await admin.rpc('consumir_consulta_ia', { p_usuario: userId });
+  const uso = Array.isArray(cuota) ? cuota[0] : cuota;
+  if (cuotaError || !uso) {
+    console.error('No se pudo revisar el límite de Box IA:', cuotaError?.message);
+    return json({ error: 'No se pudo revisar tu límite de consultas. Intenta de nuevo.' }, 500);
+  }
+  if (!uso.permitido) {
+    if (!uso.limite) return json({ error: 'Box IA está disponible con un plan activo.', uso }, 403);
+    return json({
+      error: `Llegaste al límite de ${uso.limite} preguntas diarias de tu plan. Mejora tu plan o vuelve mañana.`,
+      uso,
+    }, 429);
+  }
+  const devolver = () => admin.rpc('devolver_consulta_ia', { p_usuario: userId });
+
+  // 4. Llamar a DeepSeek con la clave del servidor (modelo y límites fijos)
   let deepseek: Response;
   try {
     deepseek = await fetch(DEEPSEEK_URL, {
@@ -87,10 +109,13 @@ Deno.serve(async (req) => {
       }),
     });
   } catch {
-    return json({ error: 'No se pudo conectar con el servicio de IA. Intenta de nuevo.' }, 502);
+    await devolver();
+    return json({ error: 'No se pudo conectar con el servicio de IA. Intenta de nuevo.', uso: { ...uso, usadas: uso.usadas - 1 } }, 502);
   }
 
   if (!deepseek.ok) {
+    // La consulta no se cobró al usuario: se devuelve a su límite del día
+    await devolver();
     // No se reenvía el detalle de DeepSeek al navegador
     console.error('DeepSeek respondió', deepseek.status, (await deepseek.text()).slice(0, 300));
     const message = deepseek.status === 402
@@ -98,10 +123,10 @@ Deno.serve(async (req) => {
       : deepseek.status === 429
         ? 'Box IA recibió demasiadas consultas. Espera un momento e intenta de nuevo.'
         : 'El servicio de IA no pudo responder. Intenta de nuevo.';
-    return json({ error: message }, 502);
+    return json({ error: message, uso: { ...uso, usadas: uso.usadas - 1 } }, 502);
   }
 
   const data = await deepseek.json();
   const answer = data?.choices?.[0]?.message?.content || '';
-  return json({ answer });
+  return json({ answer, uso });
 });
