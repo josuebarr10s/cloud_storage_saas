@@ -927,6 +927,22 @@ export const BoxIAAgentModal = ({ isOpen, onClose, files = [], initialSelectedFi
                 <div ref={chatEndRef} />
               </div>
 
+              {/* Aviso de privacidad: el texto de los documentos sale a un servicio externo */}
+              <p
+                style={{
+                  margin: 0,
+                  padding: isMobile ? '6px 12px' : '6px 16px',
+                  borderTop: '1px solid var(--border-color)',
+                  background: 'var(--bg-subtle)',
+                  color: 'var(--text-muted)',
+                  fontSize: '0.72rem',
+                  lineHeight: 1.4,
+                  flexShrink: 0
+                }}
+              >
+                Box IA envía el texto de los documentos seleccionados a un servicio de IA externo (DeepSeek) para responder. Evita usarlo con información confidencial.
+              </p>
+
               {/* INPUT FORM */}
               <form
                 onSubmit={(e) => {

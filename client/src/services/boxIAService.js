@@ -9,10 +9,9 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 const BUCKET = STORAGE_CONSTANTS.STORAGE_BUCKET;
 const fileContentCache = new Map();
 
-// API Key integrada de DeepSeek para análisis inteligente de libros y documentos
-const DEEPSEEK_API_KEY =
-  import.meta.env.VITE_DEEPSEEK_API_KEY || 'sk-fc9e9c56acf24d28958edd29862f42c3';
-const DEEPSEEK_API_URL = 'https://api.deepseek.com/chat/completions';
+// La consulta a la IA pasa por la Edge Function "box-ia" de Supabase (supabase/functions/box-ia).
+// La clave de DeepSeek vive solo en el servidor como secreto; nunca va en el código del navegador.
+const BOX_IA_FUNCTION = 'box-ia';
 
 const TEXT_EXTENSIONS = new Set([
   'txt', 'md', 'csv', 'json', 'js', 'jsx', 'ts', 'tsx', 'html', 'css',
@@ -671,55 +670,29 @@ export async function askBoxIA({ question, selectedFiles, conversationHistory = 
 
   const fullDocumentContext = buildDeepSeekDocumentContext(question, loadedDocs, 48000);
 
-  const systemPrompt =
-    'Eres Box IA, el asistente inteligente de análisis de documentos y libros de Nimbox Cloud.\n' +
-    'REGLAS OBLIGATORIAS DE RESPUESTA:\n' +
-    '1. Analiza a fondo la pregunta del usuario y el contenido del documento o libro proporcionado, y devuelve una respuesta CONCRETA, DIRECTA y SINTETIZADA con tus propias palabras.\n' +
-    '2. NUNCA copies ni pegues extractos literales del libro o PDF. Tu trabajo es razonar sobre el contenido y explicarlo claramente.\n' +
-    '3. Si el usuario pregunta por los "actores" o "personajes" de un libro, historia o documento, identifica los nombres de los personajes, protagonistas o actores que participan en la obra o sistema y explica brevemente quién es cada uno y su rol en la historia o proyecto.\n' +
-    '4. Si el usuario pregunta de qué trata el documento o pide un resumen, redacta un resumen ejecutivo concreto, completo y bien estructurado de todo el archivo.\n' +
-    '5. Nunca dejes frases a medias ni uses puntos suspensivos (...) para cortar oraciones.\n' +
-    '6. PROHIBIDO usar el símbolo de asterisco (*), numerales (#) o números de página ([Pág. X]) dentro de los párrafos. Para listas usa únicamente el símbolo "•" al inicio de la línea (por ejemplo: "• Nombre: Explicación completa.").';
-
+  // El historial llega con la pregunta actual al final: se manda solo lo anterior
   const recentHistory = conversationHistory
-    .slice(-4)
+    .slice(-5, -1)
     .filter((m) => (m.role === 'user' || m.role === 'assistant') && m.content)
-    .map((m) => ({
-      role: m.role,
-      content: m.content.slice(0, 1200)
-    }));
+    .map((m) => ({ role: m.role, content: m.content.slice(0, 1200) }));
 
-  const userMessage =
-    `CONTENIDO DEL DOCUMENTO SELECCIONADO EN NIMBOX CLOUD:\n\n${fullDocumentContext}\n\n` +
-    `---\nPREGUNTA DEL USUARIO: ${question}\n\n` +
-    `Responde de forma concreta, completa y directamente enfocada en lo que se pregunta (sin usar asteriscos * ni copiar extractos literales):`;
-
-  // 2. Llamada principal a DeepSeek API
-  const response = await fetch(DEEPSEEK_API_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${DEEPSEEK_API_KEY}`
-    },
-    body: JSON.stringify({
-      model: 'deepseek-chat',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        ...recentHistory.slice(0, -1),
-        { role: 'user', content: userMessage }
-      ],
-      temperature: 0.25,
-      max_tokens: 1200
-    })
+  // 2. Consulta segura: la Edge Function valida la sesión y llama a DeepSeek con la clave del servidor
+  const { data, error } = await supabase.functions.invoke(BOX_IA_FUNCTION, {
+    body: { question, context: fullDocumentContext, history: recentHistory }
   });
 
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`Error al consultar el motor de IA (${response.status}): ${errText.slice(0, 150)}`);
+  if (error) {
+    let message = 'No se pudo consultar Box IA. Intenta de nuevo.';
+    try {
+      const detail = await error.context?.json();
+      if (detail?.error) message = detail.error;
+    } catch {
+      // respuesta sin cuerpo JSON: se deja el mensaje general
+    }
+    throw new Error(message);
   }
 
-  const data = await response.json();
-  const rawReply = data?.choices?.[0]?.message?.content || '';
+  const rawReply = data?.answer || '';
   const cleanReply = sanitizeProfessionalText(rawReply);
 
   return {
