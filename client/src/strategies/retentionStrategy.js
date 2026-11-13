@@ -46,6 +46,10 @@ export function getRetentionStrategy(planName = '') {
   if (normalized.includes('pro')) {
     return new ProRetentionStrategy();
   }
+  // Un plan con otro nombre (creado por el administrador, RF-16) funciona como Básico
+  if (normalized) {
+    return new BasicRetentionStrategy();
+  }
   return new DefaultRetentionStrategy();
 }
 

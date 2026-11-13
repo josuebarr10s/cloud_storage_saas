@@ -85,7 +85,10 @@ export const PricingSection = ({ onChoosePlan }) => {
         </Reveal>
 
         {/* Pricing Cards */}
-        <div className="pricing-grid">
+        <div
+          className={`pricing-grid ${plans.length > 3 ? 'has-many' : ''}`}
+          style={{ '--plan-cols': Math.min(Math.max(plans.length, 1), 4) }}
+        >
           {plans.map((plan, index) => {
             const currentPrice = billingCycle === 'annual' ? plan.precioAnual : plan.precio;
 

@@ -60,6 +60,13 @@ export class FileFactory {
   }
 }
 
+function formatQuota(bytes) {
+  const TB = 1024 ** 4;
+  const GB = 1024 ** 3;
+  if (bytes >= TB) return `${+(bytes / TB).toFixed(2)} TB`;
+  return `${+(bytes / GB).toFixed(2)} GB`;
+}
+
 export class UserFactory {
   /**
    * Determina la cuota de almacenamiento legible según el nombre del plan
@@ -105,6 +112,8 @@ export class UserFactory {
 
     const planName = activeSub?.plan?.nombre || PLAN_NAMES.NONE;
     const planId = activeSub?.id_plan || null;
+    // Espacio real contratado; si no viene, se estima por el nombre del plan
+    const quotaBytes = Number(activeSub?.limite_bytes_contratado) || null;
 
     return {
       id: authUser?.id || dbUser.id_usuario,
@@ -113,7 +122,8 @@ export class UserFactory {
       rol: getRoleName(dbUser.id_rol),
       plan: planName,
       planId: planId,
-      storageQuota: this.getQuotaByPlan(activeSub ? planName : null),
+      storageQuota: quotaBytes ? formatQuota(quotaBytes) : this.getQuotaByPlan(activeSub ? planName : null),
+      storageQuotaBytes: quotaBytes,
     };
   }
 }

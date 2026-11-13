@@ -4,7 +4,8 @@
 // Solo atiende a usuarios con sesión iniciada en Nimbox, y arma ella misma el mensaje
 // para DeepSeek, así nadie puede usarla como acceso libre a la IA.
 // Cada consulta cuesta dinero real, así que se limita por día según el plan
-// (Básico 10, Pro 50, Empresarial 200; ver la sección 15 de schema.sql).
+// (Básico 10, Pro 50, Empresarial 200) y con un tope global para toda la plataforma
+// (ver la sección 15 de schema.sql).
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const DEEPSEEK_URL = 'https://api.deepseek.com/chat/completions';
@@ -88,6 +89,10 @@ Deno.serve(async (req) => {
   }
   if (!uso.permitido) {
     if (!uso.limite) return json({ error: 'Box IA está disponible con un plan activo.', uso }, 403);
+    if (uso.usadas < uso.limite) {
+      // Tope global de la plataforma alcanzado (protege el saldo de DeepSeek)
+      return json({ error: 'Box IA alcanzó su límite de uso de hoy. Vuelve a intentarlo mañana.', uso }, 429);
+    }
     return json({
       error: `Llegaste al límite de ${uso.limite} preguntas diarias de tu plan. Mejora tu plan o vuelve mañana.`,
       uso,

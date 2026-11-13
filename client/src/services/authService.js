@@ -146,7 +146,7 @@ export const authService = {
 
         const { data: dbUser } = await supabase
           .from('usuario')
-          .select('nombre, apellido, id_rol, estado, suscripcion(estado, id_plan, plan(nombre))')
+          .select('nombre, apellido, id_rol, estado, suscripcion(estado, id_plan, limite_bytes_contratado, plan(nombre))')
           .eq('id_usuario', activeUser.id)
           .maybeSingle();
 

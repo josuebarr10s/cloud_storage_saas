@@ -841,10 +841,26 @@ $$;
 
 -- Abre un enlace: lo valida, registra el acceso y devuelve el archivo o la carpeta con el
 -- permiso efectivo. Los mensajes de RAISE EXCEPTION llegan tal cual al frontend; los de la
--- contraseña llevan su propio código (NB001 falta, NB002 incorrecta) para pedirla en pantalla,
--- y NB003 indica que el correo de la cuenta no está entre los invitados.
+-- contraseña no se lanzan: se devuelven como {error_code, mensaje} (NB001 falta, NB002 incorrecta,
+-- NB004 bloqueado por 5 intentos fallidos durante 15 minutos), para que el intento fallido quede
+-- registrado. NB003 (correo no invitado) sí se lanza.
 -- La versión anterior recibía solo p_token: se borra para que no queden dos funciones con el mismo nombre.
 DROP FUNCTION IF EXISTS public.canjear_enlace(TEXT);
+-- Intentos fallidos de contraseña por persona y enlace. Tras 5 fallos seguidos el enlace
+-- queda bloqueado 15 minutos para esa persona. Solo lo usa canjear_enlace (no hay políticas:
+-- el cliente no puede leer ni escribir esta tabla).
+CREATE TABLE IF NOT EXISTS public.intento_enlace (
+  id_enlace UUID NOT NULL,
+  id_usuario UUID NOT NULL,
+  fallos INTEGER NOT NULL DEFAULT 0,
+  bloqueado_hasta TIMESTAMP WITH TIME ZONE,
+  ultimo_intento TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  CONSTRAINT intento_enlace_pkey PRIMARY KEY (id_enlace, id_usuario),
+  CONSTRAINT intento_enlace_id_enlace_fkey FOREIGN KEY (id_enlace) REFERENCES public.enlace_compartido(id_enlace) ON DELETE CASCADE,
+  CONSTRAINT intento_enlace_id_usuario_fkey FOREIGN KEY (id_usuario) REFERENCES public.usuario(id_usuario) ON DELETE CASCADE
+);
+ALTER TABLE public.intento_enlace ENABLE ROW LEVEL SECURITY;
+
 CREATE OR REPLACE FUNCTION public.canjear_enlace(p_token TEXT, p_password TEXT DEFAULT NULL)
 RETURNS json LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions AS $$
 DECLARE
@@ -854,6 +870,8 @@ DECLARE
   v_propietario TEXT;
   v_permiso TEXT;
   v_correo TEXT;
+  v_intento public.intento_enlace%ROWTYPE;
+  v_restantes INTEGER;
 BEGIN
   IF auth.uid() IS NULL THEN
     RAISE EXCEPTION 'Inicia sesión para abrir este enlace.';
@@ -888,11 +906,42 @@ BEGIN
        SELECT 1 FROM public.acceso_compartido
        WHERE id_enlace = v_enlace.id_enlace AND id_usuario = auth.uid()
      ) THEN
-    IF COALESCE(p_password, '') = '' THEN
-      RAISE EXCEPTION 'Este enlace está protegido con contraseña.' USING ERRCODE = 'NB001';
-    ELSIF crypt(p_password, v_enlace.password_hash) <> v_enlace.password_hash THEN
-      RAISE EXCEPTION 'La contraseña no es correcta.' USING ERRCODE = 'NB002';
+    -- Los fallos de contraseña se devuelven como respuesta (error_code) y no con RAISE:
+    -- un RAISE desharía también el registro del intento fallido.
+    SELECT * INTO v_intento FROM public.intento_enlace
+    WHERE id_enlace = v_enlace.id_enlace AND id_usuario = auth.uid();
+
+    IF v_intento.bloqueado_hasta IS NOT NULL AND v_intento.bloqueado_hasta > NOW() THEN
+      RETURN json_build_object('error_code', 'NB004', 'mensaje',
+        format('Demasiados intentos con contraseña incorrecta. Vuelve a intentarlo en %s minuto(s).',
+               CEIL(EXTRACT(EPOCH FROM (v_intento.bloqueado_hasta - NOW())) / 60)::int));
     END IF;
+
+    IF COALESCE(p_password, '') = '' THEN
+      RETURN json_build_object('error_code', 'NB001', 'mensaje', 'Este enlace está protegido con contraseña.');
+    ELSIF crypt(p_password, v_enlace.password_hash) <> v_enlace.password_hash THEN
+      INSERT INTO public.intento_enlace AS i (id_enlace, id_usuario, fallos, ultimo_intento)
+      VALUES (v_enlace.id_enlace, auth.uid(), 1, NOW())
+      ON CONFLICT (id_enlace, id_usuario) DO UPDATE
+        SET fallos = CASE WHEN i.bloqueado_hasta IS NOT NULL THEN 1 ELSE i.fallos + 1 END,
+            bloqueado_hasta = NULL,
+            ultimo_intento = NOW()
+      RETURNING * INTO v_intento;
+
+      IF v_intento.fallos >= 5 THEN
+        UPDATE public.intento_enlace SET bloqueado_hasta = NOW() + INTERVAL '15 minutes'
+        WHERE id_enlace = v_enlace.id_enlace AND id_usuario = auth.uid();
+        RETURN json_build_object('error_code', 'NB004', 'mensaje',
+          'Demasiados intentos con contraseña incorrecta. Vuelve a intentarlo en 15 minutos.');
+      END IF;
+
+      v_restantes := 5 - v_intento.fallos;
+      RETURN json_build_object('error_code', 'NB002', 'mensaje',
+        format('La contraseña no es correcta. Te quedan %s intento(s).', v_restantes));
+    END IF;
+
+    -- Contraseña correcta: se olvidan los fallos anteriores
+    DELETE FROM public.intento_enlace WHERE id_enlace = v_enlace.id_enlace AND id_usuario = auth.uid();
   END IF;
 
   IF v_enlace.id_archivo IS NOT NULL THEN
@@ -1246,6 +1295,8 @@ CREATE TRIGGER validar_cuota_version
 -- 15. LÍMITE DIARIO DE CONSULTAS A BOX IA (SEGÚN EL PLAN)
 -- Cada pregunta a Box IA cuesta dinero real en DeepSeek, así que se limita por día:
 --   Básico 10, Pro 50, Empresarial 200; sin plan activo, 0.
+-- Además hay un tope global para toda la plataforma (tope_global_ia, 500 al día), para que
+-- crear muchas cuentas no dispare el gasto.
 -- La Edge Function box-ia descuenta una consulta antes de llamar a DeepSeek y la
 -- devuelve si DeepSeek falla. Solo el servidor (service_role) puede descontar o
 -- devolver consultas; el usuario solo puede ver cuántas le quedan.
@@ -1281,8 +1332,7 @@ RETURNS INTEGER LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS
     SELECT CASE
       WHEN lower(p.nombre) LIKE '%empresa%' THEN 200
       WHEN lower(p.nombre) LIKE '%pro%' THEN 50
-      WHEN lower(p.nombre) LIKE '%sico%' THEN 10
-      ELSE 0
+      ELSE 10  -- Básico y cualquier plan creado por el administrador con otro nombre
     END
     FROM public.suscripcion s
     JOIN public.plan p ON p.id_plan = s.id_plan
@@ -1292,7 +1342,12 @@ RETURNS INTEGER LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS
   ), 0);
 $$;
 
+-- Preguntas a Box IA por día entre todos los usuarios (protege el saldo de DeepSeek)
+CREATE OR REPLACE FUNCTION public.tope_global_ia()
+RETURNS INTEGER LANGUAGE sql IMMUTABLE AS $$ SELECT 500 $$;
+
 -- Descuenta una consulta si quedan. Devuelve si se permitió, cuántas lleva hoy y el límite.
+-- Si se alcanzó el tope global, devuelve permitido = false con usadas < limite.
 -- La condición en el UPDATE hace que dos consultas simultáneas no pasen del límite.
 CREATE OR REPLACE FUNCTION public.consumir_consulta_ia(p_usuario UUID)
 RETURNS TABLE (permitido BOOLEAN, usadas INTEGER, limite INTEGER)
@@ -1303,6 +1358,15 @@ DECLARE
 BEGIN
   IF v_limite <= 0 THEN
     RETURN QUERY SELECT false, 0, 0;
+    RETURN;
+  END IF;
+
+  -- Tope global: se serializa para que consultas simultáneas no lo pasen
+  PERFORM pg_advisory_xact_lock(hashtext('nimbox_uso_ia_global'));
+  IF (SELECT COALESCE(SUM(consultas), 0) FROM public.uso_ia WHERE fecha = public.hoy_gt()) >= public.tope_global_ia() THEN
+    SELECT COALESCE((SELECT consultas FROM public.uso_ia WHERE id_usuario = p_usuario AND fecha = public.hoy_gt()), 0)
+      INTO v_usadas;
+    RETURN QUERY SELECT false, v_usadas, v_limite;
     RETURN;
   END IF;
 
@@ -1342,8 +1406,136 @@ $$;
 REVOKE EXECUTE ON FUNCTION public.consumir_consulta_ia(UUID) FROM PUBLIC, anon, authenticated;
 REVOKE EXECUTE ON FUNCTION public.devolver_consulta_ia(UUID) FROM PUBLIC, anon, authenticated;
 REVOKE EXECUTE ON FUNCTION public.limite_ia(UUID) FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.tope_global_ia() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.consumir_consulta_ia(UUID) TO service_role;
 GRANT EXECUTE ON FUNCTION public.devolver_consulta_ia(UUID) TO service_role;
 GRANT EXECUTE ON FUNCTION public.limite_ia(UUID) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.uso_ia_hoy() FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.uso_ia_hoy() TO authenticated;
+
+
+-- =============================================================================
+-- 16. PROTECCIÓN DEL ESPACIO Y DEL PLAN CONTRATADO
+-- Las políticas dejan que el cliente escriba su almacenamiento y sus suscripciones
+-- (el pago es simulado y lo registra la app), pero sin estas protecciones alguien podía,
+-- desde la consola del navegador, ponerse más capacidad de la que da su plan (saltándose
+-- RF-15) o cambiar el plan de una suscripción ya existente.
+--   * almacenamiento: la capacidad siempre es la de la suscripción activa y el espacio
+--     usado siempre es el real; lo que mande el cliente en esas columnas se ignora.
+--   * suscripción nueva: el límite de bytes sale del catálogo de planes (y el plan debe
+--     estar activo), no de lo que mande el cliente.
+--   * suscripción existente: no se puede cambiar de dueño, de plan, de límite ni de precio.
+-- El administrador y los procesos del servidor (auth.uid() nulo) no tienen restricción.
+-- Esta sección se puede volver a correr completa sin problema.
+-- =============================================================================
+
+-- Capacidad que corresponde al usuario: la de su suscripción activa (0 si no tiene)
+CREATE OR REPLACE FUNCTION public.capacidad_del_plan(p_usuario UUID)
+RETURNS BIGINT LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT COALESCE((
+    SELECT s.limite_bytes_contratado FROM public.suscripcion s
+    WHERE s.id_usuario = p_usuario AND s.estado = 'activa'
+    ORDER BY s.fecha_fin DESC
+    LIMIT 1
+  ), 0);
+$$;
+
+CREATE OR REPLACE FUNCTION public.proteger_almacenamiento() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF auth.uid() IS NOT NULL AND NOT public.es_admin() THEN
+    NEW.capacidad_total_bytes := public.capacidad_del_plan(NEW.id_usuario);
+    NEW.espacio_usado_bytes := public.espacio_usado_real(NEW.id_usuario);
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS proteger_almacenamiento ON public.almacenamiento;
+CREATE TRIGGER proteger_almacenamiento
+  BEFORE INSERT OR UPDATE ON public.almacenamiento
+  FOR EACH ROW EXECUTE FUNCTION public.proteger_almacenamiento();
+
+CREATE OR REPLACE FUNCTION public.proteger_suscripcion() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_plan public.plan%ROWTYPE;
+  v_plan_anterior uuid;
+  v_limite_anterior bigint;
+BEGIN
+  IF auth.uid() IS NULL OR public.es_admin() THEN
+    RETURN NEW;
+  END IF;
+
+  IF TG_OP = 'INSERT' THEN
+    SELECT * INTO v_plan FROM public.plan WHERE id_plan = NEW.id_plan;
+    -- Un plan desactivado ya no se puede contratar, pero quien ya lo tenía puede renovarlo
+    IF NOT FOUND OR (NOT v_plan.activo AND NOT EXISTS (
+         SELECT 1 FROM public.suscripcion s WHERE s.id_usuario = NEW.id_usuario AND s.id_plan = NEW.id_plan)) THEN
+      RAISE EXCEPTION 'Ese plan no está disponible.';
+    END IF;
+    -- El espacio lo pone el plan, no el cliente. Si es una renovación (su suscripción
+    -- más reciente es de este mismo plan) conserva el espacio con que lo contrató,
+    -- aunque el administrador haya cambiado el plan después (RF-16)
+    SELECT s.id_plan, s.limite_bytes_contratado INTO v_plan_anterior, v_limite_anterior
+    FROM public.suscripcion s
+    WHERE s.id_usuario = NEW.id_usuario
+    ORDER BY s.fecha_inicio DESC
+    LIMIT 1;
+    NEW.limite_bytes_contratado := CASE
+      WHEN v_plan_anterior = NEW.id_plan AND v_limite_anterior > 0 THEN v_limite_anterior
+      ELSE v_plan.limite_almacenamiento_bytes
+    END;
+  ELSE
+    NEW.id_usuario := OLD.id_usuario;
+    NEW.id_plan := OLD.id_plan;
+    NEW.limite_bytes_contratado := OLD.limite_bytes_contratado;
+    NEW.precio_contratado := OLD.precio_contratado;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS proteger_suscripcion ON public.suscripcion;
+CREATE TRIGGER proteger_suscripcion
+  BEFORE INSERT OR UPDATE ON public.suscripcion
+  FOR EACH ROW EXECUTE FUNCTION public.proteger_suscripcion();
+
+-- Para revisar (opcional): usuarios cuya capacidad guardada no coincide con su plan.
+--   SELECT u.nombre, u.apellido, a.capacidad_total_bytes AS guardada,
+--          public.capacidad_del_plan(a.id_usuario) AS segun_plan
+--   FROM public.almacenamiento a JOIN public.usuario u USING (id_usuario)
+--   WHERE a.capacidad_total_bytes <> public.capacidad_del_plan(a.id_usuario);
+-- Y para corregirlos:
+--   UPDATE public.almacenamiento a SET capacidad_total_bytes = public.capacidad_del_plan(a.id_usuario)
+--   WHERE a.capacidad_total_bytes <> public.capacidad_del_plan(a.id_usuario);
+
+
+-- =============================================================================
+-- 17. ADMINISTRACIÓN DE PLANES (RF-16)
+-- El administrador crea, edita, activa y desactiva planes desde su panel (la política
+-- plan_admin ya le da permiso; el resto solo puede leer el catálogo).
+--   * Un plan desactivado deja de mostrarse y de poder contratarse; quien ya lo tenía
+--     conserva su suscripción y puede renovarla (ver proteger_suscripcion).
+--   * Cambiar el precio o el espacio de un plan no altera las suscripciones vigentes:
+--     cada una guarda el precio y el límite con que se contrató.
+--   * Las funciones de cada plan se reconocen por su nombre: si incluye "Pro" tiene las
+--     del plan Pro; si incluye "Empresa", las del Empresarial; con cualquier otro nombre,
+--     las del Básico.
+-- Esta sección se puede volver a correr completa sin problema.
+-- =============================================================================
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'plan_datos_validos') THEN
+    ALTER TABLE public.plan ADD CONSTRAINT plan_datos_validos CHECK (
+      length(trim(nombre)) BETWEEN 2 AND 40
+      AND precio >= 0
+      AND limite_almacenamiento_bytes > 0
+      AND duracion_dias > 0
+    );
+  END IF;
+END $$;
+
+-- Sin dos planes con el mismo nombre (sin importar mayúsculas ni espacios)
+CREATE UNIQUE INDEX IF NOT EXISTS plan_nombre_unico_idx ON public.plan (lower(trim(nombre)));
