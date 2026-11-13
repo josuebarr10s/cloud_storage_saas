@@ -2,10 +2,11 @@ import { askConfirm } from '../utils/confirm.js';
 import React, { useState, useEffect } from 'react';
 import {
   LogOut, Search, Loader2, Users, HardDrive, DollarSign,
-  Shield, UserCheck, UserX, RefreshCw, Layers
+  Shield, UserCheck, UserX, RefreshCw, Layers, BarChart3
 } from 'lucide-react';
 import { adminService } from '../services/adminService.js';
 import { PlansManager } from '../components/admin/PlansManager.jsx';
+import { StatsPanel } from '../components/admin/StatsPanel.jsx';
 import './dashboard-responsive.css';
 
 const ROLES = { 1: 'Administrador', 2: 'Cliente' };
@@ -57,7 +58,7 @@ export const AdminDashboardView = ({ currentUser, onLogout, onNotification }) =>
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState('all'); // 'all' | 'admins' | 'clientes' | 'suspendidos'
   const [busyUserId, setBusyUserId] = useState(null);
-  const [section, setSection] = useState('usuarios'); // 'usuarios' | 'planes' (RF-16)
+  const [section, setSection] = useState('usuarios'); // 'usuarios' | 'planes' (RF-16) | 'estadisticas'
 
   const loadData = async () => {
     setIsLoading(true);
@@ -317,11 +318,12 @@ export const AdminDashboardView = ({ currentUser, onLogout, onNotification }) =>
           ))}
         </div>
 
-        {/* Sección: usuarios o planes (RF-16) */}
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)' }}>
+        {/* Sección: usuarios, planes (RF-16) o estadísticas */}
+        <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)' }}>
           {[
             { id: 'usuarios', label: 'Usuarios', icon: <Users size={16} /> },
-            { id: 'planes', label: 'Planes', icon: <Layers size={16} /> }
+            { id: 'planes', label: 'Planes', icon: <Layers size={16} /> },
+            { id: 'estadisticas', label: 'Estadísticas', icon: <BarChart3 size={16} /> }
           ].map((tab) => (
             <button
               key={tab.id}
@@ -339,7 +341,8 @@ export const AdminDashboardView = ({ currentUser, onLogout, onNotification }) =>
                 color: section === tab.id ? 'var(--primary)' : 'var(--text-muted)',
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '7px'
+                gap: '7px',
+                whiteSpace: 'nowrap'
               }}
             >
               {tab.icon} {tab.label}
@@ -349,6 +352,8 @@ export const AdminDashboardView = ({ currentUser, onLogout, onNotification }) =>
 
         {section === 'planes' ? (
           <PlansManager onNotification={onNotification} />
+        ) : section === 'estadisticas' ? (
+          <StatsPanel onNotification={onNotification} />
         ) : (
         <>
         {/* Controls */}

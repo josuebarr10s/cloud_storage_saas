@@ -112,6 +112,29 @@ export const adminService = {
   },
 
   /**
+   * Estadísticas de ventas: todos los planes, suscripciones y pagos (solo el administrador
+   * puede leer los de todos los usuarios). Se piden por páginas de 1000 filas.
+   * @returns {Promise<{ planes: Array, suscripciones: Array, pagos: Array }>}
+   */
+  async getSalesData() {
+    const todo = async (tabla, columnas, orden) => {
+      const filas = [];
+      for (let desde = 0; ; desde += 1000) {
+        const { data, error } = await supabase.from(tabla).select(columnas).order(orden, { ascending: true }).range(desde, desde + 999);
+        if (error) throw new Error(`No se pudieron cargar las estadísticas: ${error.message}`);
+        filas.push(...(data || []));
+        if (!data || data.length < 1000) return filas;
+      }
+    };
+    const [planes, suscripciones, pagos] = await Promise.all([
+      todo('plan', 'id_plan, nombre, precio, activo', 'precio'),
+      todo('suscripcion', 'id_suscripcion, id_usuario, id_plan, fecha_inicio, estado', 'fecha_inicio'),
+      todo('pago', 'id_pago, id_suscripcion, monto, estado, fecha_pago', 'fecha_pago'),
+    ]);
+    return { planes, suscripciones, pagos };
+  },
+
+  /**
    * RF-16: activa o desactiva un plan. Un plan desactivado deja de ofrecerse, pero quien
    * ya lo tiene lo conserva y puede renovarlo.
    */
