@@ -4,6 +4,7 @@ import {
   ChevronLeft, ChevronRight, Copy, Check, AlertCircle, Loader2, Sparkles, FileDown, X
 } from 'lucide-react';
 import { billingService } from '../../services/billingService.js';
+import { askConfirm } from '../../utils/confirm.js';
 import { plansService } from '../../services/plansService.js';
 import {
   PAYMENT_STATUS, STATUS_META, PERIOD_OPTIONS, PAGE_SIZE,
@@ -82,6 +83,7 @@ export const PaymentHistory = ({ currentUser, onChangePlan, onNotification, refr
   const [plans, setPlans] = useState([]);
   const [planCycle, setPlanCycle] = useState('monthly');
   const [copiedId, setCopiedId] = useState(null);
+  const [isRenewalBusy, setIsRenewalBusy] = useState(false);
   const [spinTurns, setSpinTurns] = useState(0);
 
   useEffect(() => {
@@ -184,6 +186,32 @@ export const PaymentHistory = ({ currentUser, onChangePlan, onNotification, refr
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     );
     notify(`Se exportaron ${filtered.length} ${filtered.length === 1 ? 'transacción' : 'transacciones'} a Excel (.xlsx).`, 'success');
+  };
+
+  // Cancelar o reactivar la renovación automática: el plan pagado siempre se respeta hasta su fecha de fin
+  const handleToggleRenewal = async (sub) => {
+    const cancelar = sub.autoRenew;
+    const fin = formatLongDate(sub.end);
+    const confirmed = await askConfirm(
+      cancelar
+        ? `Tu plan ${sub.planName} seguirá activo hasta el ${fin}. Después de esa fecha no se te cobrará de nuevo y deberás elegir un plan para seguir usando tu espacio.`
+        : `Tu plan ${sub.planName} se renovará automáticamente el ${fin} por ${formatMoney(sub.price)}.`,
+      cancelar
+        ? { title: '¿Cancelar la renovación?', confirmText: 'Cancelar renovación', cancelText: 'Mantener plan', danger: true }
+        : { title: 'Reactivar la renovación', confirmText: 'Reactivar' }
+    );
+    if (!confirmed) return;
+
+    setIsRenewalBusy(true);
+    try {
+      await billingService.setAutoRenewal(userId, sub.id, !cancelar);
+      notify(cancelar ? `Renovación cancelada. Tu plan sigue activo hasta el ${fin}.` : 'Renovación automática reactivada.', 'success');
+      await load();
+    } catch (err) {
+      notify(err.message || 'No se pudo actualizar la renovación.', 'error');
+    } finally {
+      if (mounted.current) setIsRenewalBusy(false);
+    }
   };
 
   const handleInvoice = (tx) => {
@@ -349,16 +377,36 @@ export const PaymentHistory = ({ currentUser, onChangePlan, onNotification, refr
         {/* Próxima factura */}
         <div className="nb-billing-card" style={{ ...cardStyle, padding: '1.25rem 1.5rem' }}>
           <span style={labelStyle}>Próxima factura</span>
-          {sub ? (
+          {sub && !sub.autoRenew ? (
+            <>
+              <div style={{ fontSize: '1.75rem', fontWeight: 800, margin: '6px 0 2px', color: 'var(--text-light)' }}>Sin cobro</div>
+              <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <CalendarClock size={14} /> Tu plan termina el {formatLongDate(sub.end)}
+              </div>
+              <div style={{ marginTop: '14px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
+                <span style={{ display: 'inline-block', fontSize: '0.78rem', fontWeight: 700, padding: '3px 10px', borderRadius: 'var(--radius-full)', background: 'var(--warning-bg)', color: 'var(--warning-strong)' }}>
+                  Renovación cancelada
+                </span>
+                <button type="button" onClick={() => handleToggleRenewal(sub)} disabled={isRenewalBusy} style={{ background: 'none', border: 'none', padding: 0, color: 'var(--primary)', fontWeight: 700, fontSize: '0.8rem', cursor: isRenewalBusy ? 'wait' : 'pointer' }}>
+                  Reactivar renovación
+                </button>
+              </div>
+            </>
+          ) : sub ? (
             <>
               <div style={{ fontSize: '1.75rem', fontWeight: 800, margin: '6px 0 2px' }}>{formatMoney(sub.price)}</div>
               <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <CalendarClock size={14} /> {formatLongDate(sub.end)}
               </div>
-              <div style={{ marginTop: '14px' }}>
+              <div style={{ marginTop: '14px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
                 <span style={{ display: 'inline-block', fontSize: '0.78rem', fontWeight: 700, padding: '3px 10px', borderRadius: 'var(--radius-full)', background: sub.expired ? 'var(--danger-bg)' : sub.daysLeft <= 5 ? 'var(--warning-bg)' : 'var(--primary-light)', color: sub.expired ? 'var(--danger)' : sub.daysLeft <= 5 ? 'var(--warning-strong)' : 'var(--primary)' }}>
                   {sub.expired ? 'Procesando renovación...' : sub.daysLeft === 0 ? 'Cobro automático hoy' : sub.daysLeft === 1 ? 'Cobro automático mañana' : `Cobro automático en ${sub.daysLeft} días`}
                 </span>
+                {!sub.expired && (
+                  <button type="button" onClick={() => handleToggleRenewal(sub)} disabled={isRenewalBusy} style={{ background: 'none', border: 'none', padding: 0, color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.8rem', textDecoration: 'underline', cursor: isRenewalBusy ? 'wait' : 'pointer' }}>
+                    Cancelar renovación
+                  </button>
+                )}
               </div>
             </>
           ) : (
@@ -373,7 +421,7 @@ export const PaymentHistory = ({ currentUser, onChangePlan, onNotification, refr
         <div className="nb-billing-card" style={{ ...cardStyle, padding: '1.25rem 1.5rem' }}>
           <span style={labelStyle}>Plan actual</span>
           <div style={{ fontSize: '1.75rem', fontWeight: 800, margin: '6px 0 2px' }}>{sub?.planName || currentUser?.plan || 'Ninguno'}</div>
-          <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>{sub ? `Facturación ${cycleLabel(sub.cycle).toLowerCase()} · Automática` : 'Sin facturación activa'}</div>
+          <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>{sub ? `Facturación ${cycleLabel(sub.cycle).toLowerCase()} · ${sub.autoRenew ? 'Automática' : 'Sin renovación'}` : 'Sin facturación activa'}</div>
           {sub && (
             <div style={{ marginTop: '14px' }}>
               <div style={{ height: '8px', background: 'var(--bg-hover)', borderRadius: 'var(--radius-full)', overflow: 'hidden' }} role="progressbar" aria-valuenow={Math.round(sub.progress)} aria-valuemin={0} aria-valuemax={100} aria-label="Avance del periodo de facturación">

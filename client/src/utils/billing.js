@@ -278,7 +278,10 @@ export function describeActiveSubscription(subscriptions = [], now = new Date())
   const cycle = billingCycleOf(active);
 
   return {
+    id: active.id_suscripcion,
     planName: active.plan?.nombre || 'Plan',
+    // Si la columna aún no existe en la base de datos, la renovación se considera activa
+    autoRenew: active.renovacion_automatica !== false,
     cycle,
     price: Number(active.precio_contratado) || 0,
     start: active.fecha_inicio,

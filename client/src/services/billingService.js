@@ -16,7 +16,13 @@ import {
 } from '../utils/billing.js';
 
 const SUBSCRIPTION_SELECT =
-  'id_suscripcion, id_usuario, id_plan, fecha_inicio, fecha_fin, estado, precio_contratado, limite_bytes_contratado, plan(nombre, precio, limite_almacenamiento_bytes), pago(id_pago, monto, metodo_pago, referencia_transaccion, estado, fecha_pago)';
+  'id_suscripcion, id_usuario, id_plan, fecha_inicio, fecha_fin, estado, precio_contratado, limite_bytes_contratado, renovacion_automatica, plan(nombre, precio, limite_almacenamiento_bytes), pago(id_pago, monto, metodo_pago, referencia_transaccion, estado, fecha_pago)';
+// Misma consulta sin renovacion_automatica, para bases que aún no tienen esa columna
+const SUBSCRIPTION_SELECT_LEGACY = SUBSCRIPTION_SELECT.replace(' renovacion_automatica,', '');
+
+// La columna renovacion_automatica no existe (falta correr el SQL de la cancelación)
+const isMissingRenewalColumn = (error) =>
+  error?.code === '42703' || /renovacion_automatica/i.test(error?.message || '');
 
 const renewalLocks = new Map();
 
@@ -58,11 +64,14 @@ function pickRawPaymentMethod(subscriptions = []) {
 }
 
 async function fetchUserSubscriptions(userId) {
-  const { data, error } = await supabase
+  const query = (select) => supabase
     .from('suscripcion')
-    .select(SUBSCRIPTION_SELECT)
+    .select(select)
     .eq('id_usuario', userId)
     .order('fecha_inicio', { ascending: false });
+
+  let { data, error } = await query(SUBSCRIPTION_SELECT);
+  if (error && isMissingRenewalColumn(error)) ({ data, error } = await query(SUBSCRIPTION_SELECT_LEGACY));
 
   if (error) throw new Error(error.message || 'No se pudo consultar el historial de pagos.');
   return data || [];
@@ -191,6 +200,17 @@ async function runAutoRenewals(userId) {
     return { renewed: 0, subscriptions: cleanSubs };
   }
 
+  // Renovación cancelada por el cliente: el plan termina sin un nuevo cobro
+  if (active.renovacion_automatica === false) {
+    await supabase
+      .from('suscripcion')
+      .update({ estado: 'vencida' })
+      .eq('id_suscripcion', active.id_suscripcion)
+      .eq('estado', 'activa');
+    const refreshed = await fetchUserSubscriptions(userId);
+    return { renewed: 0, subscriptions: deduplicateSubscriptions(refreshed) };
+  }
+
   // Reclamo atómico en BD: cambiar la suscripción vencida de 'activa' a 'reemplazada' ANTES de insertar.
   // Si otro dispositivo ya hizo el cambio, claimed vendrá vacío y no se insertará ningún cobro duplicado.
   const { data: claimed, error: claimErr } = await supabase
@@ -285,6 +305,32 @@ export const billingService = {
 
     renewalLocks.set(userId, promise);
     return promise;
+  },
+
+  /**
+   * Cancela (enabled = false) o reactiva (enabled = true) la renovación automática de la
+   * suscripción activa. Al cancelar, el plan sigue vigente hasta su fecha de fin y después
+   * ya no se cobra; procesar_renovaciones_suscripcion lo marca como 'vencida'.
+   */
+  async setAutoRenewal(userId, subscriptionId, enabled) {
+    if (!userId || !subscriptionId) throw new Error('No hay una suscripción activa.');
+
+    const { data, error } = await supabase
+      .from('suscripcion')
+      .update({ renovacion_automatica: Boolean(enabled) })
+      .eq('id_suscripcion', subscriptionId)
+      .eq('id_usuario', userId)
+      .eq('estado', 'activa')
+      .select('id_suscripcion');
+
+    if (error) {
+      if (isMissingRenewalColumn(error)) {
+        throw new Error('Falta actualizar la base de datos para cancelar renovaciones. Contacta al administrador.');
+      }
+      throw new Error(error.message || 'No se pudo actualizar la renovación.');
+    }
+    if (!data || data.length === 0) throw new Error('Tu suscripción ya no está activa. Actualiza la página.');
+    return true;
   },
 
   async getBillingData(userId) {

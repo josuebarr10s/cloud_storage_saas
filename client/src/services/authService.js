@@ -1,6 +1,7 @@
 import supabase from '../lib/supabase.js';
 import { mapAuthErrorMessage, AUTH_MESSAGES } from '../utils/authErrorHandler.js';
 import { UserFactory } from '../factories/entityFactory.js';
+import { billingService } from './billingService.js';
 
 const STORAGE_KEYS = Object.freeze({
   CURRENT_USER: 'nimbox_current_user',
@@ -176,11 +177,25 @@ export const authService = {
           return null;
         }
 
-        const { data: dbUser } = await supabase
+        const fetchDbUser = async () => (await supabase
           .from('usuario')
-          .select('nombre, apellido, id_rol, estado, suscripcion(estado, id_plan, limite_bytes_contratado, plan(nombre))')
+          .select('nombre, apellido, id_rol, estado, suscripcion(estado, fecha_fin, id_plan, limite_bytes_contratado, plan(nombre))')
           .eq('id_usuario', activeUser.id)
-          .maybeSingle();
+          .maybeSingle()).data;
+
+        let dbUser = await fetchDbUser();
+
+        // Si el ciclo pagado ya terminó, se procesa al entrar: se renueva el plan o,
+        // si el cliente canceló la renovación, el plan termina y debe elegir uno nuevo
+        const activeSub = (dbUser?.suscripcion || []).find((s) => s.estado === 'activa');
+        if (activeSub?.fecha_fin && new Date(activeSub.fecha_fin).getTime() <= Date.now()) {
+          try {
+            await billingService.processAutoRenewals(activeUser.id);
+            dbUser = await fetchDbUser();
+          } catch (renewalError) {
+            console.warn('No se pudo procesar el fin del ciclo de la suscripción:', renewalError);
+          }
+        }
 
         // Si la cuenta fue suspendida mientras tenía la sesión abierta, se expulsa
         if (dbUser?.estado === 'suspendido') {

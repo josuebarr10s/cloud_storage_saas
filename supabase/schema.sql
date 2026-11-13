@@ -184,14 +184,19 @@ CREATE TABLE IF NOT EXISTS public.suscripcion (
   id_plan UUID NOT NULL,
   fecha_inicio TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
   fecha_fin TIMESTAMP WITH TIME ZONE NOT NULL,
-  estado CHARACTER VARYING NOT NULL DEFAULT 'activa'::character varying, -- 'activa' | 'reemplazada' | 'cancelada'
+  estado CHARACTER VARYING NOT NULL DEFAULT 'activa'::character varying, -- 'activa' | 'reemplazada' | 'vencida' | 'cancelada'
   precio_contratado NUMERIC NOT NULL,
   limite_bytes_contratado BIGINT NOT NULL,
+  -- false = el cliente canceló la renovación: el plan sigue hasta fecha_fin y después no se cobra
+  renovacion_automatica BOOLEAN NOT NULL DEFAULT true,
   fecha_creacion TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   CONSTRAINT suscripcion_pkey PRIMARY KEY (id_suscripcion),
   CONSTRAINT suscripcion_id_usuario_fkey FOREIGN KEY (id_usuario) REFERENCES public.usuario(id_usuario) ON DELETE CASCADE,
   CONSTRAINT suscripcion_id_plan_fkey FOREIGN KEY (id_plan) REFERENCES public.plan(id_plan)
 );
+
+-- Para bases creadas antes de que existiera la cancelación de la renovación
+ALTER TABLE public.suscripcion ADD COLUMN IF NOT EXISTS renovacion_automatica BOOLEAN NOT NULL DEFAULT true;
 
 ALTER TABLE public.suscripcion ENABLE ROW LEVEL SECURITY;
 
@@ -1149,6 +1154,12 @@ BEGIN
   FOR UPDATE;
 
   IF NOT FOUND OR v_sub.fecha_fin > p_ahora THEN
+    RETURN 0;
+  END IF;
+
+  -- El cliente canceló la renovación: el plan termina al final del ciclo pagado y no se cobra otro
+  IF NOT COALESCE(v_sub.renovacion_automatica, true) THEN
+    UPDATE public.suscripcion SET estado = 'vencida' WHERE id_suscripcion = v_sub.id_suscripcion;
     RETURN 0;
   END IF;
 
