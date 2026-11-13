@@ -7,6 +7,7 @@ import {
 import boxIaIcon from '../../assets/box-ia-icon.png';
 import {
   askBoxIA,
+  getBoxIAUsage,
   readNimboxFileForAI,
   isSupportedBoxIADocument
 } from '../../services/boxIAService.js';
@@ -90,6 +91,17 @@ export const BoxIAAgentModal = ({ isOpen, onClose, files = [], initialSelectedFi
   const [logoError, setLogoError] = useState(false);
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth <= 768);
   const [mobileTab, setMobileTab] = useState('chat'); // 'chat' | 'docs'
+  // Límite diario de preguntas según el plan: { used, limit } o null mientras carga
+  const [usage, setUsage] = useState(null);
+  const remaining = usage ? Math.max(0, usage.limit - usage.used) : null;
+  const limitReached = usage !== null && remaining === 0;
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    getBoxIAUsage().then((u) => { if (!cancelled) setUsage(u); });
+    return () => { cancelled = true; };
+  }, [isOpen]);
 
   const chatEndRef = useRef(null);
   const inputRef = useRef(null);
@@ -197,6 +209,16 @@ export const BoxIAAgentModal = ({ isOpen, onClose, files = [], initialSelectedFi
     const textToSend = (customPrompt !== null ? customPrompt : question).trim();
     if (!textToSend || isThinking) return;
 
+    if (limitReached) {
+      onNotification && onNotification(
+        usage.limit === 0
+          ? 'Box IA está disponible con un plan activo.'
+          : `Llegaste al límite de ${usage.limit} preguntas diarias de tu plan. Vuelve mañana o mejora tu plan.`,
+        'error'
+      );
+      return;
+    }
+
     if (selectedFiles.length === 0) {
       if (isMobile) setMobileTab('docs');
       onNotification && onNotification('Selecciona al menos un documento para analizarlo con Box IA.', 'error');
@@ -221,6 +243,7 @@ export const BoxIAAgentModal = ({ isOpen, onClose, files = [], initialSelectedFi
         conversationHistory: updatedHistory
       });
 
+      if (result.usage) setUsage(result.usage);
       setMessages((prev) => [
         ...prev,
         {
@@ -230,6 +253,7 @@ export const BoxIAAgentModal = ({ isOpen, onClose, files = [], initialSelectedFi
         }
       ]);
     } catch (err) {
+      if (err.usage) setUsage(err.usage);
       setMessages((prev) => [
         ...prev,
         {
@@ -927,6 +951,31 @@ export const BoxIAAgentModal = ({ isOpen, onClose, files = [], initialSelectedFi
                 <div ref={chatEndRef} />
               </div>
 
+              {/* Aviso de privacidad: el texto de los documentos sale a un servicio externo */}
+              <p
+                style={{
+                  margin: 0,
+                  padding: isMobile ? '6px 12px' : '6px 16px',
+                  borderTop: '1px solid var(--border-color)',
+                  background: 'var(--bg-subtle)',
+                  color: 'var(--text-muted)',
+                  fontSize: '0.72rem',
+                  lineHeight: 1.4,
+                  flexShrink: 0
+                }}
+              >
+                {usage && (
+                  <strong style={{ color: limitReached ? 'var(--danger)' : 'var(--primary)', fontWeight: 700 }}>
+                    {usage.limit === 0
+                      ? 'Box IA está disponible con un plan activo. '
+                      : limitReached
+                        ? `Llegaste al límite de ${usage.limit} preguntas de hoy. `
+                        : `Te quedan ${remaining} de ${usage.limit} preguntas hoy. `}
+                  </strong>
+                )}
+                Box IA envía el texto de los documentos seleccionados a un servicio de IA externo (DeepSeek) para responder. Evita usarlo con información confidencial.
+              </p>
+
               {/* INPUT FORM */}
               <form
                 onSubmit={(e) => {
@@ -970,7 +1019,7 @@ export const BoxIAAgentModal = ({ isOpen, onClose, files = [], initialSelectedFi
                 />
                 <button
                   type="submit"
-                  disabled={!question.trim() || isThinking || selectedFiles.length === 0}
+                  disabled={!question.trim() || isThinking || selectedFiles.length === 0 || limitReached}
                   className="btn-primary"
                   style={{
                     padding: isMobile ? '10px 14px' : '10px 18px',
@@ -981,8 +1030,8 @@ export const BoxIAAgentModal = ({ isOpen, onClose, files = [], initialSelectedFi
                     alignItems: 'center',
                     gap: '6px',
                     flexShrink: 0,
-                    cursor: !question.trim() || isThinking || selectedFiles.length === 0 ? 'not-allowed' : 'pointer',
-                    opacity: !question.trim() || isThinking || selectedFiles.length === 0 ? 0.6 : 1
+                    cursor: !question.trim() || isThinking || selectedFiles.length === 0 || limitReached ? 'not-allowed' : 'pointer',
+                    opacity: !question.trim() || isThinking || selectedFiles.length === 0 || limitReached ? 0.6 : 1
                   }}
                 >
                   <Send size={15} />

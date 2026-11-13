@@ -1240,3 +1240,110 @@ DROP TRIGGER IF EXISTS validar_cuota_version ON public.archivo_version;
 CREATE TRIGGER validar_cuota_version
   BEFORE INSERT ON public.archivo_version
   FOR EACH ROW EXECUTE FUNCTION public.validar_cuota();
+
+
+-- =============================================================================
+-- 15. LÍMITE DIARIO DE CONSULTAS A BOX IA (SEGÚN EL PLAN)
+-- Cada pregunta a Box IA cuesta dinero real en DeepSeek, así que se limita por día:
+--   Básico 10, Pro 50, Empresarial 200; sin plan activo, 0.
+-- La Edge Function box-ia descuenta una consulta antes de llamar a DeepSeek y la
+-- devuelve si DeepSeek falla. Solo el servidor (service_role) puede descontar o
+-- devolver consultas; el usuario solo puede ver cuántas le quedan.
+-- El día se cuenta con la hora de Guatemala.
+-- Esta sección se puede volver a correr completa sin problema.
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS public.uso_ia (
+  id_usuario UUID NOT NULL,
+  fecha DATE NOT NULL,
+  consultas INTEGER NOT NULL DEFAULT 0,
+  CONSTRAINT uso_ia_pkey PRIMARY KEY (id_usuario, fecha),
+  CONSTRAINT uso_ia_id_usuario_fkey FOREIGN KEY (id_usuario) REFERENCES public.usuario(id_usuario) ON DELETE CASCADE,
+  CONSTRAINT uso_ia_consultas_check CHECK (consultas >= 0)
+);
+
+-- Solo lectura de lo propio desde el cliente; nadie escribe la tabla directamente
+ALTER TABLE public.uso_ia ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "uso_ia_ver" ON public.uso_ia;
+CREATE POLICY "uso_ia_ver" ON public.uso_ia
+  FOR SELECT USING (id_usuario = auth.uid() OR public.es_admin());
+
+-- Día actual en Guatemala
+CREATE OR REPLACE FUNCTION public.hoy_gt()
+RETURNS DATE LANGUAGE sql STABLE AS $$
+  SELECT (NOW() AT TIME ZONE 'America/Guatemala')::date;
+$$;
+
+-- Consultas diarias que permite el plan activo del usuario
+CREATE OR REPLACE FUNCTION public.limite_ia(p_usuario UUID)
+RETURNS INTEGER LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT COALESCE((
+    SELECT CASE
+      WHEN lower(p.nombre) LIKE '%empresa%' THEN 200
+      WHEN lower(p.nombre) LIKE '%pro%' THEN 50
+      WHEN lower(p.nombre) LIKE '%sico%' THEN 10
+      ELSE 0
+    END
+    FROM public.suscripcion s
+    JOIN public.plan p ON p.id_plan = s.id_plan
+    WHERE s.id_usuario = p_usuario AND s.estado = 'activa'
+    ORDER BY s.fecha_fin DESC
+    LIMIT 1
+  ), 0);
+$$;
+
+-- Descuenta una consulta si quedan. Devuelve si se permitió, cuántas lleva hoy y el límite.
+-- La condición en el UPDATE hace que dos consultas simultáneas no pasen del límite.
+CREATE OR REPLACE FUNCTION public.consumir_consulta_ia(p_usuario UUID)
+RETURNS TABLE (permitido BOOLEAN, usadas INTEGER, limite INTEGER)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_limite INTEGER := public.limite_ia(p_usuario);
+  v_usadas INTEGER;
+BEGIN
+  IF v_limite <= 0 THEN
+    RETURN QUERY SELECT false, 0, 0;
+    RETURN;
+  END IF;
+
+  INSERT INTO public.uso_ia (id_usuario, fecha, consultas)
+  VALUES (p_usuario, public.hoy_gt(), 1)
+  ON CONFLICT (id_usuario, fecha) DO UPDATE
+    SET consultas = public.uso_ia.consultas + 1
+    WHERE public.uso_ia.consultas < v_limite
+  RETURNING consultas INTO v_usadas;
+
+  IF v_usadas IS NULL THEN
+    SELECT consultas INTO v_usadas FROM public.uso_ia WHERE id_usuario = p_usuario AND fecha = public.hoy_gt();
+    RETURN QUERY SELECT false, v_usadas, v_limite;
+  ELSE
+    RETURN QUERY SELECT true, v_usadas, v_limite;
+  END IF;
+END;
+$$;
+
+-- Devuelve la consulta descontada cuando DeepSeek no pudo responder
+CREATE OR REPLACE FUNCTION public.devolver_consulta_ia(p_usuario UUID)
+RETURNS void LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+  UPDATE public.uso_ia SET consultas = consultas - 1
+  WHERE id_usuario = p_usuario AND fecha = public.hoy_gt() AND consultas > 0;
+$$;
+
+-- Cuántas consultas lleva hoy el usuario con sesión y cuántas permite su plan (para la pantalla)
+CREATE OR REPLACE FUNCTION public.uso_ia_hoy()
+RETURNS TABLE (usadas INTEGER, limite INTEGER)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT
+    COALESCE((SELECT consultas FROM public.uso_ia WHERE id_usuario = auth.uid() AND fecha = public.hoy_gt()), 0),
+    public.limite_ia(auth.uid());
+$$;
+
+-- Descontar y devolver consultas: solo el servidor (Edge Function con service_role)
+REVOKE EXECUTE ON FUNCTION public.consumir_consulta_ia(UUID) FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.devolver_consulta_ia(UUID) FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.limite_ia(UUID) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.consumir_consulta_ia(UUID) TO service_role;
+GRANT EXECUTE ON FUNCTION public.devolver_consulta_ia(UUID) TO service_role;
+GRANT EXECUTE ON FUNCTION public.limite_ia(UUID) TO service_role;
+REVOKE EXECUTE ON FUNCTION public.uso_ia_hoy() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.uso_ia_hoy() TO authenticated;

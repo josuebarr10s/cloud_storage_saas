@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, FileText, Shield } from 'lucide-react';
 
-const UPDATED = 'octubre de 2026';
+const UPDATED = 'noviembre de 2026';
 
 // Textos cortos y fieles a lo que Nimbox hace de verdad (proyecto académico, pagos simulados)
 const TERMS = [
@@ -41,8 +41,12 @@ const PRIVACY = [
     body: 'Tus archivos solo los ves tú y las personas a las que les compartas un enlace. El administrador de Nimbox ve tu nombre, correo, plan, espacio usado y pagos, pero no tus archivos. Si abres un enlace de alguien con plan Empresarial, esa persona puede ver tu nombre, tu correo y cuántas veces lo abriste.'
   },
   {
+    title: 'Box IA',
+    body: 'Si usas Box IA, el texto de los documentos que eliges y tus preguntas se envían a DeepSeek, un servicio de inteligencia artificial externo, solo para generar la respuesta. DeepSeek procesa esa información en sus propios servidores, fuera de Nimbox y bajo su propia política de privacidad. No uses Box IA con documentos confidenciales ni con datos personales de otras personas. Si no usas Box IA, tus documentos no salen de Supabase.'
+  },
+  {
     title: 'Lo que no hacemos',
-    body: 'No vendemos ni compartimos tus datos con nadie y no mostramos publicidad.'
+    body: 'No vendemos tus datos ni mostramos publicidad. Solo se envía información a un tercero cuando tú usas Box IA, como se explica arriba.'
   },
   {
     title: 'Borrar tu cuenta',

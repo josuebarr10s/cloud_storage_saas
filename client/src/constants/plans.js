@@ -22,7 +22,8 @@ export const DEFAULT_PLANS = Object.freeze([
       'Carpetas, vista previa y búsqueda',
       'Historial de versiones',
       'Papelera de 7 días',
-      'Compartir por enlace (solo lectura)'
+      'Compartir por enlace (solo lectura)',
+      'Box IA: 10 preguntas al día'
     ],
     buttonText: 'Elegir Básico'
   },
@@ -40,7 +41,8 @@ export const DEFAULT_PLANS = Object.freeze([
       'Todo lo del plan Básico',
       'Papelera de 30 días',
       'Enlaces de editor para colaborar',
-      'Enlaces con contraseña y vencimiento'
+      'Enlaces con contraseña y vencimiento',
+      'Box IA: 50 preguntas al día'
     ],
     buttonText: 'Elegir Pro'
   },
@@ -57,7 +59,8 @@ export const DEFAULT_PLANS = Object.freeze([
       'Todo lo del plan Pro',
       'Papelera sin límite de tiempo',
       'Enlaces solo para correos invitados',
-      'Ver quién abrió cada enlace'
+      'Ver quién abrió cada enlace',
+      'Box IA: 200 preguntas al día'
     ],
     buttonText: 'Elegir Empresarial'
   }

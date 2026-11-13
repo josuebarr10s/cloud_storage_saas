@@ -26,6 +26,12 @@ export const FeatureComparison = () => {
         { feature: 'Enlaces solo para correos invitados', basic: false, pro: false, enterprise: true },
         { feature: 'Ver quién abrió cada enlace', basic: false, pro: false, enterprise: true },
       ]
+    },
+    {
+      category: 'Box IA',
+      items: [
+        { feature: 'Preguntas a tus documentos por día', basic: '10', pro: '50', enterprise: '200' },
+      ]
     }
   ];
 
