@@ -203,8 +203,10 @@ export default function App() {
   };
 
   const handlePaymentSuccess = (planData) => {
-    const updatedUser = { ...currentUser, plan: planData.plan, storageQuota: planData.storageQuota };
+    const updatedUser = { ...currentUser, plan: planData.plan, storageQuota: planData.storageQuota, storageQuotaBytes: null };
     setCurrentUser(updatedUser);
+    // Recarga el perfil para tener el plan y el espacio exactos que quedaron en la base de datos
+    authService.getCurrentUser().then((user) => { if (user) setCurrentUser(user); });
     setBillingVersion((v) => v + 1);
     setCurrentView('dashboard'); 
     showNotification(`¡Pago exitoso! Plan ${planData.plan} activado.`, 'success');

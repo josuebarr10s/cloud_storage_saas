@@ -2,9 +2,10 @@ import { askConfirm } from '../utils/confirm.js';
 import React, { useState, useEffect } from 'react';
 import {
   LogOut, Search, Loader2, Users, HardDrive, DollarSign,
-  Shield, UserCheck, UserX, RefreshCw
+  Shield, UserCheck, UserX, RefreshCw, Layers
 } from 'lucide-react';
 import { adminService } from '../services/adminService.js';
+import { PlansManager } from '../components/admin/PlansManager.jsx';
 import './dashboard-responsive.css';
 
 const ROLES = { 1: 'Administrador', 2: 'Cliente' };
@@ -56,6 +57,7 @@ export const AdminDashboardView = ({ currentUser, onLogout, onNotification }) =>
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState('all'); // 'all' | 'admins' | 'clientes' | 'suspendidos'
   const [busyUserId, setBusyUserId] = useState(null);
+  const [section, setSection] = useState('usuarios'); // 'usuarios' | 'planes' (RF-16)
 
   const loadData = async () => {
     setIsLoading(true);
@@ -259,7 +261,7 @@ export const AdminDashboardView = ({ currentUser, onLogout, onNotification }) =>
             Hola, {currentUser?.name || 'Administrador'}
           </h1>
           <p style={{ opacity: 0.85, fontSize: '0.9rem', maxWidth: '560px', margin: 0 }}>
-            Desde aquí puedes ver el estado general de Nimbox y gestionar las cuentas de los usuarios: suspenderlas, reactivarlas o cambiar su rol.
+            Desde aquí puedes ver el estado general de Nimbox y gestionar las cuentas de los usuarios (suspenderlas, reactivarlas o cambiar su rol) y los planes que se ofrecen.
           </p>
         </div>
 
@@ -315,6 +317,40 @@ export const AdminDashboardView = ({ currentUser, onLogout, onNotification }) =>
           ))}
         </div>
 
+        {/* Sección: usuarios o planes (RF-16) */}
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)' }}>
+          {[
+            { id: 'usuarios', label: 'Usuarios', icon: <Users size={16} /> },
+            { id: 'planes', label: 'Planes', icon: <Layers size={16} /> }
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setSection(tab.id)}
+              style={{
+                padding: '10px 16px',
+                marginBottom: '-1px',
+                border: 'none',
+                borderBottom: `2px solid ${section === tab.id ? 'var(--primary)' : 'transparent'}`,
+                background: 'none',
+                cursor: 'pointer',
+                fontSize: '0.92rem',
+                fontWeight: 700,
+                color: section === tab.id ? 'var(--primary)' : 'var(--text-muted)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '7px'
+              }}
+            >
+              {tab.icon} {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {section === 'planes' ? (
+          <PlansManager onNotification={onNotification} />
+        ) : (
+        <>
         {/* Controls */}
         <div
           className="nb-admin-controls"
@@ -593,6 +629,8 @@ export const AdminDashboardView = ({ currentUser, onLogout, onNotification }) =>
             </div>
           )}
         </div>
+        </>
+        )}
       </main>
     </div>
   );

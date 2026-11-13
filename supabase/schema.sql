@@ -1332,8 +1332,7 @@ RETURNS INTEGER LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS
     SELECT CASE
       WHEN lower(p.nombre) LIKE '%empresa%' THEN 200
       WHEN lower(p.nombre) LIKE '%pro%' THEN 50
-      WHEN lower(p.nombre) LIKE '%sico%' THEN 10
-      ELSE 0
+      ELSE 10  -- Básico y cualquier plan creado por el administrador con otro nombre
     END
     FROM public.suscripcion s
     JOIN public.plan p ON p.id_plan = s.id_plan
@@ -1461,6 +1460,8 @@ CREATE OR REPLACE FUNCTION public.proteger_suscripcion() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
   v_plan public.plan%ROWTYPE;
+  v_plan_anterior uuid;
+  v_limite_anterior bigint;
 BEGIN
   IF auth.uid() IS NULL OR public.es_admin() THEN
     RETURN NEW;
@@ -1468,10 +1469,23 @@ BEGIN
 
   IF TG_OP = 'INSERT' THEN
     SELECT * INTO v_plan FROM public.plan WHERE id_plan = NEW.id_plan;
-    IF NOT FOUND OR NOT v_plan.activo THEN
+    -- Un plan desactivado ya no se puede contratar, pero quien ya lo tenía puede renovarlo
+    IF NOT FOUND OR (NOT v_plan.activo AND NOT EXISTS (
+         SELECT 1 FROM public.suscripcion s WHERE s.id_usuario = NEW.id_usuario AND s.id_plan = NEW.id_plan)) THEN
       RAISE EXCEPTION 'Ese plan no está disponible.';
     END IF;
-    NEW.limite_bytes_contratado := v_plan.limite_almacenamiento_bytes;
+    -- El espacio lo pone el plan, no el cliente. Si es una renovación (su suscripción
+    -- más reciente es de este mismo plan) conserva el espacio con que lo contrató,
+    -- aunque el administrador haya cambiado el plan después (RF-16)
+    SELECT s.id_plan, s.limite_bytes_contratado INTO v_plan_anterior, v_limite_anterior
+    FROM public.suscripcion s
+    WHERE s.id_usuario = NEW.id_usuario
+    ORDER BY s.fecha_inicio DESC
+    LIMIT 1;
+    NEW.limite_bytes_contratado := CASE
+      WHEN v_plan_anterior = NEW.id_plan AND v_limite_anterior > 0 THEN v_limite_anterior
+      ELSE v_plan.limite_almacenamiento_bytes
+    END;
   ELSE
     NEW.id_usuario := OLD.id_usuario;
     NEW.id_plan := OLD.id_plan;
@@ -1495,3 +1509,33 @@ CREATE TRIGGER proteger_suscripcion
 -- Y para corregirlos:
 --   UPDATE public.almacenamiento a SET capacidad_total_bytes = public.capacidad_del_plan(a.id_usuario)
 --   WHERE a.capacidad_total_bytes <> public.capacidad_del_plan(a.id_usuario);
+
+
+-- =============================================================================
+-- 17. ADMINISTRACIÓN DE PLANES (RF-16)
+-- El administrador crea, edita, activa y desactiva planes desde su panel (la política
+-- plan_admin ya le da permiso; el resto solo puede leer el catálogo).
+--   * Un plan desactivado deja de mostrarse y de poder contratarse; quien ya lo tenía
+--     conserva su suscripción y puede renovarla (ver proteger_suscripcion).
+--   * Cambiar el precio o el espacio de un plan no altera las suscripciones vigentes:
+--     cada una guarda el precio y el límite con que se contrató.
+--   * Las funciones de cada plan se reconocen por su nombre: si incluye "Pro" tiene las
+--     del plan Pro; si incluye "Empresa", las del Empresarial; con cualquier otro nombre,
+--     las del Básico.
+-- Esta sección se puede volver a correr completa sin problema.
+-- =============================================================================
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'plan_datos_validos') THEN
+    ALTER TABLE public.plan ADD CONSTRAINT plan_datos_validos CHECK (
+      length(trim(nombre)) BETWEEN 2 AND 40
+      AND precio >= 0
+      AND limite_almacenamiento_bytes > 0
+      AND duracion_dias > 0
+    );
+  END IF;
+END $$;
+
+-- Sin dos planes con el mismo nombre (sin importar mayúsculas ni espacios)
+CREATE UNIQUE INDEX IF NOT EXISTS plan_nombre_unico_idx ON public.plan (lower(trim(nombre)));

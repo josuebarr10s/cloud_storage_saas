@@ -26,9 +26,11 @@ function formatPlanStorageQuota(bytes = 0) {
  * @returns {Object}
  */
 function mapPlanRecord(p) {
+  // Las funciones se reconocen por el nombre; un plan con otro nombre (creado por el
+  // administrador, RF-16) tiene las del Básico
   const normName = normalizeText(p.nombre);
-  const isPro = normName.includes('pro');
   const isEmp = normName.includes('empresa');
+  const isPro = !isEmp && normName.includes('pro');
   const bytes = p.limite_almacenamiento_bytes || 0;
   const price = parseFloat(p.precio) || 0;
 
@@ -41,8 +43,12 @@ function mapPlanRecord(p) {
     popular: isPro,
     badge: isPro ? 'Recomendado' : null,
     storageQuota: formatPlanStorageQuota(bytes),
-    features: isPro ? DEFAULT_PLANS[1].features : isEmp ? DEFAULT_PLANS[2].features : DEFAULT_PLANS[0].features,
-    buttonText: isPro ? 'Elegir Pro' : isEmp ? 'Elegir Empresarial' : 'Elegir Básico'
+    // La primera característica es el espacio: se toma del plan real, no del texto fijo
+    features: [
+      `${formatPlanStorageQuota(bytes)} de almacenamiento`,
+      ...(isPro ? DEFAULT_PLANS[1].features : isEmp ? DEFAULT_PLANS[2].features : DEFAULT_PLANS[0].features).slice(1),
+    ],
+    buttonText: `Elegir ${p.nombre}`
   };
 }
 
