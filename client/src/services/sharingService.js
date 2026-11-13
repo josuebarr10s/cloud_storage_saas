@@ -21,6 +21,8 @@ export const SHARE_ERRORS = Object.freeze({
 const PASSWORD_ERROR_CODES = Object.freeze({
   NB001: SHARE_ERRORS.PASSWORD_REQUIRED,
   NB002: SHARE_ERRORS.PASSWORD_INCORRECT,
+  // Bloqueado por demasiados intentos: se sigue mostrando el formulario con el aviso
+  NB004: SHARE_ERRORS.PASSWORD_INCORRECT,
 });
 
 /**
@@ -258,6 +260,14 @@ export const sharingService = {
       }
       const shareError = new Error(error.message || 'No se pudo abrir el enlace.');
       shareError.code = PASSWORD_ERROR_CODES[error.code] || null;
+      throw shareError;
+    }
+
+    // Los fallos de contraseña llegan como respuesta (no como error) para que la BD
+    // pueda registrar el intento y bloquear tras varios fallos
+    if (data?.error_code) {
+      const shareError = new Error(data.mensaje || 'No se pudo abrir el enlace.');
+      shareError.code = PASSWORD_ERROR_CODES[data.error_code] || null;
       throw shareError;
     }
 
