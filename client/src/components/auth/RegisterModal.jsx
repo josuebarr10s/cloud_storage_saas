@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { X, ShieldCheck, Eye, EyeOff, ArrowRight, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { X, ShieldCheck, Eye, EyeOff, ArrowRight, Loader2, AlertCircle, CheckCircle2, MailCheck } from 'lucide-react';
 import { authService } from '../../services/authService.js';
 import { getPasswordRequirements, getPasswordStrength, PASSWORD_REQUIREMENT_LABELS } from '../../utils/passwordRules.js';
 import { LegalModal } from '../legal/LegalModal.jsx';
+import { ResendConfirmationButton } from './ResendConfirmationButton.jsx';
 
-export const RegisterModal = ({ isOpen, onClose, onRegisterSuccess }) => {
+export const RegisterModal = ({ isOpen, onClose, onRegisterSuccess, onOpenLogin }) => {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -17,6 +18,8 @@ export const RegisterModal = ({ isOpen, onClose, onRegisterSuccess }) => {
   
   const [errors, setErrors] = useState({});
   const [isRegistering, setIsRegistering] = useState(false);
+  // RF-02: correo al que se envió el enlace de confirmación
+  const [sentTo, setSentTo] = useState(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -28,10 +31,44 @@ export const RegisterModal = ({ isOpen, onClose, onRegisterSuccess }) => {
       setLegalTab(null);
       setErrors({});
       setIsRegistering(false);
+      setSentTo(null);
     }
   }, [isOpen]);
 
   if (!isOpen) return null;
+
+  if (sentTo) {
+    return (
+      <div className="nb-modal-overlay" style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'var(--bg-overlay)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+        <div className="nb-modal-card" role="dialog" aria-labelledby="nb-confirm-title" style={{ background: 'var(--bg-card)', width: '100%', maxWidth: '440px', borderRadius: 'var(--radius-2xl)', boxShadow: 'var(--shadow-modal)', border: '1px solid var(--border-color)', overflow: 'hidden' }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '12px 12px 0' }}>
+            <button onClick={onClose} aria-label="Cerrar" style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={20} /></button>
+          </div>
+          <div style={{ padding: '0 1.75rem 1.75rem', textAlign: 'center' }}>
+            <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'var(--primary-light)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
+              <MailCheck size={28} />
+            </div>
+            <h3 id="nb-confirm-title" style={{ fontSize: '1.15rem', fontWeight: 700, margin: '0 0 6px', color: 'var(--text-main)' }}>Confirma tu correo</h3>
+            <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', margin: '0 0 4px', lineHeight: 1.5 }}>
+              Te enviamos un enlace a <strong style={{ color: 'var(--text-main)', wordBreak: 'break-all' }}>{sentTo}</strong>.
+            </p>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '0 0 18px', lineHeight: 1.5 }}>
+              Ábrelo para activar tu cuenta. Si no lo ves, revisa Spam o Promociones.
+            </p>
+            <ResendConfirmationButton email={sentTo} startWithCooldown style={{ marginBottom: '10px' }} />
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => (onOpenLogin ? onOpenLogin() : onClose())}
+              style={{ width: '100%', padding: '10px 12px', fontSize: '0.9rem', borderRadius: 'var(--radius-sm)' }}
+            >
+              Ya confirmé, iniciar sesión
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const passwordStrength = getPasswordStrength(password);
   const requirements = getPasswordRequirements(password, confirmPassword);
@@ -66,11 +103,20 @@ export const RegisterModal = ({ isOpen, onClose, onRegisterSuccess }) => {
     setErrors({});
 
     try {
-      const { user, error } = await authService.signUpBasic({
+      const { user, error, needsConfirmation, email: sentEmail } = await authService.signUpBasic({
         email, 
         password, 
         name: fullName
       });
+
+      // RF-02: la cuenta queda creada pero hay que confirmar el correo antes de entrar
+      if (needsConfirmation) {
+        setPassword('');
+        setConfirmPassword('');
+        setSentTo(sentEmail);
+        setIsRegistering(false);
+        return;
+      }
 
       if (error || !user) {
         setErrors({ general: error?.message || 'Error al registrar usuario.' });

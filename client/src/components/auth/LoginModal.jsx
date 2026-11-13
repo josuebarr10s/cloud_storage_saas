@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { X, Lock, Mail, Eye, EyeOff, ArrowRight, LogIn, AlertCircle, Loader2 } from 'lucide-react';
 import { authService } from '../../services/authService.js';
+import { ResendConfirmationButton } from './ResendConfirmationButton.jsx';
+import { AUTH_MESSAGES } from '../../utils/authErrorHandler.js';
 
-export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onOpenRegister, onForgotPassword }) => {
+export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onOpenRegister, onForgotPassword, notice }) => {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -166,6 +168,17 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onOpenRegister, on
             >
               <AlertCircle size={16} style={{ flexShrink: 0 }} />
               <span>{errorMessage}</span>
+            </div>
+          )}
+
+          {/* RF-02: correo sin confirmar -> ofrecer reenviar el enlace */}
+          {errorMessage === AUTH_MESSAGES.EMAIL_NOT_CONFIRMED && (
+            <ResendConfirmationButton email={email.trim().toLowerCase()} style={{ marginTop: '-0.5rem', marginBottom: '1.25rem' }} />
+          )}
+
+          {notice && !errorMessage && (
+            <div role="status" style={{ background: 'var(--primary-light)', border: '1px solid rgba(99, 102, 241, 0.3)', color: 'var(--text-main)', padding: '10px 12px', borderRadius: 'var(--radius-sm)', fontSize: '0.825rem', marginBottom: '1.25rem' }}>
+              {notice}
             </div>
           )}
 

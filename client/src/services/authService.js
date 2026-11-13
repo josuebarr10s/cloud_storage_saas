@@ -13,6 +13,10 @@ let inFlightUserPromise = null;
  * Patrón Facade: Proporciona una interfaz unificada y de alto nivel
  * para gestionar el ciclo de vida de autenticación y sesiones de usuario.
  */
+// RF-02: el enlace de confirmación regresa a la app con ?confirmacion=1 para mostrar el aviso
+export const CONFIRMATION_PARAM = 'confirmacion';
+const confirmationRedirectUrl = () => `${window.location.origin}/?${CONFIRMATION_PARAM}=1`;
+
 export const authService = {
   /**
    * Obtiene de forma síncrona el perfil en caché local para hidratación instantánea
@@ -39,7 +43,11 @@ export const authService = {
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: formattedEmail,
       password: password,
-      options: { data: { full_name: name, nombre: nombre, apellido: apellido } }
+      options: {
+        data: { full_name: name, nombre: nombre, apellido: apellido },
+        // RF-02: a dónde vuelve el usuario al hacer clic en el enlace de confirmación
+        emailRedirectTo: confirmationRedirectUrl(),
+      }
     });
 
     if (authError) {
@@ -51,6 +59,16 @@ export const authService = {
       return { user: null, error: new Error(AUTH_MESSAGES.CREATE_ACCOUNT_FAILED) };
     }
 
+    // RF-02: con "Confirm email" activo en Supabase no hay sesión hasta que el usuario
+    // confirme su correo. Si el correo ya tenía cuenta, Supabase devuelve un usuario sin
+    // identidades y no envía nada.
+    if (!authData.session) {
+      if (Array.isArray(authData.user.identities) && authData.user.identities.length === 0) {
+        return { user: null, error: new Error(AUTH_MESSAGES.ALREADY_REGISTERED) };
+      }
+      return { user: null, needsConfirmation: true, email: formattedEmail, error: null };
+    }
+
     const userObj = UserFactory.createProfile({
       authUser: authData.user,
       emailFallback: formattedEmail,
@@ -59,6 +77,20 @@ export const authService = {
 
     localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(userObj));
     return { user: userObj, error: null };
+  },
+
+  /**
+   * RF-02: vuelve a enviar el correo de confirmación de la cuenta
+   */
+  async resendConfirmation(email) {
+    const formattedEmail = String(email || '').toLowerCase().trim();
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: formattedEmail,
+      options: { emailRedirectTo: confirmationRedirectUrl() },
+    });
+    if (error) return { success: false, error: mapAuthErrorMessage(error) };
+    return { success: true };
   },
 
   /**
