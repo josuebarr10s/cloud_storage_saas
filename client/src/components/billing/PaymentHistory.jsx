@@ -403,7 +403,7 @@ export const PaymentHistory = ({ currentUser, onChangePlan, onNotification, refr
                   {sub.expired ? 'Procesando renovación...' : sub.daysLeft === 0 ? 'Cobro automático hoy' : sub.daysLeft === 1 ? 'Cobro automático mañana' : `Cobro automático en ${sub.daysLeft} días`}
                 </span>
                 {!sub.expired && (
-                  <button type="button" onClick={() => handleToggleRenewal(sub)} disabled={isRenewalBusy} style={{ background: 'none', border: 'none', padding: 0, color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.8rem', textDecoration: 'underline', cursor: isRenewalBusy ? 'wait' : 'pointer' }}>
+                  <button type="button" onClick={() => handleToggleRenewal(sub)} disabled={isRenewalBusy} style={{ background: 'none', border: 'none', padding: 0, color: 'var(--danger)', fontWeight: 700, fontSize: '0.8rem', textDecoration: 'underline', cursor: isRenewalBusy ? 'wait' : 'pointer' }}>
                     Cancelar renovación
                   </button>
                 )}
