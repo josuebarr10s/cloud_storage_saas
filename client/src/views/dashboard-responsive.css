@@ -234,6 +234,36 @@
     order: 7;
     margin-left: auto;
   }
+
+  /* Tabla de planes (RF-16): nombre arriba, luego 4 datos con su título y abajo estado y botones */
+  .nb-plans-table tbody td:first-child {
+    flex: 1 1 100%;
+  }
+  .nb-plans-table tbody td:nth-child(2),
+  .nb-plans-table tbody td:nth-child(3),
+  .nb-plans-table tbody td:nth-child(4),
+  .nb-plans-table tbody td:nth-child(5) {
+    flex: 1 1 calc(25% - 12px);
+    order: initial;
+    margin-top: 0;
+    font-weight: 600;
+  }
+  .nb-plans-table tbody td:nth-child(6) {
+    font-size: inherit !important;
+    order: initial;
+  }
+  .nb-plans-table .nb-cell-label {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-bottom: 2px;
+  }
+}
+
+/* Títulos de dato que solo se muestran cuando la tabla se convierte en tarjetas */
+.nb-cell-label {
+  display: none;
 }
 
 /* ============================================================

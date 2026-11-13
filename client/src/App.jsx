@@ -12,8 +12,8 @@ import { ResetPasswordModal } from './components/auth/ResetPasswordModal.jsx';
 import { Toast } from './components/Toast.jsx';
 import { ConfirmHost } from './components/ConfirmDialog.jsx';
 
-import { authService } from './services/authService.js';
-import { mapAuthErrorMessage } from './utils/authErrorHandler.js';
+import { authService, CONFIRMATION_PARAM } from './services/authService.js';
+import { mapAuthErrorMessage, AUTH_MESSAGES } from './utils/authErrorHandler.js';
 import { takeShareTokenFromUrl, clearPendingShareToken } from './services/sharingService.js';
 import { USER_ROLES } from './constants/roles.js';
 import { PLAN_NAMES } from './constants/plans.js';
@@ -31,6 +31,8 @@ export default function App() {
   const initialHashParams = new URLSearchParams(initialRawHash);
   const initialSearchParams = new URLSearchParams(initialRawSearch);
   const hasUrlError = Boolean(initialHashParams.get('error') || initialSearchParams.get('error') || initialHashParams.get('error_description') || initialSearchParams.get('error_description'));
+  // RF-02: se llegó desde el enlace de confirmación del correo
+  const isConfirmationLinkRef = useRef(initialSearchParams.get(CONFIRMATION_PARAM) === '1');
 
   // Si la URL trae un error (ej. otp_expired), limpiar cualquier bandera previa de recuperación
   if (hasUrlError) {
@@ -64,6 +66,8 @@ export default function App() {
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
+  // Aviso informativo dentro del inicio de sesión (ej. enlace de confirmación vencido)
+  const [loginNotice, setLoginNotice] = useState(null);
   const [isResetPasswordOpen, setIsResetPasswordOpen] = useState(isRecoveringRef.current);
   // Enlace compartido pendiente (?share=TOKEN). Tiene prioridad sobre landing y dashboard mientras haya sesión.
   const [shareToken, setShareToken] = useState(() => takeShareTokenFromUrl());
@@ -85,7 +89,13 @@ export default function App() {
     const errorDescription = hashParams.get('error_description') || searchParams.get('error_description');
     const errorCode = hashParams.get('error_code') || searchParams.get('error_code');
 
-    if (errorDescription || errorCode) {
+    if ((errorDescription || errorCode) && isConfirmationLinkRef.current) {
+      // RF-02: el enlace de confirmación venció o ya se usó -> iniciar sesión (ahí se puede pedir otro)
+      isConfirmationLinkRef.current = false;
+      window.history.replaceState(null, '', window.location.pathname);
+      setLoginNotice(AUTH_MESSAGES.CONFIRMATION_LINK_EXPIRED);
+      setIsLoginOpen(true);
+    } else if (errorDescription || errorCode) {
       const rawMsg = errorDescription ? decodeURIComponent(errorDescription.replace(/\+/g, ' ')) : errorCode;
       const friendlyMsg = mapAuthErrorMessage({ message: rawMsg });
       isRecoveringRef.current = false;
@@ -124,6 +134,21 @@ export default function App() {
       }
 
       const user = await authService.getCurrentUser();
+      if (isConfirmationLinkRef.current) {
+        // Quitar ?confirmacion=1 de la dirección (sin tocar el #, que lo lee Supabase)
+        isConfirmationLinkRef.current = false;
+        const url = new URL(window.location.href);
+        url.searchParams.delete(CONFIRMATION_PARAM);
+        window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+        if (user) {
+          showNotification(tienePlan(user) || esAdmin(user)
+            ? '¡Correo confirmado!'
+            : '¡Correo confirmado! Ya puedes elegir tu plan.', 'success');
+        } else {
+          setLoginNotice('Tu correo quedó confirmado. Inicia sesión para continuar.');
+          setIsLoginOpen(true);
+        }
+      }
       if (user) {
         setCurrentUser(user);
         setCurrentView(vistaPara(user));
@@ -248,8 +273,8 @@ export default function App() {
         <LandingPage onOpenCheckout={handleOpenCheckout} onOpenLogin={handleOpenLogin} onLogout={handleLogout} currentUser={currentUser} />
       )}
 
-      <RegisterModal isOpen={isRegisterOpen} onClose={() => setIsRegisterOpen(false)} onRegisterSuccess={handleRegisterSuccess} />
-      <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} onLoginSuccess={handleLoginSuccess} onForgotPassword={handleOpenForgotPassword} onOpenRegister={handleOpenRegister} />
+      <RegisterModal isOpen={isRegisterOpen} onClose={() => setIsRegisterOpen(false)} onRegisterSuccess={handleRegisterSuccess} onOpenLogin={handleOpenLogin} />
+      <LoginModal isOpen={isLoginOpen} onClose={() => { setIsLoginOpen(false); setLoginNotice(null); }} onLoginSuccess={handleLoginSuccess} onForgotPassword={handleOpenForgotPassword} onOpenRegister={handleOpenRegister} notice={loginNotice} />
       <ForgotPasswordModal isOpen={isForgotPasswordOpen} onClose={() => setIsForgotPasswordOpen(false)} onBackToLogin={handleOpenLogin} />
       <ResetPasswordModal 
         isOpen={isResetPasswordOpen} 

@@ -951,7 +951,8 @@ BEGIN
     END IF;
   ELSE
     SELECT * INTO v_carpeta FROM public.carpeta WHERE id_carpeta = v_enlace.id_carpeta;
-    IF NOT FOUND THEN
+    -- (eliminado: la carpeta está en la papelera, ver la sección 18)
+    IF NOT FOUND OR v_carpeta.eliminado THEN
       RAISE EXCEPTION 'Esta carpeta ya no está disponible.';
     END IF;
   END IF;
@@ -1539,3 +1540,152 @@ END $$;
 
 -- Sin dos planes con el mismo nombre (sin importar mayúsculas ni espacios)
 CREATE UNIQUE INDEX IF NOT EXISTS plan_nombre_unico_idx ON public.plan (lower(trim(nombre)));
+
+
+-- =============================================================================
+-- 18. PAPELERA DE CARPETAS
+-- Eliminar una carpeta ya no la borra: la carpeta, sus subcarpetas y sus archivos van a
+-- la papelera con la misma fecha. Al restaurarla vuelve completa, con su estructura.
+-- Cuando vence el plazo de la papelera del plan (o el usuario la elimina definitivamente)
+-- la app borra los archivos de Storage y luego la carpeta.
+--   * Una carpeta en la papelera deja de verse por enlaces compartidos y en
+--     "Compartidos conmigo".
+--   * Solo el dueño puede mandar carpetas a la papelera o restaurarlas.
+-- Esta sección se puede volver a correr completa sin problema.
+-- =============================================================================
+
+ALTER TABLE public.carpeta ADD COLUMN IF NOT EXISTS eliminado BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE public.carpeta ADD COLUMN IF NOT EXISTS fecha_eliminacion TIMESTAMP WITH TIME ZONE;
+CREATE INDEX IF NOT EXISTS carpeta_papelera_idx ON public.carpeta (id_usuario) WHERE eliminado;
+
+-- La carpeta y todas sus subcarpetas (ids)
+CREATE OR REPLACE FUNCTION public.subarbol_carpeta(p_carpeta UUID)
+RETURNS TABLE (id_carpeta UUID) LANGUAGE sql STABLE SET search_path = public AS $$
+  WITH RECURSIVE arbol AS (
+    SELECT c.id_carpeta, 0 AS nivel FROM public.carpeta c WHERE c.id_carpeta = p_carpeta
+    UNION ALL
+    SELECT c.id_carpeta, a.nivel + 1
+    FROM public.carpeta c JOIN arbol a ON c.id_carpeta_padre = a.id_carpeta
+    WHERE a.nivel < 50
+  )
+  SELECT arbol.id_carpeta FROM arbol;
+$$;
+
+-- Manda la carpeta (con subcarpetas y archivos) a la papelera. Devuelve cuántos archivos movió.
+CREATE OR REPLACE FUNCTION public.enviar_carpeta_papelera(p_carpeta UUID)
+RETURNS integer LANGUAGE plpgsql SET search_path = public AS $$
+DECLARE
+  v_ahora TIMESTAMP WITH TIME ZONE := NOW();
+  v_archivos integer;
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public.carpeta WHERE id_carpeta = p_carpeta AND id_usuario = auth.uid() AND NOT eliminado) THEN
+    RAISE EXCEPTION 'No se encontró la carpeta.';
+  END IF;
+
+  UPDATE public.carpeta SET eliminado = true, fecha_eliminacion = v_ahora
+  WHERE id_carpeta IN (SELECT id_carpeta FROM public.subarbol_carpeta(p_carpeta)) AND NOT eliminado;
+
+  UPDATE public.archivo SET eliminado = true, fecha_eliminacion = v_ahora
+  WHERE id_carpeta IN (SELECT id_carpeta FROM public.subarbol_carpeta(p_carpeta)) AND NOT eliminado;
+  GET DIAGNOSTICS v_archivos = ROW_COUNT;
+
+  RETURN v_archivos;
+END;
+$$;
+
+-- Restaura la carpeta con lo que se fue a la papelera junto con ella (los archivos que ya
+-- estaban en la papelera desde antes se quedan ahí). Devuelve cuántos archivos restauró.
+CREATE OR REPLACE FUNCTION public.restaurar_carpeta(p_carpeta UUID)
+RETURNS integer LANGUAGE plpgsql SET search_path = public AS $$
+DECLARE
+  v_carpeta public.carpeta%ROWTYPE;
+  v_archivos integer;
+BEGIN
+  SELECT * INTO v_carpeta FROM public.carpeta
+  WHERE id_carpeta = p_carpeta AND id_usuario = auth.uid() AND eliminado;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'La carpeta no está en la papelera.';
+  END IF;
+
+  -- Si la carpeta que la contenía ya no está disponible, vuelve a la raíz
+  IF v_carpeta.id_carpeta_padre IS NOT NULL AND EXISTS (
+       SELECT 1 FROM public.carpeta WHERE id_carpeta = v_carpeta.id_carpeta_padre AND eliminado) THEN
+    UPDATE public.carpeta SET id_carpeta_padre = NULL WHERE id_carpeta = p_carpeta;
+  END IF;
+
+  UPDATE public.archivo SET eliminado = false, fecha_eliminacion = NULL
+  WHERE id_carpeta IN (SELECT id_carpeta FROM public.subarbol_carpeta(p_carpeta))
+    AND eliminado AND fecha_eliminacion >= v_carpeta.fecha_eliminacion;
+  GET DIAGNOSTICS v_archivos = ROW_COUNT;
+
+  UPDATE public.carpeta SET eliminado = false, fecha_eliminacion = NULL
+  WHERE id_carpeta IN (SELECT id_carpeta FROM public.subarbol_carpeta(p_carpeta))
+    AND eliminado AND fecha_eliminacion >= v_carpeta.fecha_eliminacion;
+
+  RETURN v_archivos;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.subarbol_carpeta(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.enviar_carpeta_papelera(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.restaurar_carpeta(UUID) TO authenticated;
+
+-- Compartir: una carpeta en la papelera (o dentro de una) ya no da acceso por enlace
+CREATE OR REPLACE FUNCTION public.permiso_compartido_carpeta(p_id_carpeta UUID)
+RETURNS text LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  WITH RECURSIVE ancestros AS (
+    SELECT id_carpeta, id_carpeta_padre, eliminado, 0 AS nivel
+    FROM public.carpeta WHERE id_carpeta = p_id_carpeta
+    UNION ALL
+    SELECT c.id_carpeta, c.id_carpeta_padre, c.eliminado, a.nivel + 1
+    FROM public.carpeta c JOIN ancestros a ON c.id_carpeta = a.id_carpeta_padre
+    WHERE a.nivel < 50 -- tope por si alguna carpeta quedó en un ciclo
+  )
+  SELECT CASE
+    WHEN bool_or(e.permiso = 'editor' AND public.plan_permite_editor(e.id_usuario)) THEN 'editor'
+    WHEN count(*) > 0 THEN 'lector'
+  END
+  FROM ancestros an
+  JOIN public.enlace_compartido e ON e.id_carpeta = an.id_carpeta
+  JOIN public.acceso_compartido ac ON ac.id_enlace = e.id_enlace AND ac.id_usuario = auth.uid()
+  WHERE e.activo
+    AND (e.fecha_expiracion IS NULL OR e.fecha_expiracion > NOW())
+    AND public.tiene_plan_activo(e.id_usuario)
+    AND NOT EXISTS (SELECT 1 FROM ancestros x WHERE x.eliminado);
+$$;
+
+-- "Compartidos conmigo" sin carpetas que estén en la papelera
+CREATE OR REPLACE FUNCTION public.mis_compartidos()
+RETURNS TABLE (
+  token TEXT,
+  tipo TEXT,
+  permiso TEXT,
+  propietario TEXT,
+  nombre TEXT,
+  tamano BIGINT,
+  fecha_modificacion TIMESTAMP WITH TIME ZONE,
+  fecha_acceso TIMESTAMP WITH TIME ZONE
+)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT
+    e.token::text,
+    CASE WHEN e.id_archivo IS NOT NULL THEN 'archivo' ELSE 'carpeta' END,
+    CASE WHEN e.permiso = 'editor' AND public.plan_permite_editor(e.id_usuario) THEN 'editor' ELSE 'lector' END,
+    trim(concat_ws(' ', u.nombre, u.apellido)),
+    COALESCE(a.nombre, c.nombre)::text,
+    a.tamano,
+    COALESCE(a.fecha_modificacion, c.fecha_creacion),
+    ac.fecha_acceso
+  FROM public.acceso_compartido ac
+  JOIN public.enlace_compartido e ON e.id_enlace = ac.id_enlace
+  JOIN public.usuario u ON u.id_usuario = e.id_usuario
+  LEFT JOIN public.archivo a ON a.id_archivo = e.id_archivo
+  LEFT JOIN public.carpeta c ON c.id_carpeta = e.id_carpeta
+  WHERE ac.id_usuario = auth.uid()
+    AND e.activo
+    AND (e.fecha_expiracion IS NULL OR e.fecha_expiracion > NOW())
+    AND public.tiene_plan_activo(e.id_usuario)
+    AND (e.id_carpeta IS NOT NULL OR a.eliminado = false)
+    AND (e.id_carpeta IS NULL OR c.eliminado = false)
+  ORDER BY ac.fecha_acceso DESC;
+$$;
