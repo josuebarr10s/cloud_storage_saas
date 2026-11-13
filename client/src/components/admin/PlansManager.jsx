@@ -104,7 +104,7 @@ export const PlansManager = ({ onNotification }) => {
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table className="nb-admin-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '820px' }}>
+            <table className="nb-admin-table nb-plans-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '820px' }}>
               <thead>
                 <tr style={{ background: 'var(--bg-subtle)', borderBottom: '1px solid var(--border-color)' }}>
                   <th style={th}>Plan</th>
@@ -125,10 +125,11 @@ export const PlansManager = ({ onNotification }) => {
                         <div style={{ fontWeight: 700 }}>{plan.nombre}</div>
                         {plan.descripcion && <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{plan.descripcion}</div>}
                       </td>
-                      <td style={td}>{money(plan.precio)}</td>
-                      <td style={td}>{formatEspacio(plan.limiteBytes)}</td>
-                      <td style={td}>{plan.duracionDias} días</td>
-                      <td style={td}>{plan.suscriptores}</td>
+                      {/* nb-cell-label: título del dato, solo visible en celular (sin encabezados de tabla) */}
+                      <td style={td}><span className="nb-cell-label">Precio</span>{money(plan.precio)}</td>
+                      <td style={td}><span className="nb-cell-label">Espacio</span>{formatEspacio(plan.limiteBytes)}</td>
+                      <td style={td}><span className="nb-cell-label">Duración</span>{plan.duracionDias} días</td>
+                      <td style={td}><span className="nb-cell-label">Suscriptores</span>{plan.suscriptores}</td>
                       <td style={td}>
                         <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '3px 10px', borderRadius: 'var(--radius-full)', background: plan.activo ? 'var(--success-bg, rgba(16,185,129,0.12))' : 'var(--bg-hover)', color: plan.activo ? 'var(--success)' : 'var(--text-muted)' }}>
                           {plan.activo ? 'Activo' : 'Inactivo'}
