@@ -318,6 +318,8 @@ export const sharingService = {
 
     const error = foldersRes.error || filesRes.error;
     if (error) throw new Error(`No se pudo abrir la carpeta: ${error.message}`);
+    // El dueño también ve sus carpetas de la papelera (RLS): aquí no se muestran
+    foldersRes.data = (foldersRes.data || []).filter((c) => !c.eliminado);
 
     return {
       folders: (foldersRes.data || []).map(f => FolderFactory.createFromDb(f)),

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Folder, MoreVertical, Edit2, Trash2, ArrowRight, FolderOpen, Share2 } from 'lucide-react';
 
-const COLOR_MAP = {
+export const COLOR_MAP = {
   purple: { color: '#4f46e5', bg: '#eef2ff', border: 'rgba(79, 70, 229, 0.25)' },
   indigo: { color: '#6366f1', bg: '#e0e7ff', border: 'rgba(99, 102, 241, 0.25)' },
   cyan: { color: '#06b6d4', bg: '#ecfeff', border: 'rgba(6, 182, 212, 0.25)' },
@@ -209,7 +209,7 @@ export const FolderCard = ({
                 border: '1px solid rgba(239, 68, 68, 0.2)',
                 cursor: 'pointer'
               }}
-              title="Eliminar carpeta"
+              title="Mover a la papelera"
             >
               <Trash2 size={15} />
             </button>
@@ -336,7 +336,7 @@ export const FolderCard = ({
                 onClick={() => { setIsMenuOpen(false); onDelete(folder); }}
                 style={{ width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: '0.82rem', color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: '8px' }}
               >
-                <Trash2 size={14} /> Eliminar
+                <Trash2 size={14} /> Mover a la papelera
               </button>
             </div>
           )}

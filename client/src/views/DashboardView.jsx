@@ -7,7 +7,7 @@ import {
   Eye, LayoutGrid, List, Music, Sparkles, RotateCcw, Folder, FolderOpen,
   ArrowLeft, ChevronRight, ChevronDown, ArrowUpDown, ArrowUp, ArrowDown, Edit2, ArrowRight, CreditCard, Users
 } from 'lucide-react';
-import { filesService, getRetentionDays } from '../services/filesService.js';
+import { filesService, getRetentionDays, getDescendantFolderIds } from '../services/filesService.js';
 import { FilePreviewModal } from '../components/files/FilePreviewModal.jsx';
 import { VersionHistoryModal } from '../components/files/VersionHistoryModal.jsx';
 import { ShareLinkModal } from '../components/files/ShareLinkModal.jsx';
@@ -17,7 +17,7 @@ import { ActionsMenu } from '../components/files/ActionsMenu.jsx';
 import { sharingService } from '../services/sharingService.js';
 import { CreateFolderModal } from '../components/files/CreateFolderModal.jsx';
 import { MoveItemModal } from '../components/files/MoveItemModal.jsx';
-import { FolderCard } from '../components/files/FolderCard.jsx';
+import { FolderCard, COLOR_MAP as FOLDER_COLOR_MAP } from '../components/files/FolderCard.jsx';
 import { PaymentHistory } from '../components/billing/PaymentHistory.jsx';
 import { BoxIAAgentModal } from '../components/ai/BoxIAAgentModal.jsx';
 import { isSupportedBoxIADocument } from '../services/boxIAService.js';
@@ -161,7 +161,8 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
     async function loadTrash() {
       setIsLoadingTrash(true);
       try {
-        const data = await filesService.getTrashFiles(currentUser?.id, retentionDays);
+        // Carpetas y archivos (kind: 'folder' | 'file')
+        const data = await filesService.getTrashItems(currentUser?.id, retentionDays);
         setTrashFiles(data);
       } catch (err) {
         console.error('Error al cargar la papelera:', err);
@@ -286,20 +287,22 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
     setIsCreateFolderOpen(true);
   };
 
-  // Eliminar carpeta (sus archivos se mandan a la papelera)
+  // Mandar carpeta a la papelera (con sus subcarpetas y archivos; se puede restaurar completa)
   const handleDeleteFolder = async (folder) => {
-    if (!(await askConfirm(`¿Eliminar la carpeta "${folder.name}" y sus subcarpetas? Los archivos que contiene se moverán a la papelera.`, { confirmText: 'Eliminar carpeta', danger: true }))) return;
+    const plazo = retentionDays ? `durante ${retentionDays} días` : 'sin límite de tiempo';
+    if (!(await askConfirm(`¿Mover la carpeta "${folder.name}" a la papelera? Se va con sus subcarpetas y archivos, y podrás restaurarla completa ${plazo}.`, { confirmText: 'Mover a la papelera', danger: true }))) return;
     try {
-      const enviados = await filesService.deleteFolder(folder.id, currentUser?.id);
+      const enviados = await filesService.deleteFolder(folder.id);
+      if (currentFolderId && (currentFolderId === folder.id || getDescendantFolderIds(allFolders, folder.id).includes(currentFolderId))) {
+        setCurrentFolderId(folder.parentId || null);
+      }
       await loadDashboardData({ silent: true });
       onNotification && onNotification(
-        enviados > 0
-          ? `Carpeta "${folder.name}" eliminada. ${enviados} ${enviados === 1 ? 'archivo se movió' : 'archivos se movieron'} a la papelera.`
-          : `Carpeta "${folder.name}" eliminada.`,
+        `Carpeta "${folder.name}" movida a la papelera${enviados > 0 ? ` con ${enviados} ${enviados === 1 ? 'archivo' : 'archivos'}` : ''}.`,
         'info'
       );
     } catch (err) {
-      onNotification && onNotification(`Error al eliminar carpeta: ${err.message}`, 'error');
+      onNotification && onNotification(err.message, 'error');
     }
   };
 
@@ -380,6 +383,20 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
   };
 
   const handleRestoreFromTrash = async (file) => {
+    if (file.kind === 'folder') {
+      try {
+        const restaurados = await filesService.restoreFolder(file.id);
+        setTrashFiles(prev => prev.filter(f => f.id !== file.id));
+        await loadDashboardData({ silent: true });
+        onNotification && onNotification(
+          `Carpeta "${file.name}" restaurada${restaurados > 0 ? ` con ${restaurados} ${restaurados === 1 ? 'archivo' : 'archivos'}` : ''}.`,
+          'success'
+        );
+      } catch (err) {
+        onNotification && onNotification(err.message, 'error');
+      }
+      return;
+    }
     try {
       await filesService.restoreFromTrash(file.id);
       setTrashFiles(prev => prev.filter(f => f.id !== file.id));
@@ -392,6 +409,18 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
   };
 
   const handlePermanentDelete = async (file) => {
+    if (file.kind === 'folder') {
+      const contenido = file.filesCount > 0 ? ` y sus ${file.filesCount} ${file.filesCount === 1 ? 'archivo' : 'archivos'}` : '';
+      if (!(await askConfirm(`¿Eliminar la carpeta "${file.name}"${contenido} definitivamente? Esta acción no se puede deshacer.`, { confirmText: 'Eliminar definitivamente', danger: true }))) return;
+      try {
+        await filesService.deleteFolderPermanently(currentUser?.id, file.id);
+        setTrashFiles(prev => prev.filter(f => f.id !== file.id));
+        onNotification && onNotification(`La carpeta "${file.name}" se eliminó definitivamente.`, 'info');
+      } catch (err) {
+        onNotification && onNotification(err.message, 'error');
+      }
+      return;
+    }
     if (!(await askConfirm(`¿Eliminar "${file.name}" definitivamente? Esta acción no se puede deshacer.`, { confirmText: 'Eliminar definitivamente', danger: true }))) return;
     try {
       await filesService.deletePermanently(currentUser?.id, file.id, file.file_path);
@@ -1217,8 +1246,8 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
             <Clock size={18} color="var(--danger)" />
             <span>
               {retentionDays
-                ? <>Los archivos en la papelera se eliminan definitivamente después de <strong>{retentionDays} días</strong> (Plan {planName}).</>
-                : <>Tu Plan {planName} conserva los archivos de la papelera <strong>sin límite de tiempo</strong>.</>}
+                ? <>Los archivos y carpetas de la papelera se eliminan definitivamente después de <strong>{retentionDays} días</strong> (Plan {planName}).</>
+                : <>Tu Plan {planName} conserva los archivos y carpetas de la papelera <strong>sin límite de tiempo</strong>.</>}
             </span>
           </div>
         )}
@@ -1282,13 +1311,13 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
               <div style={{ padding: '3.5rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                 <Trash2 size={44} style={{ margin: '0 auto 12px auto', opacity: 0.35 }} />
                 <h4 style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-main)', marginBottom: '4px' }}>La papelera está vacía</h4>
-                <p style={{ fontSize: '0.85rem', margin: 0 }}>Los archivos que elimines aparecerán aquí y podrás restaurarlos.</p>
+                <p style={{ fontSize: '0.85rem', margin: 0 }}>Los archivos y carpetas que elimines aparecerán aquí y podrás restaurarlos.</p>
               </div>
             ) : (
               <table className="nb-dash-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                 <thead>
                   <tr style={{ background: 'var(--bg-subtle)', borderBottom: '1px solid var(--border-color)', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em' }}>
-                    <th style={{ padding: '12px 20px', fontWeight: 600 }}>Nombre del archivo</th>
+                    <th style={{ padding: '12px 20px', fontWeight: 600 }}>Nombre</th>
                     <th style={{ padding: '12px 16px', fontWeight: 600 }}>Tamaño</th>
                     <th style={{ padding: '12px 16px', fontWeight: 600 }}>Eliminado</th>
                     <th style={{ padding: '12px 16px', fontWeight: 600 }}>Se borra en</th>
@@ -1297,7 +1326,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
                 </thead>
                 <tbody>
                   {filteredTrash.map((file) => (
-                    <tr key={file.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                    <tr key={`${file.kind}-${file.id}`} style={{ borderBottom: '1px solid var(--border-color)' }}>
                       <td style={{ padding: '14px 20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <div
                           style={{
@@ -1312,11 +1341,21 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
                             opacity: 0.6
                           }}
                         >
-                          {getFileIcon(file.type, file.ext)}
+                          {file.kind === 'folder'
+                            ? <Folder size={20} fill={(FOLDER_COLOR_MAP[file.color] || FOLDER_COLOR_MAP.purple).bg} color={(FOLDER_COLOR_MAP[file.color] || FOLDER_COLOR_MAP.purple).color} />
+                            : getFileIcon(file.type, file.ext)}
                         </div>
-                        <span style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {file.name}
-                        </span>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {file.name}
+                          </div>
+                          {file.kind === 'folder' && (
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-light, var(--text-muted))' }}>
+                              Carpeta · {file.filesCount} {file.filesCount === 1 ? 'archivo' : 'archivos'}
+                              {file.subfoldersCount > 0 ? ` · ${file.subfoldersCount} ${file.subfoldersCount === 1 ? 'subcarpeta' : 'subcarpetas'}` : ''}
+                            </div>
+                          )}
+                        </div>
                       </td>
 
                       <td style={{ padding: '14px 16px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
@@ -1364,7 +1403,7 @@ export const DashboardView = ({ currentUser, onLogout, onNotification, onChangeP
                               fontSize: '0.8rem',
                               fontWeight: 700
                             }}
-                            title="Restaurar archivo"
+                            title={file.kind === 'folder' ? 'Restaurar carpeta con su contenido' : 'Restaurar archivo'}
                           >
                             <RotateCcw size={16} />
                             <span>Restaurar</span>

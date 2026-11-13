@@ -161,6 +161,30 @@ export function getDescendantFolderIds(folders, folderId) {
   return ids;
 }
 
+// Error de Postgres cuando una columna no existe (la BD aún no tiene la sección 18 de schema.sql)
+const COLUMNA_INEXISTENTE = '42703';
+
+/**
+ * Consulta carpetas sin las que están en la papelera. Si la BD todavía no tiene la columna
+ * "eliminado" (falta correr la sección 18 de schema.sql), repite la consulta sin ese filtro.
+ * construir(conFiltro) arma la consulta.
+ */
+async function consultarCarpetasActivas(construir) {
+  const res = await construir(true);
+  if (res.error?.code === COLUMNA_INEXISTENTE) return construir(false);
+  return res;
+}
+
+// Partir una lista en grupos (para no armar URLs demasiado largas con .in())
+const enGrupos = (lista, n = 100) => Array.from({ length: Math.ceil(lista.length / n) }, (_, i) => lista.slice(i * n, i * n + n));
+
+/** Días que le quedan a algo en la papelera (null = sin límite) */
+function diasRestantes(fechaEliminacion, retentionDays) {
+  if (!retentionDays || !fechaEliminacion) return null;
+  const expira = new Date(fechaEliminacion).getTime() + retentionDays * DIA_MS;
+  return Math.max(0, Math.ceil((expira - Date.now()) / DIA_MS));
+}
+
 export const filesService = {
   /**
    * Obtener los archivos activos del usuario (sin los de la papelera)
@@ -208,14 +232,12 @@ export const filesService = {
     if (!activeUserId) return [];
 
     try {
-      let query = supabase.from('carpeta').select('*').eq('id_usuario', activeUserId);
-      if (parentFolderId) {
-        query = query.eq('id_carpeta_padre', parentFolderId);
-      } else {
-        query = query.is('id_carpeta_padre', null);
-      }
-
-      const { data, error } = await query.order('nombre', { ascending: true });
+      const { data, error } = await consultarCarpetasActivas((conFiltro) => {
+        let query = supabase.from('carpeta').select('*').eq('id_usuario', activeUserId);
+        if (conFiltro) query = query.eq('eliminado', false);
+        query = parentFolderId ? query.eq('id_carpeta_padre', parentFolderId) : query.is('id_carpeta_padre', null);
+        return query.order('nombre', { ascending: true });
+      });
 
       if (error) {
         console.error('Error al consultar tabla public.carpeta:', error.message);
@@ -237,11 +259,11 @@ export const filesService = {
     if (!activeUserId) return [];
 
     try {
-      const { data, error } = await supabase
-        .from('carpeta')
-        .select('*')
-        .eq('id_usuario', activeUserId)
-        .order('nombre', { ascending: true });
+      const { data, error } = await consultarCarpetasActivas((conFiltro) => {
+        let query = supabase.from('carpeta').select('*').eq('id_usuario', activeUserId);
+        if (conFiltro) query = query.eq('eliminado', false);
+        return query.order('nombre', { ascending: true });
+      });
 
       if (error) return [];
       return (data || []).map(mapCarpeta);
@@ -333,49 +355,61 @@ export const filesService = {
   },
 
   /**
-   * Eliminar una carpeta y sus subcarpetas.
-   * Los archivos que contenían se mandan a la papelera (en la raíz) en vez de borrarse.
+   * Mandar una carpeta a la papelera con sus subcarpetas y archivos (sección 18 de schema.sql).
+   * Devuelve cuántos archivos se fueron con ella.
    */
-  async deleteFolder(folderId, userId) {
-    const activeUserId = await resolveUserId(userId);
-    const todas = await this.getAllUserFolders(activeUserId);
-    const ids = [folderId, ...getDescendantFolderIds(todas, folderId)];
-
-    // 1. Archivos activos dentro de la carpeta o sus subcarpetas -> papelera
-    const { data: enviados, error: trashError } = await supabase
-      .from('archivo')
-      .update({ eliminado: true, fecha_eliminacion: new Date().toISOString() })
-      .in('id_carpeta', ids)
-      .eq('eliminado', false)
-      .select('id_archivo');
-
-    if (trashError) {
-      throw new Error(`No se pudieron mover los archivos a la papelera: ${trashError.message}`);
-    }
-
-    // 2. Sacar todos los archivos de esas carpetas (incluidos los que ya estaban en la papelera)
-    //    para que el ON DELETE CASCADE no los borre junto con la carpeta
-    const { error: detachError } = await supabase
-      .from('archivo')
-      .update({ id_carpeta: null })
-      .in('id_carpeta', ids);
-
-    if (detachError) {
-      throw new Error(`No se pudieron sacar los archivos de la carpeta: ${detachError.message}`);
-    }
-
-    // 3. Eliminar la carpeta (las subcarpetas se borran por ON DELETE CASCADE)
-    const { error } = await supabase
-      .from('carpeta')
-      .delete()
-      .eq('id_carpeta', folderId);
-
+  async deleteFolder(folderId) {
+    const { data, error } = await supabase.rpc('enviar_carpeta_papelera', { p_carpeta: folderId });
     if (error) {
-      console.error('Error al eliminar carpeta:', error.message);
-      throw new Error(`No se pudo eliminar la carpeta: ${error.message}`);
+      if (error.code === 'PGRST202') {
+        throw new Error('Falta actualizar la base de datos (sección 18 de schema.sql) para mandar carpetas a la papelera.');
+      }
+      throw new Error(`No se pudo mover la carpeta a la papelera: ${error.message}`);
+    }
+    return Number(data) || 0;
+  },
+
+  /**
+   * Restaurar una carpeta de la papelera con su estructura y sus archivos
+   */
+  async restoreFolder(folderId) {
+    const { data, error } = await supabase.rpc('restaurar_carpeta', { p_carpeta: folderId });
+    if (error) throw new Error(`No se pudo restaurar la carpeta: ${error.message}`);
+    return Number(data) || 0;
+  },
+
+  /**
+   * Eliminar definitivamente una carpeta de la papelera: borra de Storage todos sus archivos
+   * (y sus versiones) y luego la carpeta; las subcarpetas y registros se van por ON DELETE CASCADE.
+   */
+  async deleteFolderPermanently(userId, folderId) {
+    const activeUserId = await resolveUserId(userId);
+    const { data: todas, error: errCarpetas } = await supabase
+      .from('carpeta').select('id_carpeta, id_carpeta_padre').eq('id_usuario', activeUserId);
+    if (errCarpetas) throw new Error(`No se pudo eliminar la carpeta: ${errCarpetas.message}`);
+
+    const ids = [folderId, ...getDescendantFolderIds((todas || []).map(c => ({ id: c.id_carpeta, parentId: c.id_carpeta_padre })), folderId)];
+
+    const archivos = [];
+    for (const grupo of enGrupos(ids)) {
+      const { data } = await supabase.from('archivo').select('id_archivo, ruta_storage').in('id_carpeta', grupo);
+      archivos.push(...(data || []));
+    }
+    const rutas = archivos.map(a => a.ruta_storage);
+    for (const grupo of enGrupos(archivos.map(a => a.id_archivo))) {
+      const { data } = await supabase.from('archivo_version').select('ruta_storage').in('id_archivo', grupo);
+      rutas.push(...(data || []).map(v => v.ruta_storage));
+    }
+    for (const grupo of enGrupos(rutas.filter(Boolean))) {
+      const { error: stErr } = await supabase.storage.from(BUCKET).remove(grupo);
+      if (stErr) console.error('Error al eliminar de Storage:', stErr.message);
     }
 
-    return (enviados || []).length;
+    const { error } = await supabase.from('carpeta').delete().eq('id_carpeta', folderId);
+    if (error) throw new Error(`No se pudo eliminar la carpeta definitivamente: ${error.message}`);
+
+    await recalcularAlmacenamiento(activeUserId);
+    return archivos.length;
   },
 
   /**
@@ -761,37 +795,72 @@ export const filesService = {
   },
 
   /**
-   * Obtener archivos en la papelera con los días que les quedan
+   * Contenido de la papelera: carpetas (con lo que tienen dentro) y archivos sueltos,
+   * con los días que les quedan. Cada elemento trae kind: 'folder' | 'file'.
+   * Los archivos que están dentro de una carpeta eliminada no se listan aparte: se
+   * restauran o se borran junto con ella.
    */
-  async getTrashFiles(userId, retentionDays = 30) {
+  async getTrashItems(userId, retentionDays = 30) {
     const activeUserId = await resolveUserId(userId);
     if (!activeUserId) return [];
 
-    const { data, error } = await supabase
-      .from('archivo')
-      .select('*')
-      .eq('id_usuario', activeUserId)
-      .eq('eliminado', true)
-      .order('fecha_eliminacion', { ascending: false });
+    const [{ data, error }, { data: carpetas, error: errCarpetas }] = await Promise.all([
+      supabase.from('archivo').select('*').eq('id_usuario', activeUserId).eq('eliminado', true)
+        .order('fecha_eliminacion', { ascending: false }),
+      supabase.from('carpeta').select('id_carpeta, id_carpeta_padre, nombre, color, eliminado, fecha_eliminacion').eq('id_usuario', activeUserId),
+    ]);
 
     if (error) {
       console.error('Error al consultar la papelera:', error.message);
       return [];
     }
 
-    return (data || []).map(f => {
-      const archivo = mapArchivo(f);
-      let daysLeft = null;
-      if (retentionDays && f.fecha_eliminacion) {
-        const expira = new Date(f.fecha_eliminacion).getTime() + retentionDays * DIA_MS;
-        daysLeft = Math.max(0, Math.ceil((expira - Date.now()) / DIA_MS));
-      }
-      return {
-        ...archivo,
+    // Sin la sección 18 en la BD no hay carpetas en la papelera
+    const todas = errCarpetas ? [] : (carpetas || []);
+    const eliminadas = new Map(todas.filter(c => c.eliminado).map(c => [c.id_carpeta, c]));
+    const mapeadas = todas.map(c => ({ id: c.id_carpeta, parentId: c.id_carpeta_padre }));
+
+    const archivosBorrados = data || [];
+    const items = [];
+
+    for (const c of eliminadas.values()) {
+      // Solo la carpeta de más arriba: sus subcarpetas van dentro de ella
+      if (c.id_carpeta_padre && eliminadas.has(c.id_carpeta_padre)) continue;
+      const subarbol = new Set([c.id_carpeta, ...getDescendantFolderIds(mapeadas, c.id_carpeta)]);
+      const dentro = archivosBorrados.filter(f => subarbol.has(f.id_carpeta));
+      const bytes = dentro.reduce((acc, f) => acc + parseInt(f.tamano || 0, 10), 0);
+      items.push({
+        kind: 'folder',
+        id: c.id_carpeta,
+        name: c.nombre,
+        color: c.color || 'purple',
+        filesCount: dentro.length,
+        subfoldersCount: subarbol.size - 1,
+        size_bytes: bytes,
+        size: formatBytes(bytes),
+        deletedAt: c.fecha_eliminacion,
+        deleted: c.fecha_eliminacion ? formatDate(c.fecha_eliminacion) : '',
+        daysLeft: diasRestantes(c.fecha_eliminacion, retentionDays),
+      });
+    }
+
+    for (const f of archivosBorrados) {
+      if (f.id_carpeta && eliminadas.has(f.id_carpeta)) continue;
+      items.push({
+        ...mapArchivo(f),
+        kind: 'file',
+        deletedAt: f.fecha_eliminacion,
         deleted: f.fecha_eliminacion ? formatDate(f.fecha_eliminacion) : '',
-        daysLeft
-      };
-    });
+        daysLeft: diasRestantes(f.fecha_eliminacion, retentionDays),
+      });
+    }
+
+    return items.sort((a, b) => new Date(b.deletedAt || 0) - new Date(a.deletedAt || 0));
+  },
+
+  /** Compatibilidad: solo los archivos sueltos de la papelera */
+  async getTrashFiles(userId, retentionDays = 30) {
+    return (await this.getTrashItems(userId, retentionDays)).filter(i => i.kind === 'file');
   },
 
   /**
@@ -853,6 +922,28 @@ export const filesService = {
 
     const limite = new Date(Date.now() - retentionDays * DIA_MS).toISOString();
 
+    // 1. Carpetas vencidas (con todo lo que tienen dentro). Solo las de más arriba:
+    //    las subcarpetas se van con ellas.
+    let carpetasPurgadas = 0;
+    const { data: vencidas, error: errCarpetas } = await supabase
+      .from('carpeta')
+      .select('id_carpeta, id_carpeta_padre')
+      .eq('id_usuario', activeUserId)
+      .eq('eliminado', true)
+      .lt('fecha_eliminacion', limite);
+    if (!errCarpetas && vencidas) {
+      const idsVencidas = new Set(vencidas.map(c => c.id_carpeta));
+      for (const c of vencidas.filter(c => !idsVencidas.has(c.id_carpeta_padre))) {
+        try {
+          await this.deleteFolderPermanently(activeUserId, c.id_carpeta);
+          carpetasPurgadas += 1;
+        } catch (e) {
+          console.warn('No se pudo purgar carpeta:', c.id_carpeta, e);
+        }
+      }
+    }
+
+    // 2. Archivos vencidos
     const { data, error } = await supabase
       .from('archivo')
       .select('id_archivo, ruta_storage')
@@ -860,7 +951,7 @@ export const filesService = {
       .eq('eliminado', true)
       .lt('fecha_eliminacion', limite);
 
-    if (error || !data) return 0;
+    if (error || !data) return carpetasPurgadas;
 
     for (const f of data) {
       try {
@@ -869,7 +960,7 @@ export const filesService = {
         console.warn('No se pudo purgar archivo:', f.id_archivo, e);
       }
     }
-    return data.length;
+    return carpetasPurgadas + data.length;
   },
 
   // ===========================================================================
